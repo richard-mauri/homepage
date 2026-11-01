@@ -4,6 +4,7 @@
 
 - Repository: https://github.com/richard-mauri/homepage
 - Authoritative merged baseline: `main`; working branch: `feat/versioned-build-workflow`.
+- Latest fix: render the executable's stamped version/build into homepage HTML on the server rather than relying on JavaScript; preserves /api/config and -version values. Live Mac/Safari acceptance remains pending.
 - Goal: introduce ScraperGo-style development documentation and a live footer version indicator, `-version` reporting, six-digit local build numbering, dual-architecture Mac builds/checksums and safe Homepage-only launcher.
 - Five document files: `README.md`, `AGENTS.md`, `ARCHITECTURE.md`, `DEVELOPMENT.md`, `CURRENT_WORK.md`.
 - Runtime files: `main.go`, `devbuild.sh`, `homego.sh`, `.gitignore`.
