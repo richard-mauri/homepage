@@ -1,0 +1,8 @@
+.cloudflared
+dist
+homepage
+nohup.out
+deploy
+.DS_Store
+.env
+*.log
