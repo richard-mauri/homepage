@@ -4,7 +4,7 @@
 
 - Repository: https://github.com/richard-mauri/homepage
 - Authoritative merged baseline: `main`; working branch: `feat/versioned-build-workflow`.
-- Goal: introduce ScraperGo-style development documentation, `-version` reporting, six-digit local build numbering, dual-architecture Mac builds/checksums and safe Homepage-only launcher.
+- Goal: introduce ScraperGo-style development documentation and a live footer version indicator, `-version` reporting, six-digit local build numbering, dual-architecture Mac builds/checksums and safe Homepage-only launcher.
 - Five document files: `README.md`, `AGENTS.md`, `ARCHITECTURE.md`, `DEVELOPMENT.md`, `CURRENT_WORK.md`.
 - Runtime files: `main.go`, `devbuild.sh`, `homego.sh`, `.gitignore`.
 - Intended behavior: keep the existing homepage and four destination URLs, default loopback listener, dedicated Cloudflare tunnel, and unrelated applications unchanged.
