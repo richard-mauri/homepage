@@ -71,7 +71,9 @@ func main() {
   if r.URL.Path!="/" {http.NotFound(w,r);return}
   w.Header().Set("Content-Type","text/html; charset=utf-8")
   w.Header().Set("Cache-Control","no-cache")
-  http.ServeFileFS(w,r,sub,"index.html")
+  page,err:=fs.ReadFile(sub,"index.html")
+  if err!=nil {http.Error(w,"Homepage unavailable",http.StatusInternalServerError);return}
+  _,_ = w.Write([]byte(strings.ReplaceAll(string(page),"{{HOMEPAGE_VERSION}}",fmt.Sprintf("v%s · %s",appVersion,appBuild))))
  })
  server:=&http.Server{Addr:addr,Handler:mux,ReadHeaderTimeout:5*time.Second,IdleTimeout:60*time.Second}
  log.Printf("The Mauris homepage listening at http://%s",addr)
