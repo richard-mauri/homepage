@@ -1,59 +1,38 @@
-# The Mauris — homepage
+# The Mauris — Homepage
 
-A responsive, dark-first personal launchpad for Sailing Outlook, Stocks, NewsGo and ScraperGo. Standard-library Go server, embedded static assets, zero Node or build tooling. Runs locally and can be published through a Cloudflare Tunnel. Includes light-mode toggle and Pacific-time clock.
+Personal Go-powered launchpad published at https://home.themauris.org/ through its dedicated Cloudflare Tunnel. The site links to four **independent** applications:
 
-## Quick start (macOS)
-
-```bash
-mkdir -p ~/projects
-unzip homepage.zip -d ~/projects   # creates ~/projects/homepage
-cd ~/projects/homepage
-go run .
-```
-
-Visit http://127.0.0.1:8787. Requires Go 1.22+ and an existing Go installation. Build a standalone executable with `go build -o homepage .` and run `./homepage`. No third-party Go dependencies.
-
-## App launch URLs
-
-The cards launch these absolute HTTPS URLs by default:
-
-| Card | URL |
+| Card | Destination |
 | --- | --- |
 | Sailing Outlook | https://weather.themauris.org/ |
 | Stocks | https://stocks.themauris.org/ |
 | NewsGo | https://newsgo.themauris.org/ |
 | ScraperGo | https://scrapergo.themauris.org/ |
 
-These links open in a new tab. To override an individual destination, set `SAILING_URL`, `STOCKS_URL`, `NEWSGO_URL`, or `SCRAPERGO_URL` in the server environment before starting it. No override is required for the above addresses. Environment variables in an existing LaunchAgent take precedence over the compiled defaults; remove or update any old placeholder values, then restart the service.
+The cards open new tabs. Override their targets with `SAILING_URL`, `STOCKS_URL`, `NEWSGO_URL`, and `SCRAPERGO_URL` if necessary.
 
-## Cloudflare Tunnel
+## Development and local use
 
-1. In Cloudflare Zero Trust, reuse your existing **named** tunnel running on the machine hosting this server. Install `cloudflared` using a suitable prebuilt installer/binary and follow Cloudflare's current connector instructions.
-2. Configure the existing tunnel's public hostname `home.themauris.org` to point to `http://127.0.0.1:8787`. If using a locally managed tunnel, adapt `deploy/cloudflared-config.example.yml` with the tunnel UUID and credentials file path, then set up the Cloudflare DNS route. If the tunnel is managed in the Cloudflare dashboard, configure the public hostname there instead; do not configure competing ingress rules.
-3. Start the Go server and the tunnel. The homepage binds to loopback (`127.0.0.1`) by default and needs no inbound router port forwarding.
-4. Optionally set up a Cloudflare redirect from `themauris.org` or `www.themauris.org` to `https://home.themauris.org`.
-
-**Security:** Publishing the homepage does not automatically publish, proxy, or protect the linked apps. Use Cloudflare Access for private application hostnames and avoid exposing admin or scraper interfaces publicly without authentication. Cloudflare Tunnel on the host does not provide access control by itself.
-
-## Keep it running on your Mac
-
-You can use a macOS LaunchAgent for the built `homepage` binary. Provide a valid `ProgramArguments` absolute path plus `WorkingDirectory` and all desired URL environment variables. A sample template is in `deploy/org.themauris.homepage.plist.example`; replace `YOUR-USERNAME`, then save it as `~/Library/LaunchAgents/org.themauris.homepage.plist` and load with `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/org.themauris.homepage.plist`. It runs when you are logged in. On a machine that must host the site while logged out, use a dedicated always-on host and appropriate service management instead.
-
-## Git
+Source: https://github.com/richard-mauri/homepage. Requires Go 1.22+ and Git. The Go server uses the standard library and embedded assets; no Node toolchain is needed.
 
 ```bash
 cd ~/projects/homepage
-git init
-git add .
-git commit -m "Initial The Mauris portal"
-# To connect a remote later:
-# git remote add origin git@github.com:YOUR-USER/homepage.git
-# git branch -M main
-# git push -u origin main
+go test -count=1 ./...
+./devbuild.sh
+./dist/homepage-darwin-amd64 -version
+./homego.sh
 ```
 
-## Customization
+`devbuild.sh` tests and builds both `darwin/amd64` and `darwin/arm64` executables under `dist/`, generating `SHA256SUMS`. It assigns a six-digit build number stored at the private Git path `homepage-build-counter`; numbers increase for each build attempt after tests pass, are independent of version and branch, and are **local to the checkout**, not globally synchronized. Do not commit or reset that counter. Normal development does not change `appVersion` (currently `0.1.0`); a release/version decision requires owner approval. The `-version` flag prints `Homepage v0.1.0 · Build 000001` for an example stamped build. A plain `go run . -version` uses the unstamped `Build 000000`.
 
-Edit `static/styles.css` for colors/layout, `static/index.html` for text/sections, and `main.go` (`config()` function) for cards, labels and descriptions. A `go run .` restart picks up edits. The frontend retrieves card configuration from `/api/config`. Health endpoint: `/healthz`.
+`homego.sh` is machine-specific: it checks the version stamp before restarting only the Homepage executable and its own `cloudflared` tunnel using the private `.cloudflared/token`. It uses `/Users/richardmauri/projects/homepage` and `~/Applications/cloudflared`; never commit the tunnel token. Use `http://127.0.0.1:8787/healthz` for local health checks. `LISTEN_ADDR` defaults to `127.0.0.1:8787`.
 
-No external services are used by the Go backend. The frontend optionally fetches Google Fonts; it uses local system-font fallbacks if blocked.
+Cloudflare Tunnel's published hostname `home.themauris.org` points to `http://127.0.0.1:8787`. The `www.themauris.org` DNS record is not part of this application's deployment and should not be changed implicitly. No router port forwarding is required. Restrict sensitive linked applications with their own appropriate access controls.
+
+## Repository reference documents
+
+Read [AGENTS.md](AGENTS.md) and [CURRENT_WORK.md](CURRENT_WORK.md) before making changes. [ARCHITECTURE.md](ARCHITECTURE.md) specifies ownership and security boundaries; [DEVELOPMENT.md](DEVELOPMENT.md) governs Issues, branches, PRs, build, Mac acceptance, and releases.
+
+The homepage footer is rendered by the Go server with the running executable's semantic version and exact build number, matching `-version`. `/api/config` also returns those values. The version is visible even if the browser JavaScript fails or is cached.
+
+The browser assets live under `static/`. `main.go` owns HTTP setup, embedded assets, and the JSON card configuration at `/api/config`. The health check is `/healthz`. The homepage intentionally does not proxy or manage the four linked services.

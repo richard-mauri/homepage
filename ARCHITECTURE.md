@@ -1,0 +1,11 @@
+# Homepage architecture contract
+
+Homepage is a small Go standard-library server. `main.go` is the HTTP composition root: it embeds `static/*`, configures `/api/config`, `/healthz`, static assets and the homepage, and exposes a simple `-version` CLI flag. Keep this small; extract packages only when justified by actual complexity.
+
+`static/index.html`, `static/styles.css`, `static/app.js` and `static/favicon.svg` own browser markup, styling, client interactions and icon. No browser build pipeline is required. The frontend receives link metadata from `/api/config`. App cards contain absolute HTTPS links and open external destinations; they do not proxy services or perform remote API operations. Default destinations are weather, stocks, newsgo and scrapergo subdomains of `themauris.org`.
+
+`LISTEN_ADDR` defaults to `127.0.0.1:8787` and is consumed by the external Cloudflare tunnel. The tunnel is a distinct process. Its private token resides under `.cloudflared/token`, which must never be committed. Avoid broad network binds, admin endpoints, untrusted redirects or secrets in responses. Environment URL overrides require an operator-controlled environment; do not accept arbitrary client-provided URL settings.
+
+`devbuild.sh` runs `go test -count=1 ./...`, reserves the next build number at Git's private `homepage-build-counter` path, compiles standalone Intel and Apple Silicon binaries and writes `dist/SHA256SUMS`. `appVersion` and `appBuild` are separate: semantic version changes only by owner decision; the build label is injected at link time. The counter is per-checkout, not a global sequence across machines. `homego.sh` validates the stamped binary and restarts only Homepage and its matching tunnel.
+
+Changes must preserve the route contract, accessible responsive UI, external link safety, machine-specific process isolation and credentials exclusion. Add tests around new behavior; no claim that compiling validates real Safari/Cloudflare behavior.
