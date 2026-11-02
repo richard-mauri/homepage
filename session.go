@@ -41,6 +41,44 @@ func validSessionOrigin(r *http.Request) bool {
  // intentionally not trusted to create or revoke sessions.
  return origin=="https://"+r.Host || (strings.HasPrefix(r.Host,"127.0.0.1:") && origin=="http://"+r.Host)
 }
+// Only these trusted application origins may call the storage API using
+// credentials. Other origins receive no CORS permission.
+func allowedStorageOrigin(origin string) bool {
+ switch origin {
+ case "https://home.themauris.org", "https://stocks.themauris.org", "https://newsgo.themauris.org":
+  return true
+ default:
+  return false
+ }
+}
+func (s *sessionService) suiteStorageHandler(next http.Handler) http.Handler {
+ secured:=s.storageHandler(next)
+ return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
+  origin:=r.Header.Get("Origin")
+  w.Header().Add("Vary","Origin")
+  if origin!="" && allowedStorageOrigin(origin) {
+   w.Header().Set("Access-Control-Allow-Origin",origin)
+   w.Header().Set("Access-Control-Allow-Credentials","true")
+  }
+  if r.Method==http.MethodOptions {
+   if !allowedStorageOrigin(origin) || r.Header.Get("Access-Control-Request-Method")!="GET" && r.Header.Get("Access-Control-Request-Method")!="PUT" {
+    http.Error(w,"preflight not allowed",403);return
+   }
+   headers:=strings.ToLower(r.Header.Get("Access-Control-Request-Headers"))
+   if headers!="" && headers!="content-type" && headers!="authorization" && headers!="content-type, authorization" && headers!="authorization, content-type"{
+    http.Error(w,"preflight headers not allowed",403);return
+   }
+   w.Header().Set("Access-Control-Allow-Methods","GET, PUT")
+   w.Header().Set("Access-Control-Allow-Headers","Content-Type, Authorization")
+   w.Header().Set("Access-Control-Max-Age","300")
+   w.WriteHeader(http.StatusNoContent);return
+  }
+  // A supplied Origin must be one of our trusted suite applications.
+  // Requests without Origin remain available to non-browser bearer clients.
+  if origin!="" && !allowedStorageOrigin(origin){http.Error(w,"origin not allowed",403);return}
+  secured.ServeHTTP(w,r)
+ })
+}
 // authenticateSession rechecks the credential registry on each request.
 // Removing a token or changing its role takes effect immediately.
 func (s *sessionService) authenticateSession(r *http.Request) (string,string,bool) {
@@ -57,7 +95,7 @@ func (s *sessionService) storageHandler(next http.Handler) http.Handler {
   if _,err:=r.Cookie(sessionCookieName);err==nil {
    user,_,ok:=s.authenticateSession(r)
    if !ok{http.Error(w,"session invalid",401);return}
-   if r.Method!=http.MethodGet && !validSessionOrigin(r){http.Error(w,"invalid origin",403);return}
+   if r.Method!=http.MethodGet && !allowedStorageOrigin(r.Header.Get("Origin")) {http.Error(w,"invalid origin",403);return}
    next.ServeHTTP(w,suitestore.WithIdentity(r,user));return
   }
   next.ServeHTTP(w,r)
