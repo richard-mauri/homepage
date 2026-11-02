@@ -85,3 +85,39 @@ func TestStorageSessionRevocationAndCSRF(t *testing.T) {
  resp=httptest.NewRecorder();svc.handler(resp,sessionReq)
  if resp.Code!=401{t.Fatalf("revoked session status accepted: %d",resp.Code)}
 }
+
+func TestSuiteProfileReadOnlyAndOriginPolicy(t *testing.T) {
+ root:=t.TempDir()
+ store,err:=suitestore.New(root,"mauristocks")
+ if err!=nil{t.Fatal(err)}
+ token:=strings.Repeat("b",64)
+ digest:=sha256.Sum256([]byte(token))
+ if err:=os.MkdirAll(filepath.Join(root,"auth"),0700);err!=nil{t.Fatal(err)}
+ credentials,_:=json.Marshal([]suitestore.Credential{{User:"reader",Digest:hex.EncodeToString(digest[:]),Role:"user"}})
+ if err:=os.WriteFile(filepath.Join(root,"auth","approved-tokens.json"),credentials,0600);err!=nil{t.Fatal(err)}
+ svc:=newSessionService(store)
+ login:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/session",nil)
+ login.Header.Set("Origin","https://home.themauris.org")
+ login.Header.Set("Authorization","Bearer "+token)
+ w:=httptest.NewRecorder();svc.handler(w,login)
+ if w.Code!=200{t.Fatalf("login failed: %d",w.Code)}
+ cookie:=w.Result().Cookies()[0]
+ fetch:=func(origin string,withCookie bool,method string)*httptest.ResponseRecorder{
+  req:=httptest.NewRequest(method,"https://home.themauris.org/api/session/profile",nil)
+  if origin!=""{req.Header.Set("Origin",origin)}
+  if withCookie{req.AddCookie(cookie)}
+  result:=httptest.NewRecorder();svc.profileHandler(result,req)
+  return result
+ }
+ w=fetch("https://stocks.themauris.org",true,http.MethodGet)
+ if w.Code!=200 || !strings.Contains(w.Body.String(),`"user":"reader"`) || !strings.Contains(w.Body.String(),`"role":"user"`) {
+  t.Fatalf("profile: %d %s",w.Code,w.Body.String())
+ }
+ if w.Header().Get("Access-Control-Allow-Origin")!="https://stocks.themauris.org" || w.Header().Get("Access-Control-Allow-Credentials")!="true" {
+  t.Fatal("missing trusted origin credentialed CORS response")
+ }
+ if w.Header().Get("Cache-Control")!="no-store"{t.Fatal("profile must not be cached")}
+ if w=fetch("https://evil.example",true,http.MethodGet);w.Code!=403 || w.Header().Get("Access-Control-Allow-Origin")!="" {t.Fatal("untrusted origin not rejected")}
+ if w=fetch("https://stocks.themauris.org",false,http.MethodGet);w.Code!=401 {t.Fatal("anonymous profile access")}
+ if w=fetch("https://stocks.themauris.org",true,http.MethodPost);w.Code!=405 {t.Fatal("profile must be read only")}
+}
