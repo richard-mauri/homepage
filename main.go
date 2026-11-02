@@ -37,6 +37,7 @@ type Config struct {
  Tagline string `json:"tagline"`
  Version string `json:"version"`
  Build string `json:"build"`
+ PersistenceAvailable bool `json:"persistenceAvailable"`
  Apps []App `json:"apps"`
 }
 func env(key, fallback string) string {
@@ -44,7 +45,7 @@ func env(key, fallback string) string {
  return fallback
 }
 func config() Config {
- return Config{SiteName:"The Mauris",Version:appVersion,Build:appBuild,Tagline:"A private corner of the web. Built for the things we follow, build, and explore.",Apps:[]App{
+ return Config{SiteName:"The Mauris",Version:appVersion,Build:appBuild,PersistenceAvailable:strings.TrimSpace(os.Getenv("SUITE_DATA_DIR"))!="",Tagline:"A private corner of the web. Built for the things we follow, build, and explore.",Apps:[]App{
  {"sailing","Sailing Outlook","WEATHER & WATER","Live marine conditions, wind trends, and the Delta-to-Bay outlook.",env("SAILING_URL","https://weather.themauris.org/"),"ON THE WATER","sail","cyan",true},
  {"stocks","Stocks","MARKETS & PORTFOLIO","Market views, watchlists, and the signals worth paying attention to.",env("STOCKS_URL","https://stocks.themauris.org/"),"IN THE MARKETS","chart","mint",true},
  {"newsgo","NewsGo","NEWS INTELLIGENCE","Your news stream, organized for a faster read on what matters.",env("NEWSGO_URL","https://newsgo.themauris.org/"),"STAY INFORMED","news","amber",true},
