@@ -8,6 +8,7 @@ import (
  "io/fs"
  "log"
  "net/http"
+ "net/url"
  "os"
  "strings"
  "time"
@@ -60,7 +61,10 @@ func main() {
  sub,err:=fs.Sub(assets,"static");if err!=nil {log.Fatal(err)}
  mux:=http.NewServeMux()
  if err:=configureSuiteStorage(mux,os.Getenv("SUITE_DATA_DIR"));err!=nil {log.Fatalf("Suite storage configuration: %v",err)}
- mux.Handle("/static/",http.StripPrefix("/static/",http.FileServer(http.FS(sub))))
+ mux.Handle("/static/",http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
+  w.Header().Set("Cache-Control","no-cache, must-revalidate")
+  http.StripPrefix("/static/",http.FileServer(http.FS(sub))).ServeHTTP(w,r)
+ }))
  mux.HandleFunc("/api/config",func(w http.ResponseWriter,r *http.Request){
   if r.URL.Path!="/api/config" {http.NotFound(w,r);return}
   w.Header().Set("Content-Type","application/json; charset=utf-8")
@@ -77,7 +81,9 @@ func main() {
   w.Header().Set("Cache-Control","no-cache")
   page,err:=fs.ReadFile(sub,"index.html")
   if err!=nil {http.Error(w,"Homepage unavailable",http.StatusInternalServerError);return}
-  _,_ = w.Write([]byte(strings.ReplaceAll(string(page),"{{HOMEPAGE_VERSION}}",fmt.Sprintf("v%s · %s",appVersion,appBuild))))
+  html:=strings.ReplaceAll(string(page),"{{HOMEPAGE_VERSION}}",fmt.Sprintf("v%s · %s",appVersion,appBuild))
+  html=strings.ReplaceAll(html,"{{HOMEPAGE_ASSET_VERSION}}",url.QueryEscape(appVersion+"-"+appBuild))
+  _,_ = w.Write([]byte(html))
  })
  server:=&http.Server{Addr:addr,Handler:mux,ReadHeaderTimeout:5*time.Second,IdleTimeout:60*time.Second}
  log.Printf("The Mauris homepage listening at http://%s",addr)
