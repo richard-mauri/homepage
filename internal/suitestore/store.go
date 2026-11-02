@@ -20,51 +20,8 @@ import (
  "time"
 )
 
-var safeName = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}// Package suitestore provides a centralized, per-user JSON settings store.
-// It is intentionally not mounted by Homepage until authentication and migration
-// have been reviewed. No token values are written to disk.
-package suitestore
-
-import (
- "crypto/sha256"
- "crypto/subtle"
- "encoding/hex"
- "encoding/json"
- "errors"
- "fmt"
- "io"
- "net/http"
- "os"
- "path/filepath"
- "regexp"
- "strings"
- "sync"
- "time"
-)
-
-)\nvar legacyUserName = regexp.MustCompile(`^[a-zA-Z0-9_ -]{1,64}// Package suitestore provides a centralized, per-user JSON settings store.
-// It is intentionally not mounted by Homepage until authentication and migration
-// have been reviewed. No token values are written to disk.
-package suitestore
-
-import (
- "crypto/sha256"
- "crypto/subtle"
- "encoding/hex"
- "encoding/json"
- "errors"
- "fmt"
- "io"
- "net/http"
- "os"
- "path/filepath"
- "regexp"
- "strings"
- "sync"
- "time"
-)
-
-)
+var safeName = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
+var legacyUserName = regexp.MustCompile(`^[a-zA-Z0-9_ -]{1,64}$`)
 
 type Credential struct {
  User string `json:"user"`
