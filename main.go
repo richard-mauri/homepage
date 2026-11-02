@@ -11,6 +11,8 @@ import (
  "os"
  "strings"
  "time"
+
+ "themauris.org/homepage/internal/suitestore"
 )
 
 var appVersion = "0.1.0"
@@ -56,6 +58,7 @@ func main() {
  addr:=env("LISTEN_ADDR","127.0.0.1:8787")
  sub,err:=fs.Sub(assets,"static");if err!=nil {log.Fatal(err)}
  mux:=http.NewServeMux()
+ if err:=configureSuiteStorage(mux,os.Getenv("SUITE_DATA_DIR"));err!=nil {log.Fatalf("Suite storage configuration: %v",err)}
  mux.Handle("/static/",http.StripPrefix("/static/",http.FileServer(http.FS(sub))))
  mux.HandleFunc("/api/config",func(w http.ResponseWriter,r *http.Request){
   if r.URL.Path!="/api/config" {http.NotFound(w,r);return}
@@ -78,4 +81,16 @@ func main() {
  server:=&http.Server{Addr:addr,Handler:mux,ReadHeaderTimeout:5*time.Second,IdleTimeout:60*time.Second}
  log.Printf("The Mauris homepage listening at http://%s",addr)
  log.Fatal(server.ListenAndServe())
+}
+
+// configureSuiteStorage mounts the authenticated settings API only when an
+// operator explicitly supplies a persistent directory. The default Homepage
+// configuration remains a launcher with no storage or authentication endpoint.
+// This is bearer-token-only; cross-subdomain browser sessions are not yet built.
+func configureSuiteStorage(mux *http.ServeMux, root string) error {
+ if strings.TrimSpace(root)=="" { return nil }
+ store,err:=suitestore.New(root,"newsgo","mauristocks")
+ if err!=nil{return err}
+ mux.Handle("/api/storage/",store.Handler())
+ return nil
 }
