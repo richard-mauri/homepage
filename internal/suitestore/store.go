@@ -20,7 +20,51 @@ import (
  "time"
 )
 
-var safeName = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
+var safeName = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}// Package suitestore provides a centralized, per-user JSON settings store.
+// It is intentionally not mounted by Homepage until authentication and migration
+// have been reviewed. No token values are written to disk.
+package suitestore
+
+import (
+ "crypto/sha256"
+ "crypto/subtle"
+ "encoding/hex"
+ "encoding/json"
+ "errors"
+ "fmt"
+ "io"
+ "net/http"
+ "os"
+ "path/filepath"
+ "regexp"
+ "strings"
+ "sync"
+ "time"
+)
+
+)\nvar legacyUserName = regexp.MustCompile(`^[a-zA-Z0-9_ -]{1,64}// Package suitestore provides a centralized, per-user JSON settings store.
+// It is intentionally not mounted by Homepage until authentication and migration
+// have been reviewed. No token values are written to disk.
+package suitestore
+
+import (
+ "crypto/sha256"
+ "crypto/subtle"
+ "encoding/hex"
+ "encoding/json"
+ "errors"
+ "fmt"
+ "io"
+ "net/http"
+ "os"
+ "path/filepath"
+ "regexp"
+ "strings"
+ "sync"
+ "time"
+)
+
+)
 
 type Credential struct {
  User string `json:"user"`
@@ -64,7 +108,7 @@ func (s *Store) Authenticate(token string) (string,string,error) {
  sum:=sha256.Sum256([]byte(token))
  wanted:=hex.EncodeToString(sum[:])
  for _,v:=range entries {
-  if !safeName.MatchString(v.User) {continue}
+  if !legacyUserName.MatchString(v.User) {continue}
   if len(v.Digest)==64 && subtle.ConstantTimeCompare([]byte(strings.ToLower(v.Digest)),[]byte(wanted))==1 {
    role:="user";if v.Role=="admin"{role="admin"}
    return v.User,role,nil
@@ -92,7 +136,7 @@ func (s *Store) load(user,app string) (Record,bool,error) {
  return rec,true,nil
 }
 func (s *Store) Save(user,app string,expected uint64,data json.RawMessage)(Record,error){
- if !safeName.MatchString(user)||!s.namespaces[app]{return Record{},errors.New("invalid identity or namespace")}
+ if !legacyUserName.MatchString(user)||!s.namespaces[app]{return Record{},errors.New("invalid identity or namespace")}
  if len(data)==0 || len(data)>128<<10 || !json.Valid(data){return Record{},errors.New("invalid data")}
  s.mu.Lock();defer s.mu.Unlock()
  current,exists,err:=s.load(user,app);if err!=nil{return Record{},err}
