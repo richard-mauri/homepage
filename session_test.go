@@ -80,6 +80,8 @@ func TestStorageSessionRevocationAndCSRF(t *testing.T) {
  req.AddCookie(cookie)
  resp:=httptest.NewRecorder();handler.ServeHTTP(resp,req)
  if resp.Code!=401{t.Fatalf("revoked session accepted: %d",resp.Code)}
- resp=httptest.NewRecorder();svc.handler(resp,req)
+ sessionReq:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/api/session",nil)
+ sessionReq.AddCookie(cookie)
+ resp=httptest.NewRecorder();svc.handler(resp,sessionReq)
  if resp.Code!=401{t.Fatalf("revoked session status accepted: %d",resp.Code)}
 }
