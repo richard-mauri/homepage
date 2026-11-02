@@ -101,6 +101,24 @@ func (s *sessionService) storageHandler(next http.Handler) http.Handler {
   next.ServeHTTP(w,r)
  })
 }
+// profileHandler provides a read-only authenticated identity to trusted suite apps.
+// It never creates or revokes sessions and does not expose token material.
+func (s *sessionService) profileHandler(w http.ResponseWriter,r *http.Request) {
+ w.Header().Set("Cache-Control","no-store")
+ w.Header().Set("Vary","Origin")
+ origin:=r.Header.Get("Origin")
+ if origin!="" && allowedStorageOrigin(origin) {
+  w.Header().Set("Access-Control-Allow-Origin",origin)
+  w.Header().Set("Access-Control-Allow-Credentials","true")
+ }
+ if r.Method!=http.MethodGet {w.Header().Set("Allow","GET");http.Error(w,"method not allowed",405);return}
+ if origin!="" && !allowedStorageOrigin(origin){http.Error(w,"origin not allowed",403);return}
+ user,role,ok:=s.authenticateSession(r)
+ if !ok {http.Error(w,"session invalid",401);return}
+ w.Header().Set("Content-Type","application/json")
+ _=json.NewEncoder(w).Encode(map[string]string{"user":user,"role":role})
+}
+
 func (s *sessionService) handler(w http.ResponseWriter,r *http.Request) {
  w.Header().Set("Cache-Control","no-store")
  w.Header().Set("X-Content-Type-Options","nosniff")
