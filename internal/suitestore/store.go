@@ -4,6 +4,7 @@
 package suitestore
 
 import (
+ "context"
  "crypto/sha256"
  "crypto/subtle"
  "encoding/hex"
@@ -59,11 +60,16 @@ func (s *Store) Authenticate(token string) (string,string,error) {
  if len(token)!=64 {return "","",errors.New("invalid token")}
  raw,err:=hex.DecodeString(token)
  if err!=nil || len(raw)!=32 {return "","",errors.New("invalid token")}
+ sum:=sha256.Sum256([]byte(token))
+ return s.AuthenticateDigest(hex.EncodeToString(sum[:]))
+}
+// AuthenticateDigest validates a stored token digest against the current
+// approved-token registry, so revocation is checked on every session request.
+func (s *Store) AuthenticateDigest(wanted string) (string,string,error) {
+ if len(wanted)!=64 {return "","",errors.New("invalid digest")}
  b,err:=os.ReadFile(s.credentialPath());if err!=nil{return "","",err}
  var entries []Credential
  if err=json.Unmarshal(b,&entries);err!=nil{return "","",err}
- sum:=sha256.Sum256([]byte(token))
- wanted:=hex.EncodeToString(sum[:])
  for _,v:=range entries {
   if !legacyUserName.MatchString(v.User) {continue}
   if len(v.Digest)==64 && subtle.ConstantTimeCompare([]byte(strings.ToLower(v.Digest)),[]byte(wanted))==1 {
@@ -73,6 +79,13 @@ func (s *Store) Authenticate(token string) (string,string,error) {
  }
  return "","",errors.New("unapproved token")
 }
+type identityKey struct{}
+// WithIdentity allows the trusted in-process Homepage session validator to
+// establish an identity; it cannot be set by an HTTP header or client input.
+func WithIdentity(r *http.Request,user string) *http.Request {
+ return r.WithContext(context.WithValue(r.Context(),identityKey{},user))
+}
+
 func atomicWrite(path string, contents []byte) error {
  dir:=filepath.Dir(path)
  if err:=os.MkdirAll(dir,0700);err!=nil{return err}
@@ -114,10 +127,14 @@ func (s *Store) Handler() http.Handler {
   if r.Method!=http.MethodGet && r.Method!=http.MethodPut {w.Header().Set("Allow","GET, PUT");http.Error(w,"method not allowed",405);return}
   app,ok:=strings.CutPrefix(r.URL.Path,"/api/storage/")
   if !ok || !s.namespaces[app] {http.NotFound(w,r);return}
-  auth:=r.Header.Get("Authorization")
-  if !strings.HasPrefix(auth,"Bearer "){http.Error(w,"authentication required",401);return}
-  user,_,err:=s.Authenticate(strings.TrimPrefix(auth,"Bearer "))
-  if err!=nil {http.Error(w,"authentication failed",401);return}
+  user,_:=r.Context().Value(identityKey{}).(string)
+  if user=="" {
+   auth:=r.Header.Get("Authorization")
+   if !strings.HasPrefix(auth,"Bearer "){http.Error(w,"authentication required",401);return}
+   var err error
+   user,_,err=s.Authenticate(strings.TrimPrefix(auth,"Bearer "))
+   if err!=nil {http.Error(w,"authentication failed",401);return}
+  }
   if r.Method==http.MethodPut {
    origin:=r.Header.Get("Origin")
    if origin!="" && origin!="https://"+r.Host && origin!="http://"+r.Host {http.Error(w,"cross-origin write rejected",403);return}
