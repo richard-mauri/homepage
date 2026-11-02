@@ -2,6 +2,7 @@ package main
 
 import (
  "crypto/rand"
+ "crypto/sha256"
  "encoding/hex"
  "encoding/json"
  "net/http"
@@ -15,7 +16,7 @@ import (
 const sessionCookieName = "mauri_suite_session"
 const sessionLifetime = 12*time.Hour
 
-type sessionRecord struct { User string; Role string; Expires time.Time }
+type sessionRecord struct { Digest string; Expires time.Time }
 type sessionService struct {
  mu sync.Mutex
  sessions map[string]sessionRecord
@@ -40,6 +41,28 @@ func validSessionOrigin(r *http.Request) bool {
  // intentionally not trusted to create or revoke sessions.
  return origin=="https://"+r.Host || (strings.HasPrefix(r.Host,"127.0.0.1:") && origin=="http://"+r.Host)
 }
+// authenticateSession rechecks the credential registry on each request.
+// Removing a token or changing its role takes effect immediately.
+func (s *sessionService) authenticateSession(r *http.Request) (string,string,bool) {
+ c,err:=r.Cookie(sessionCookieName);if err!=nil{return "","",false}
+ s.mu.Lock();v,found:=s.sessions[c.Value];s.mu.Unlock()
+ if !found || !s.now().Before(v.Expires){return "","",false}
+ user,role,err:=s.store.AuthenticateDigest(v.Digest)
+ return user,role,err==nil
+}
+// storageHandler uses server-derived identity; cookie-authenticated writes
+// require an exact same-origin Origin header to prevent cross-site mutations.
+func (s *sessionService) storageHandler(next http.Handler) http.Handler {
+ return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
+  if _,err:=r.Cookie(sessionCookieName);err==nil {
+   user,_,ok:=s.authenticateSession(r)
+   if !ok{http.Error(w,"session invalid",401);return}
+   if r.Method!=http.MethodGet && !validSessionOrigin(r){http.Error(w,"invalid origin",403);return}
+   next.ServeHTTP(w,suitestore.WithIdentity(r,user));return
+  }
+  next.ServeHTTP(w,r)
+ })
+}
 func (s *sessionService) handler(w http.ResponseWriter,r *http.Request) {
  w.Header().Set("Cache-Control","no-store")
  w.Header().Set("X-Content-Type-Options","nosniff")
@@ -56,7 +79,8 @@ func (s *sessionService) handler(w http.ResponseWriter,r *http.Request) {
   expires:=s.now().Add(sessionLifetime)
   s.mu.Lock()
   for k,v:=range s.sessions {if !s.now().Before(v.Expires){delete(s.sessions,k)}}
-  s.sessions[id]=sessionRecord{User:user,Role:role,Expires:expires}
+  digest:=sha256.Sum256([]byte(token))
+  s.sessions[id]=sessionRecord{Digest:hex.EncodeToString(digest[:]),Expires:expires}
   s.mu.Unlock()
   http.SetCookie(w,s.cookie(r,id,int(sessionLifetime.Seconds())))
   w.Header().Set("Content-Type","application/json")
@@ -64,12 +88,12 @@ func (s *sessionService) handler(w http.ResponseWriter,r *http.Request) {
   return
  }
  if r.Method==http.MethodGet && r.URL.Path=="/api/session" {
-  c,err:=r.Cookie(sessionCookieName)
-  if err!=nil {http.Error(w,"not authenticated",401);return}
-  s.mu.Lock();v,found:=s.sessions[c.Value];s.mu.Unlock()
-  if !found || !s.now().Before(v.Expires){http.Error(w,"session expired",401);return}
+  user,role,ok:=s.authenticateSession(r)
+  if !ok{http.Error(w,"session invalid",401);return}
+  c,_:=r.Cookie(sessionCookieName)
+  s.mu.Lock();v:=s.sessions[c.Value];s.mu.Unlock()
   w.Header().Set("Content-Type","application/json")
-  _=json.NewEncoder(w).Encode(map[string]any{"user":v.User,"role":v.Role,"expiresAt":v.Expires.UTC().Format(time.RFC3339)})
+  _=json.NewEncoder(w).Encode(map[string]any{"user":user,"role":role,"expiresAt":v.Expires.UTC().Format(time.RFC3339)})
   return
  }
  if r.Method==http.MethodDelete && r.URL.Path=="/api/session" {
