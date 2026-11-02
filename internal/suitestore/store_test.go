@@ -52,3 +52,34 @@ func TestAuthenticationAndHTTP(t *testing.T){
  w=httptest.NewRecorder();handler.ServeHTTP(w,req)
  if w.Code!=401{t.Fatalf("unauthenticated read status: %d",w.Code)}
 }
+
+func TestNonAdminUserIsolation(t *testing.T) {
+ s,err:=New(t.TempDir(),"newsgo","mauristocks");if err!=nil{t.Fatal(err)}
+ aliceToken:=strings.Repeat("b",64)
+ bobToken:=strings.Repeat("c",64)
+ aliceDigest:=sha256.Sum256([]byte(aliceToken))
+ bobDigest:=sha256.Sum256([]byte(bobToken))
+ if err:=os.MkdirAll(filepath.Dir(s.credentialPath()),0700);err!=nil{t.Fatal(err)}
+ b,_:=json.Marshal([]Credential{
+  {User:"Alice Reader",Digest:hex.EncodeToString(aliceDigest[:])},
+  {User:"bob",Digest:hex.EncodeToString(bobDigest[:]),Role:"admin"},
+ })
+ if err:=os.WriteFile(s.credentialPath(),b,0600);err!=nil{t.Fatal(err)}
+ for _,c:=range []struct{ token,user,role string }{{aliceToken,"Alice Reader","user"},{bobToken,"bob","admin"}}{
+  user,role,err:=s.Authenticate(c.token)
+  if err!=nil||user!=c.user||role!=c.role{t.Fatalf("auth %q: %q %q %v",c.user,user,role,err)}
+ }
+ for _,c:=range []struct{token,symbol string}{{aliceToken,"AAPL"},{bobToken,"NVDA"}}{
+  req:=httptest.NewRequest(http.MethodPut,"https://home.themauris.org/api/storage/mauristocks",strings.NewReader(`{"revision":0,"data":{"symbol":"`+c.symbol+`"}}`))
+  req.Header.Set("Authorization","Bearer "+c.token)
+  req.Header.Set("Origin","https://home.themauris.org")
+  w:=httptest.NewRecorder();s.Handler().ServeHTTP(w,req)
+  if w.Code!=200{t.Fatalf("save %s: %d %s",c.symbol,w.Code,w.Body.String())}
+ }
+ for _,c:=range []struct{token,want,notWant string}{{aliceToken,"AAPL","NVDA"},{bobToken,"NVDA","AAPL"}}{
+  req:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/api/storage/mauristocks",nil)
+  req.Header.Set("Authorization","Bearer "+c.token)
+  w:=httptest.NewRecorder();s.Handler().ServeHTTP(w,req)
+  if w.Code!=200 || !strings.Contains(w.Body.String(),c.want)||strings.Contains(w.Body.String(),c.notWant){t.Fatalf("isolation failure: %d %s",w.Code,w.Body.String())}
+ }
+}
