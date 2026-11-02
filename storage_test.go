@@ -38,3 +38,10 @@ func TestAdminPageOptIn(t *testing.T) {
  if w.Header().Get("Cache-Control")!="no-store"{t.Fatal("admin page must not be cached")}
  if w.Header().Get("Content-Security-Policy")==""{t.Fatal("CSP is missing")}
 }
+
+func TestOptionalPersistenceConfig(t *testing.T){
+ t.Setenv("SUITE_DATA_DIR","")
+ if config().PersistenceAvailable{t.Fatal("persistence must default off")}
+ t.Setenv("SUITE_DATA_DIR",filepath.Join(t.TempDir(),"suite"))
+ if !config().PersistenceAvailable{t.Fatal("persistence availability not advertised")}
+}
