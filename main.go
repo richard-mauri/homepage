@@ -81,9 +81,7 @@ func main() {
   w.Header().Set("Cache-Control","no-cache")
   page,err:=fs.ReadFile(sub,"index.html")
   if err!=nil {http.Error(w,"Homepage unavailable",http.StatusInternalServerError);return}
-  html:=strings.ReplaceAll(string(page),"{{HOMEPAGE_VERSION}}",fmt.Sprintf("v%s · %s",appVersion,appBuild))
-  html=strings.ReplaceAll(html,"{{HOMEPAGE_ASSET_VERSION}}",url.QueryEscape(appVersion+"-"+appBuild))
-  _,_ = w.Write([]byte(html))
+  _,_ = w.Write([]byte(renderHomepage(page)))
  })
  server:=&http.Server{Addr:addr,Handler:mux,ReadHeaderTimeout:5*time.Second,IdleTimeout:60*time.Second}
  log.Printf("The Mauris homepage listening at http://%s",addr)
@@ -112,4 +110,10 @@ func configureSuiteStorage(mux *http.ServeMux, root string) error {
   _,_=w.Write(page)
  })
  return nil
+}
+
+// renderHomepage stamps executable version and cache-busting asset URLs.
+func renderHomepage(page []byte) string {
+ html:=strings.ReplaceAll(string(page),"{{HOMEPAGE_VERSION}}",fmt.Sprintf("v%s · %s",appVersion,appBuild))
+ return strings.ReplaceAll(html,"{{HOMEPAGE_ASSET_VERSION}}",url.QueryEscape(appVersion+"-"+appBuild))
 }
