@@ -47,7 +47,7 @@ func TestAdminTokenLifecycleAndIsolation(t *testing.T) {
  if err=json.Unmarshal(rotated.Body.Bytes(),&updated);err!=nil{t.Fatal(err)}
  if _,_,err=store.Authenticate(readerToken);err==nil{t.Fatal("old token still works")}
  if _,role,err:=store.Authenticate(updated["token"]);err!=nil||role!="user"{t.Fatalf("rotated token role: %s %v",role,err)}
- if _,exists,err:=store.Save("reader","mauristocks",1,json.RawMessage(`{}`));err!=nil||exists.Revision!=2{t.Fatalf("saved data lost after rotation: %v",err)}
+ if saved,err:=store.Save("reader","mauristocks",1,json.RawMessage(`{}`));err!=nil||saved.Revision!=2{t.Fatalf("saved data lost after rotation: %v",err)}
  if got:=request(token,http.MethodPost,`{"action":"revoke","user":"owner"}`).Code;got!=400{t.Fatalf("last admin revoked: %d",got)}
  if got:=request(token,http.MethodPost,`{"action":"revoke","user":"reader"}`).Code;got!=200{t.Fatalf("revoke user: %d",got)}
  if _,_,err=store.Authenticate(updated["token"]);err==nil{t.Fatal("revoked token still works")}
