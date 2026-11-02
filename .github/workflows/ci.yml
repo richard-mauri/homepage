@@ -1,0 +1,30 @@
+name: Go CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Run all tests
+        run: go test -count=1 ./...
+      - name: Build Intel macOS binary
+        run: GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o /tmp/homepage-darwin-amd64 .
+      - name: Build Apple Silicon macOS binary
+        run: GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o /tmp/homepage-darwin-arm64 .
