@@ -94,5 +94,6 @@ func configureSuiteStorage(mux *http.ServeMux, root string) error {
  sessions:=newSessionService(store)
  mux.Handle("/api/storage/",sessions.storageHandler(store.Handler()))
  mux.HandleFunc("/api/session",sessions.handler)
+ mux.HandleFunc("/api/admin/users",sessions.adminHandler)
  return nil
 }
