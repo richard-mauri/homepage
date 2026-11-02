@@ -86,12 +86,13 @@ func main() {
 // configureSuiteStorage mounts the authenticated settings API only when an
 // operator explicitly supplies a persistent directory. The default Homepage
 // configuration remains a launcher with no storage or authentication endpoint.
-// This is bearer-token-only; cross-subdomain browser sessions are not yet built.
+// Session and bearer-token access are supported; cross-origin app integration remains disabled.
 func configureSuiteStorage(mux *http.ServeMux, root string) error {
  if strings.TrimSpace(root)=="" { return nil }
  store,err:=suitestore.New(root,"newsgo","mauristocks")
  if err!=nil{return err}
- mux.Handle("/api/storage/",store.Handler())
- mux.HandleFunc("/api/session",newSessionService(store).handler)
+ sessions:=newSessionService(store)
+ mux.Handle("/api/storage/",sessions.storageHandler(store.Handler()))
+ mux.HandleFunc("/api/session",sessions.handler)
  return nil
 }
