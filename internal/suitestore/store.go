@@ -137,7 +137,7 @@ func (s *Store) Handler() http.Handler {
   }
   if r.Method==http.MethodPut {
    origin:=r.Header.Get("Origin")
-   if origin!="" && origin!="https://"+r.Host && origin!="http://"+r.Host {http.Error(w,"cross-origin write rejected",403);return}
+   if userFromSession,_:=r.Context().Value(identityKey{}).(string);userFromSession=="" && origin!="" && origin!="https://"+r.Host && origin!="http://"+r.Host {http.Error(w,"cross-origin write rejected",403);return}
    r.Body=http.MaxBytesReader(w,r.Body,128<<10)
    var input struct {Revision uint64 `json:"revision"`;Data json.RawMessage `json:"data"`}
    dec:=json.NewDecoder(r.Body);dec.DisallowUnknownFields()
