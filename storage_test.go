@@ -1,6 +1,7 @@
 package main
 
 import (
+ "strings"
  "net/http"
  "net/http/httptest"
  "path/filepath"
@@ -44,4 +45,13 @@ func TestOptionalPersistenceConfig(t *testing.T){
  if config().PersistenceAvailable{t.Fatal("persistence must default off")}
  t.Setenv("SUITE_DATA_DIR",filepath.Join(t.TempDir(),"suite"))
  if !config().PersistenceAvailable{t.Fatal("persistence availability not advertised")}
+}
+
+func TestHomepageAssetURLsAreBuildVersioned(t *testing.T) {
+ page,err:=assets.ReadFile("static/index.html");if err!=nil{t.Fatal(err)}
+ html:=renderHomepage(page)
+ if strings.Contains(html,"{{HOMEPAGE_ASSET_VERSION}}"){t.Fatal("asset placeholder unrendered")}
+ if !strings.Contains(html,"/static/app.js?v="){t.Fatal("JS asset URL unversioned")}
+ if !strings.Contains(html,"/static/styles.css?v="){t.Fatal("CSS asset URL unversioned")}
+ if strings.Contains(html,"/static/app.js\" defer"){t.Fatal("old JS URL persists")}
 }
