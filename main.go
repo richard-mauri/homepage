@@ -92,5 +92,6 @@ func configureSuiteStorage(mux *http.ServeMux, root string) error {
  store,err:=suitestore.New(root,"newsgo","mauristocks")
  if err!=nil{return err}
  mux.Handle("/api/storage/",store.Handler())
+ mux.HandleFunc("/api/session",newSessionService(store).handler)
  return nil
 }
