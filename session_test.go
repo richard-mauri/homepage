@@ -47,3 +47,39 @@ func TestSessionRejectsCrossOrigin(t *testing.T){
  w:=httptest.NewRecorder();svc.handler(w,req)
  if w.Code!=403{t.Fatalf("expected 403, got %d",w.Code)}
 }
+
+func TestStorageSessionRevocationAndCSRF(t *testing.T) {
+ root:=t.TempDir()
+ store,err:=suitestore.New(root,"mauristocks");if err!=nil{t.Fatal(err)}
+ token:=strings.Repeat("d",64)
+ h:=sha256.Sum256([]byte(token))
+ authFile:=filepath.Join(root,"auth","approved-tokens.json")
+ if err:=os.MkdirAll(filepath.Dir(authFile),0700);err!=nil{t.Fatal(err)}
+ records,_:=json.Marshal([]suitestore.Credential{{User:"reader",Digest:hex.EncodeToString(h[:])}})
+ if err:=os.WriteFile(authFile,records,0600);err!=nil{t.Fatal(err)}
+ svc:=newSessionService(store)
+ login:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/session",nil)
+ login.Header.Set("Origin","https://home.themauris.org")
+ login.Header.Set("Authorization","Bearer "+token)
+ w:=httptest.NewRecorder();svc.handler(w,login)
+ if w.Code!=200{t.Fatalf("login %d: %s",w.Code,w.Body.String())}
+ cookie:=w.Result().Cookies()[0]
+ handler:=svc.storageHandler(store.Handler())
+ write:=func(origin string) int {
+  req:=httptest.NewRequest(http.MethodPut,"https://home.themauris.org/api/storage/mauristocks",strings.NewReader(`{"revision":0,"data":{"symbols":["CAT"]}}`))
+  req.AddCookie(cookie)
+  if origin!=""{req.Header.Set("Origin",origin)}
+  resp:=httptest.NewRecorder();handler.ServeHTTP(resp,req)
+  return resp.Code
+ }
+ if got:=write("https://stocks.themauris.org");got!=403{t.Fatalf("foreign origin accepted: %d",got)}
+ if got:=write("");got!=403{t.Fatalf("missing origin accepted: %d",got)}
+ if got:=write("https://home.themauris.org");got!=200{t.Fatalf("same-origin write failed: %d",got)}
+ if err:=os.WriteFile(authFile,[]byte("[]"),0600);err!=nil{t.Fatal(err)}
+ req:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/api/storage/mauristocks",nil)
+ req.AddCookie(cookie)
+ resp:=httptest.NewRecorder();handler.ServeHTTP(resp,req)
+ if resp.Code!=401{t.Fatalf("revoked session accepted: %d",resp.Code)}
+ resp=httptest.NewRecorder();svc.handler(resp,req)
+ if resp.Code!=401{t.Fatalf("revoked session status accepted: %d",resp.Code)}
+}
