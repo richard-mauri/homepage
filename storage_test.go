@@ -25,3 +25,16 @@ func TestStorageOptInRequiresBearer(t *testing.T) {
  mux.ServeHTTP(w,httptest.NewRequest(http.MethodGet,"/api/storage/not-allowed",nil))
  if w.Code!=http.StatusNotFound{t.Fatalf("expected 404, got %d",w.Code)}
 }
+
+func TestAdminPageOptIn(t *testing.T) {
+ mux:=http.NewServeMux()
+ if err:=configureSuiteStorage(mux,"");err!=nil{t.Fatal(err)}
+ w:=httptest.NewRecorder();mux.ServeHTTP(w,httptest.NewRequest(http.MethodGet,"/suite-admin",nil))
+ if w.Code!=404{t.Fatalf("disabled admin page: %d",w.Code)}
+ mux=http.NewServeMux()
+ if err:=configureSuiteStorage(mux,filepath.Join(t.TempDir(),"suite"));err!=nil{t.Fatal(err)}
+ w=httptest.NewRecorder();mux.ServeHTTP(w,httptest.NewRequest(http.MethodGet,"/suite-admin",nil))
+ if w.Code!=200{t.Fatalf("enabled admin page: %d",w.Code)}
+ if w.Header().Get("Cache-Control")!="no-store"{t.Fatal("admin page must not be cached")}
+ if w.Header().Get("Content-Security-Policy")==""{t.Fatal("CSP is missing")}
+}
