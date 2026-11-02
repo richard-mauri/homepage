@@ -99,6 +99,7 @@ func configureSuiteStorage(mux *http.ServeMux, root string) error {
  sessions:=newSessionService(store)
  mux.Handle("/api/storage/",sessions.suiteStorageHandler(store.Handler()))
  mux.HandleFunc("/api/session",sessions.handler)
+ mux.HandleFunc("/api/session/profile",sessions.profileHandler)
  mux.HandleFunc("/api/admin/users",sessions.adminHandler)
  mux.HandleFunc("/suite-admin",func(w http.ResponseWriter,r *http.Request){
   if r.URL.Path!="/suite-admin" || r.Method!=http.MethodGet {http.NotFound(w,r);return}
