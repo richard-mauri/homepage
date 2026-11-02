@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
+
 # Start only Homepage and its dedicated Cloudflare Tunnel on this Intel Mac.
 set -Eeuo pipefail
 HOME=/Users/richardmauri
 APP_DIR="$HOME/projects/homepage"
 APP="$APP_DIR/dist/homepage-darwin-amd64"
+export SUITE_DATA_DIR="$APP_DIR/private"
 TOKEN="$APP_DIR/.cloudflared/token"
 CLOUDFLARED="$HOME/Applications/cloudflared"
 cd "$APP_DIR"

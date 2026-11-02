@@ -7,6 +7,80 @@ const icons = {
 const accent={cyan:['#68cde0','rgba(104,205,224,.12)'],mint:['#75ddb6','rgba(117,221,182,.12)'],amber:['#eac081','rgba(234,192,129,.12)'],violet:['#b7a1f6','rgba(183,161,246,.12)']};
 function svg(name){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]||icons.code}</svg>`}
 function makeCard(app){const a=document.createElement('a');a.className='app-card';a.href=app.url;a.rel='noopener noreferrer';if(app.url.startsWith('https://')||app.url.startsWith('http://'))a.target='_blank';const [color,glow]=accent[app.accent]||accent.cyan;a.style.setProperty('--card-accent',color);a.style.setProperty('--card-glow',glow);const top=document.createElement('div');top.className='card-top';const icon=document.createElement('span');icon.className='card-icon';icon.innerHTML=svg(app.icon);const arrow=document.createElement('span');arrow.className='card-arrow';arrow.textContent='↗';top.append(icon,arrow);const content=document.createElement('div');content.className='card-content';for(const [cls,val,tag] of [['card-category',app.category,'div'],['card-name',app.name,'h3'],['card-subtitle',app.subtitle,'div'],['card-description',app.description,'p']]){let el=document.createElement(tag);el.className=cls;el.textContent=val;content.append(el)}const bottom=document.createElement('div');bottom.className='card-bottom';bottom.innerHTML='<span>OPEN APPLICATION</span><span class="direction">→</span>';a.append(top,content,bottom);return a}
-async function init(){const root=document.querySelector('#cards');try{const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)throw Error('Configuration unavailable');const c=await r.json();root.replaceChildren(...c.apps.map(makeCard));document.querySelector('.count').textContent='/ '+String(c.apps.length).padStart(2,'0')}catch(e){root.textContent='Applications are temporarily unavailable. Please refresh to try again.'}}
+async function init(){const root=document.querySelector('#cards');try{const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)throw Error('Configuration unavailable');const c=await r.json();root.replaceChildren(...c.apps.map(makeCard));document.querySelector('.count').textContent='/ '+String(c.apps.length).padStart(2,'0');if(c.persistenceAvailable)enableOptionalAuth()}catch(e){root.textContent='Applications are temporarily unavailable. Please refresh to try again.'}}
 function tick(){document.querySelector('#clock').textContent=new Intl.DateTimeFormat('en-US',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'America/Los_Angeles'}).format(new Date())}
 const themeKey='themauris-theme';try{if(localStorage.getItem(themeKey)==='light')document.documentElement.dataset.theme='light'}catch(_){}document.querySelector('#themeToggle').addEventListener('click',()=>{const next=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=next;try{localStorage.setItem(themeKey,next)}catch(_){}});document.querySelector('#year').textContent=new Date().getFullYear();tick();setInterval(tick,30_000);init();
+
+/* Optional account control: browser-only remains the default.
+   Signing in does not upload or replace application localStorage. */
+function enableOptionalAuth(){
+ if(document.querySelector('#suiteAccount'))return;
+ const top=document.querySelector('.topright');
+ const container=document.createElement('div');container.id='suiteAccount';container.className='suite-account';
+ const signIn=document.createElement('button');signIn.type='button';signIn.textContent='Sign in';
+ const signedIn=document.createElement('div');signedIn.className='suite-account-auth';signedIn.hidden=true;
+ const identity=document.createElement('span');
+ const manage=document.createElement('a');manage.href='/suite-admin';manage.textContent='Manage tokens';manage.hidden=true;
+ const signOut=document.createElement('button');signOut.type='button';signOut.textContent='Sign out';
+ signedIn.append(identity,manage,signOut);
+ container.append(signIn,signedIn);top.prepend(container);
+ const overlay=document.createElement('div');overlay.className='suite-modal-backdrop';overlay.hidden=true;
+ const dialog=document.createElement('section');dialog.className='suite-modal';dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');dialog.setAttribute('aria-labelledby','suiteDialogTitle');
+ const header=document.createElement('div');header.className='suite-modal-header';
+ const title=document.createElement('h2');title.id='suiteDialogTitle';title.textContent='Personal settings';
+ const close=document.createElement('button');close.type='button';close.textContent='Close';close.setAttribute('aria-label','Close sign-in dialog');
+ header.append(title,close);
+ const description=document.createElement('p');description.textContent='Sign in with your approved personal token to use your server account. Without signing in, applications continue using browser storage. Existing local settings will not be changed.';
+ const form=document.createElement('form');
+ const label=document.createElement('label');label.htmlFor='suiteToken';label.textContent='Approved personal token';
+ const token=document.createElement('input');token.id='suiteToken';token.type='password';token.autocomplete='off';token.spellcheck=false;token.required=true;token.minLength=64;token.maxLength=64;
+ const submit=document.createElement('button');submit.type='submit';submit.textContent='Sign in';
+ form.append(label,token,submit);
+ const message=document.createElement('p');message.className='suite-modal-message';message.setAttribute('role','status');message.setAttribute('aria-live','polite');
+ dialog.append(header,description,form,message);overlay.append(dialog);document.body.append(overlay);
+ let previousFocus=null;
+ function hideDialog(){overlay.hidden=true;token.value='';message.textContent='';if(previousFocus)previousFocus.focus();}
+ function showDialog(){previousFocus=document.activeElement;overlay.hidden=false;message.textContent='';token.focus();}
+ signIn.addEventListener('click',showDialog);
+ close.addEventListener('click',hideDialog);
+ overlay.addEventListener('click',event=>{if(event.target===overlay)hideDialog();});
+ dialog.addEventListener('keydown',event=>{if(event.key==='Escape'){hideDialog();return;}
+  if(event.key==='Tab'){
+   const controls=[close,token,submit].filter(x=>!x.disabled);
+   const first=controls[0],last=controls[controls.length-1];
+   if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
+   else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
+  }
+ });
+ const refresh=async()=>{
+  try{
+   const response=await fetch('/api/session',{credentials:'same-origin',cache:'no-store'});
+   if(!response.ok)throw Error('no session');
+   const session=await response.json();
+   identity.textContent=session.user+' ('+session.role+')';
+   manage.hidden=session.role!=='admin';
+   signedIn.hidden=false;signIn.hidden=true;
+   return true;
+  }catch(_){signedIn.hidden=true;signIn.hidden=false;manage.hidden=true;return false;}
+ };
+ form.addEventListener('submit',async event=>{
+  event.preventDefault();submit.disabled=true;message.textContent='';
+  try{
+   const response=await fetch('/api/session',{method:'POST',credentials:'same-origin',headers:{Authorization:'Bearer '+token.value.trim()},cache:'no-store'});
+   if(!response.ok)throw Error('Token not approved (HTTP '+response.status+').');
+   if(!await refresh())throw Error('Session not retained. Please use HTTPS.');
+   hideDialog();
+  }catch(error){message.textContent=error.message;}
+  finally{submit.disabled=false;}
+ });
+ signOut.addEventListener('click',async()=>{
+  signOut.disabled=true;
+  try{
+   const response=await fetch('/api/session',{method:'DELETE',credentials:'same-origin',cache:'no-store'});
+   if(!response.ok)throw Error('Sign out failed (HTTP '+response.status+').');
+   await refresh();
+  }catch(error){alert(error.message);}
+  finally{signOut.disabled=false;}
+ });
+ refresh();
+}
