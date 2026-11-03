@@ -15,7 +15,7 @@ import (
 
 const sessionCookieName = "mauri_suite_session"
 const sessionLifetime = 12*time.Hour
-const handoffLifetime = time.Hour
+const defaultHandoffLifetime = time.Hour
 
 type sessionRecord struct { Digest string; Expires time.Time }
 type sessionService struct {
@@ -24,10 +24,11 @@ type sessionService struct {
  handoffs map[string]sessionRecord
  store *suitestore.Store
  now func() time.Time
+ handoffLifetime time.Duration
 }
 
 func newSessionService(store *suitestore.Store) *sessionService {
- return &sessionService{sessions:make(map[string]sessionRecord),handoffs:make(map[string]sessionRecord),store:store,now:time.Now}
+ return &sessionService{sessions:make(map[string]sessionRecord),handoffs:make(map[string]sessionRecord),store:store,now:time.Now,handoffLifetime:defaultHandoffLifetime}
 }
 func (s *sessionService) cookie(r *http.Request, value string, maxAge int) *http.Cookie {
  cookie:=&http.Cookie{Name:sessionCookieName,Value:value,Path:"/",Secure:true,HttpOnly:true,SameSite:http.SameSiteLaxMode,MaxAge:maxAge}
@@ -138,7 +139,7 @@ func (s *sessionService) handoffHandler(w http.ResponseWriter,r *http.Request) {
  if _,err:=rand.Read(nonce[:]);err!=nil{http.Error(w,"token unavailable",500);return}
  token:=hex.EncodeToString(nonce[:])
  hash:=sha256.Sum256([]byte(token))
- expires:=s.now().Add(handoffLifetime)
+ expires:=s.now().Add(s.handoffLifetime)
  s.mu.Lock()
  for key,v:=range s.handoffs {if !s.now().Before(v.Expires){delete(s.handoffs,key)}}
  s.handoffs[hex.EncodeToString(hash[:])]=sessionRecord{Digest:source.Digest,Expires:expires}
