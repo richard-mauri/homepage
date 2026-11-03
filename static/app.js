@@ -27,7 +27,8 @@ function clearHomeLogin(){
 function rememberHomeLogin(data){
  if(!/^[a-f0-9]{64}$/.test(data.sessionToken)||!Number.isFinite(Date.parse(data.expiresAt)))throw Error('Invalid Homepage session');
  homeSessionToken=data.sessionToken;homeSessionExpires=Date.parse(data.expiresAt);
- try{localStorage.setItem(homeLoginKey,JSON.stringify({token:homeSessionToken,expires:homeSessionExpires}))}catch(_){}
+ try{localStorage.setItem(homeLoginKey,JSON.stringify({token:homeSessionToken,expires:homeSessionExpires}))}
+ catch(_){throw Error('Browser storage unavailable; Homepage cannot retain your sign-in across application navigation.')}
 }
 const homeSessionHeaders=()=>homeSessionToken?{Authorization:'Session '+homeSessionToken}:{};
 let suiteHandoffToken='',suiteHandoffExpires=0;
@@ -125,6 +126,7 @@ function enableOptionalAuth(){
    // a signed-in Homepage identity unless the 12-hour session is valid.
    if(!response.ok)throw Error('Homepage login session unavailable');
    const session=await response.json();
+   rememberHomeLogin(session);
    identity.textContent=session.user+' ('+session.role+')';
    manage.hidden=session.role!=='admin';
    signedIn.hidden=false;signIn.hidden=true;
