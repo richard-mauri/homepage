@@ -111,16 +111,44 @@ func TestSuiteProfileReadOnlyAndOriginPolicy(t *testing.T) {
   return result
  }
  w=fetch("https://stocks.themauris.org",true,http.MethodGet)
+ if w.Code!=401 {t.Fatalf("cross-origin cookie accepted: %d",w.Code)}
+ w=fetch("https://home.themauris.org",true,http.MethodGet)
  if w.Code!=200 || !strings.Contains(w.Body.String(),`"user":"reader"`) || !strings.Contains(w.Body.String(),`"role":"user"`) {
-  t.Fatalf("profile: %d %s",w.Code,w.Body.String())
+  t.Fatalf("Homepage session profile: %d %s",w.Code,w.Body.String())
  }
- if w.Header().Get("Access-Control-Allow-Origin")!="https://stocks.themauris.org" || w.Header().Get("Access-Control-Allow-Credentials")!="true" {
+ if w.Header().Get("Access-Control-Allow-Origin")!="https://home.themauris.org" || w.Header().Get("Access-Control-Allow-Credentials")!="true" {
   t.Fatal("missing trusted origin credentialed CORS response")
  }
  if w.Header().Get("Cache-Control")!="no-store"{t.Fatal("profile must not be cached")}
  if w=fetch("https://evil.example",true,http.MethodGet);w.Code!=403 || w.Header().Get("Access-Control-Allow-Origin")!="" {t.Fatal("untrusted origin not rejected")}
  if w=fetch("https://stocks.themauris.org",false,http.MethodGet);w.Code!=401 {t.Fatal("anonymous profile access")}
  if w=fetch("https://stocks.themauris.org",true,http.MethodPost);w.Code!=405 {t.Fatal("profile must be read only")}
+}
+
+func TestSuiteStorageRejectsCrossOriginCookieFallback(t *testing.T) {
+ root:=t.TempDir()
+ store,err:=suitestore.New(root,"newsgo");if err!=nil{t.Fatal(err)}
+ approved:=strings.Repeat("c",64)
+ hash:=sha256.Sum256([]byte(approved))
+ authFile:=filepath.Join(root,"auth","approved-tokens.json")
+ if err:=os.MkdirAll(filepath.Dir(authFile),0700);err!=nil{t.Fatal(err)}
+ b,_:=json.Marshal([]suitestore.Credential{{User:"reader",Digest:hex.EncodeToString(hash[:]),Role:"user"}})
+ if err:=os.WriteFile(authFile,b,0600);err!=nil{t.Fatal(err)}
+ svc:=newSessionService(store)
+ login:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/session",nil)
+ login.Header.Set("Origin","https://home.themauris.org")
+ login.Header.Set("Authorization","Bearer "+approved)
+ w:=httptest.NewRecorder();svc.handler(w,login)
+ if w.Code!=200{t.Fatalf("login: %d",w.Code)}
+ cookie:=w.Result().Cookies()[0]
+ handler:=svc.suiteStorageHandler(store.Handler())
+ for _,method:=range []string{http.MethodGet,http.MethodPut}{
+  req:=httptest.NewRequest(method,"https://home.themauris.org/api/storage/newsgo",nil)
+  req.Header.Set("Origin","https://newsgo.themauris.org")
+  req.AddCookie(cookie)
+  out:=httptest.NewRecorder();handler.ServeHTTP(out,req)
+  if out.Code!=401{t.Fatalf("cross-app cookie accepted for %s: %d",method,out.Code)}
+ }
 }
 
 func TestHandoffBearerExpiryAndRevocation(t *testing.T) {
