@@ -105,6 +105,7 @@ func configureSuiteStorage(mux *http.ServeMux, root string, handoffDuration time
  mux.HandleFunc("/api/session",sessions.handler)
  mux.HandleFunc("/api/session/profile",sessions.profileHandler)
  mux.HandleFunc("/api/handoff/token",sessions.handoffHandler)
+ mux.HandleFunc("/api/handoff/renew",sessions.renewHandoffHandler)
  mux.HandleFunc("/api/admin/users",sessions.adminHandler)
  mux.HandleFunc("/suite-admin",func(w http.ResponseWriter,r *http.Request){
   if r.URL.Path!="/suite-admin" || r.Method!=http.MethodGet {http.NotFound(w,r);return}
