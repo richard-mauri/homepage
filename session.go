@@ -147,6 +147,46 @@ func (s *sessionService) handoffHandler(w http.ResponseWriter,r *http.Request) {
  w.Header().Set("Content-Type","application/json")
  _=json.NewEncoder(w).Encode(map[string]any{"token":token,"expiresAt":expires.UTC().Format(time.RFC3339),"user":user,"role":role})
 }
+// renewHandoffHandler rotates an unexpired app bearer without a browser cookie.
+// The new token supersedes the old one; an expired token cannot be renewed.
+func (s *sessionService) renewHandoffHandler(w http.ResponseWriter,r *http.Request) {
+ w.Header().Set("Cache-Control","no-store")
+ w.Header().Set("Vary","Origin")
+ origin:=r.Header.Get("Origin")
+ if r.Method==http.MethodOptions {
+  if !allowedStorageOrigin(origin) || origin=="https://home.themauris.org" || r.Header.Get("Access-Control-Request-Method")!=http.MethodPost ||
+   strings.ToLower(strings.TrimSpace(r.Header.Get("Access-Control-Request-Headers")))!="authorization" {
+   http.Error(w,"preflight not allowed",403);return
+  }
+  w.Header().Set("Access-Control-Allow-Origin",origin)
+  w.Header().Set("Access-Control-Allow-Methods","POST")
+  w.Header().Set("Access-Control-Allow-Headers","Authorization")
+  w.Header().Set("Access-Control-Max-Age","300")
+  w.WriteHeader(http.StatusNoContent);return
+ }
+ if r.Method!=http.MethodPost {w.Header().Set("Allow","POST, OPTIONS");http.Error(w,"method not allowed",405);return}
+ if origin!="https://newsgo.themauris.org" && origin!="https://stocks.themauris.org" {http.Error(w,"origin not allowed",403);return}
+ w.Header().Set("Access-Control-Allow-Origin",origin)
+ user,role,ok:=s.authenticateHandoff(r)
+ if !ok{http.Error(w,"account token invalid or expired",401);return}
+ old,ok:=strings.CutPrefix(r.Header.Get("Authorization"),"Bearer ")
+ if !ok{http.Error(w,"token required",401);return}
+ oldHash:=sha256.Sum256([]byte(old))
+ oldKey:=hex.EncodeToString(oldHash[:])
+ var nonce [32]byte
+ if _,err:=rand.Read(nonce[:]);err!=nil{http.Error(w,"renewal unavailable",500);return}
+ newToken:=hex.EncodeToString(nonce[:])
+ newHash:=sha256.Sum256([]byte(newToken))
+ expires:=s.now().Add(s.handoffLifetime)
+ s.mu.Lock()
+ record,found:=s.handoffs[oldKey]
+ if !found || !s.now().Before(record.Expires){s.mu.Unlock();http.Error(w,"token expired",401);return}
+ delete(s.handoffs,oldKey)
+ s.handoffs[hex.EncodeToString(newHash[:])]=sessionRecord{Digest:record.Digest,Expires:expires}
+ s.mu.Unlock()
+ w.Header().Set("Content-Type","application/json")
+ _=json.NewEncoder(w).Encode(map[string]string{"token":newToken,"expiresAt":expires.UTC().Format(time.RFC3339),"user":user,"role":role})
+}
 // storageHandler uses server-derived identity; cookie-authenticated writes
 // require an exact same-origin Origin header to prevent cross-site mutations.
 func (s *sessionService) storageHandler(next http.Handler) http.Handler {
@@ -201,7 +241,13 @@ func (s *sessionService) profileHandler(w http.ResponseWriter,r *http.Request) {
  }
  if !ok {http.Error(w,"account token invalid or expired",401);return}
  w.Header().Set("Content-Type","application/json")
- _=json.NewEncoder(w).Encode(map[string]string{"user":user,"role":role})
+ result:=map[string]string{"user":user,"role":role}
+ if bearer,exists:=strings.CutPrefix(r.Header.Get("Authorization"),"Bearer ");exists {
+  sum:=sha256.Sum256([]byte(bearer))
+  s.mu.Lock();record,found:=s.handoffs[hex.EncodeToString(sum[:])];s.mu.Unlock()
+  if found && s.now().Before(record.Expires){result["expiresAt"]=record.Expires.UTC().Format(time.RFC3339)}
+ }
+ _=json.NewEncoder(w).Encode(result)
 }
 
 func (s *sessionService) handler(w http.ResponseWriter,r *http.Request) {
