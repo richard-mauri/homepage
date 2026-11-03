@@ -295,21 +295,23 @@ func (s *sessionService) handler(w http.ResponseWriter,r *http.Request) {
   return
  }
  if r.Method==http.MethodGet && r.URL.Path=="/api/session" {
-  var user,role string
+  var user,role,id string
   var v sessionRecord
   var ok bool
   if strings.HasPrefix(r.Header.Get("Authorization"),"Session ") {
    v,user,role,ok=s.homepageSession(r)
+   id,_=strings.CutPrefix(r.Header.Get("Authorization"),"Session ")
   }else{
    user,role,ok=s.authenticateSession(r)
    if ok{
     c,_:=r.Cookie(sessionCookieName)
-    s.mu.Lock();v=s.sessions[c.Value];s.mu.Unlock()
+    id=c.Value
+    s.mu.Lock();v=s.sessions[id];s.mu.Unlock()
    }
   }
   if !ok{http.Error(w,"session invalid",401);return}
   w.Header().Set("Content-Type","application/json")
-  _=json.NewEncoder(w).Encode(map[string]any{"user":user,"role":role,"expiresAt":v.Expires.UTC().Format(time.RFC3339)})
+  _=json.NewEncoder(w).Encode(map[string]any{"user":user,"role":role,"expiresAt":v.Expires.UTC().Format(time.RFC3339),"sessionToken":id})
   return
  }
  if r.Method==http.MethodDelete && r.URL.Path=="/api/session" {
