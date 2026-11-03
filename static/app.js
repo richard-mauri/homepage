@@ -7,7 +7,74 @@ const icons = {
 const accent={cyan:['#68cde0','rgba(104,205,224,.12)'],mint:['#75ddb6','rgba(117,221,182,.12)'],amber:['#eac081','rgba(234,192,129,.12)'],violet:['#b7a1f6','rgba(183,161,246,.12)']};
 function svg(name){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]||icons.code}</svg>`}
 function makeCard(app){const a=document.createElement('a');a.className='app-card';a.href=app.url;a.rel='noopener noreferrer';if(app.url.startsWith('https://')||app.url.startsWith('http://'))a.target='_blank';const [color,glow]=accent[app.accent]||accent.cyan;a.style.setProperty('--card-accent',color);a.style.setProperty('--card-glow',glow);const top=document.createElement('div');top.className='card-top';const icon=document.createElement('span');icon.className='card-icon';icon.innerHTML=svg(app.icon);const arrow=document.createElement('span');arrow.className='card-arrow';arrow.textContent='↗';top.append(icon,arrow);const content=document.createElement('div');content.className='card-content';for(const [cls,val,tag] of [['card-category',app.category,'div'],['card-name',app.name,'h3'],['card-subtitle',app.subtitle,'div'],['card-description',app.description,'p']]){let el=document.createElement(tag);el.className=cls;el.textContent=val;content.append(el)}const bottom=document.createElement('div');bottom.className='card-bottom';bottom.innerHTML='<span>OPEN APPLICATION</span><span class="direction">→</span>';a.append(top,content,bottom);return a}
-async function init(){const root=document.querySelector('#cards');try{const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)throw Error('Configuration unavailable');const c=await r.json();root.replaceChildren(...c.apps.map(makeCard));document.querySelector('.count').textContent='/ '+String(c.apps.length).padStart(2,'0');if(c.persistenceAvailable)enableOptionalAuth()}catch(e){root.textContent='Applications are temporarily unavailable. Please refresh to try again.'}}
+// Handoff tokens are kept only in memory and put in URL fragments for
+// approved suite destinations. The durable sign-in token is never forwarded.
+// Homepage has its own twelve-hour sign-in credential, distinct from
+// the short-lived app token. Store only this temporary session ID, never
+// the approved personal sign-in token.
+const homeLoginKey='mauri-home-session-v1';
+let homeSessionToken='',homeSessionExpires=0;
+try{
+ const session=JSON.parse(localStorage.getItem(homeLoginKey)||'null');
+ if(session && /^[a-f0-9]{64}$/.test(session.token) && session.expires>Date.now()){
+  homeSessionToken=session.token;homeSessionExpires=session.expires;
+ }
+}catch(_){}
+function clearHomeLogin(){
+ homeSessionToken='';homeSessionExpires=0;
+ try{localStorage.removeItem(homeLoginKey)}catch(_){}
+}
+function rememberHomeLogin(data){
+ if(!/^[a-f0-9]{64}$/.test(data.sessionToken)||!Number.isFinite(Date.parse(data.expiresAt)))throw Error('Invalid Homepage session');
+ homeSessionToken=data.sessionToken;homeSessionExpires=Date.parse(data.expiresAt);
+ try{localStorage.setItem(homeLoginKey,JSON.stringify({token:homeSessionToken,expires:homeSessionExpires}))}
+ catch(_){throw Error('Browser storage unavailable; Homepage cannot retain your sign-in across application navigation.')}
+}
+const homeSessionHeaders=()=>homeSessionToken?{Authorization:'Session '+homeSessionToken}:{};
+let suiteHandoffToken='',suiteHandoffExpires=0;
+try{const saved=JSON.parse(sessionStorage.getItem('suite-handoff-v1')||'null');if(saved&&/^[a-f0-9]{64}$/.test(saved.token)&&saved.expires>Date.now()){suiteHandoffToken=saved.token;suiteHandoffExpires=saved.expires}}catch(_){}
+function applyHandoffLinks(){
+ for(const link of document.querySelectorAll('#cards a.app-card')){
+  const url=new URL(link.href);
+  if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org')continue;
+  if(suiteHandoffToken && Date.now()<suiteHandoffExpires-30000){
+   url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);
+  }else{url.hash=''}
+  link.href=url.toString();
+ }
+}
+async function renewHandoff(approvedToken=''){
+ try{
+  const response=await fetch('/api/handoff/token',{method:'POST',credentials:'same-origin',cache:'no-store',headers:approvedToken?{Authorization:'Bearer '+approvedToken}:homeSessionHeaders()});
+  if(!response.ok)throw Error('not authenticated');
+  const data=await response.json();
+  if(!/^[a-f0-9]{64}$/.test(data.token)||!Date.parse(data.expiresAt))throw Error('bad handoff');
+  suiteHandoffToken=data.token;suiteHandoffExpires=Date.parse(data.expiresAt);
+  try{sessionStorage.setItem('suite-handoff-v1',JSON.stringify({token:suiteHandoffToken,expires:suiteHandoffExpires}))}catch(_){}
+  applyHandoffLinks();return true;
+ }catch(_){suiteHandoffToken='';suiteHandoffExpires=0;try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}applyHandoffLinks();return false}
+}
+// Mint a fresh handoff at application launch instead of reusing an older
+// token created when Homepage obtained focus.
+async function openSuiteApp(event){
+ const link=event.currentTarget;
+ const url=new URL(link.href);
+ if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org')return;
+ event.preventDefault();
+ if(!homeSessionToken || Date.now()>=homeSessionExpires){
+  alert('Sign in to Homepage before launching this account-enabled application.');
+  return;
+ }
+ const issued=await renewHandoff();
+ if(!issued || !suiteHandoffToken || Date.now()>=suiteHandoffExpires){
+  alert('Homepage session expired. Please sign in again.');
+  return;
+ }
+ url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);
+ // Same-tab navigation avoids Safari blocking a popup after async renewal.
+ location.assign(url.toString());
+}
+async function init(){const root=document.querySelector('#cards');try{const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)throw Error('Configuration unavailable');const c=await r.json();root.replaceChildren(...c.apps.map(makeCard));applyHandoffLinks();for(const link of root.querySelectorAll('a.app-card'))link.addEventListener('click',openSuiteApp);document.querySelector('.count').textContent='/ '+String(c.apps.length).padStart(2,'0');if(c.persistenceAvailable)enableOptionalAuth()}catch(e){root.textContent='Applications are temporarily unavailable. Please refresh to try again.'}}
 function tick(){document.querySelector('#clock').textContent=new Intl.DateTimeFormat('en-US',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'America/Los_Angeles'}).format(new Date())}
 const themeKey='themauris-theme';try{if(localStorage.getItem(themeKey)==='light')document.documentElement.dataset.theme='light'}catch(_){}document.querySelector('#themeToggle').addEventListener('click',()=>{const next=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=next;try{localStorage.setItem(themeKey,next)}catch(_){}});document.querySelector('#year').textContent=new Date().getFullYear();tick();setInterval(tick,30_000);init();
 
@@ -54,21 +121,27 @@ function enableOptionalAuth(){
  });
  const refresh=async()=>{
   try{
-   const response=await fetch('/api/session',{credentials:'same-origin',cache:'no-store'});
-   if(!response.ok)throw Error('no session');
+   const response=await fetch('/api/session',{credentials:'same-origin',cache:'no-store',headers:homeSessionHeaders()});
+   // A short-lived app bearer is not a Homepage login. Never display
+   // a signed-in Homepage identity unless the 12-hour session is valid.
+   if(!response.ok)throw Error('Homepage login session unavailable');
    const session=await response.json();
+   rememberHomeLogin(session);
    identity.textContent=session.user+' ('+session.role+')';
    manage.hidden=session.role!=='admin';
    signedIn.hidden=false;signIn.hidden=true;
-   return true;
-  }catch(_){signedIn.hidden=true;signIn.hidden=false;manage.hidden=true;return false;}
+   await renewHandoff();return true;
+  }catch(_){signedIn.hidden=true;signIn.hidden=false;manage.hidden=true;suiteHandoffToken='';suiteHandoffExpires=0;try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}applyHandoffLinks();return false;}
  };
  form.addEventListener('submit',async event=>{
   event.preventDefault();submit.disabled=true;message.textContent='';
   try{
    const response=await fetch('/api/session',{method:'POST',credentials:'same-origin',headers:{Authorization:'Bearer '+token.value.trim()},cache:'no-store'});
    if(!response.ok)throw Error('Token not approved (HTTP '+response.status+').');
-   if(!await refresh())throw Error('Session not retained. Please use HTTPS.');
+   rememberHomeLogin(await response.json());
+   await renewHandoff(token.value.trim());
+   if(!suiteHandoffToken)throw Error('Unable to issue one-hour app access.');
+   if(!await refresh())throw Error('Homepage sign-in session was not retained. Please enable cookies for home.themauris.org and sign in again.');
    hideDialog();
   }catch(error){message.textContent=error.message;}
   finally{submit.disabled=false;}
@@ -76,11 +149,13 @@ function enableOptionalAuth(){
  signOut.addEventListener('click',async()=>{
   signOut.disabled=true;
   try{
-   const response=await fetch('/api/session',{method:'DELETE',credentials:'same-origin',cache:'no-store'});
+   const response=await fetch('/api/session',{method:'DELETE',credentials:'same-origin',cache:'no-store',headers:homeSessionHeaders()});
    if(!response.ok)throw Error('Sign out failed (HTTP '+response.status+').');
-   await refresh();
+   clearHomeLogin();suiteHandoffToken='';suiteHandoffExpires=0;try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}
+   applyHandoffLinks();await refresh();
   }catch(error){alert(error.message);}
   finally{signOut.disabled=false;}
  });
  refresh();
+ window.addEventListener('focus',()=>{if(Date.now()>suiteHandoffExpires-5*60*1000)void refresh()});
 }

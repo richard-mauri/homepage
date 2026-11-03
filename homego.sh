@@ -18,7 +18,7 @@ version_output="$("$APP" -version)"
   echo "Invalid Homepage version output: $version_output" >&2; exit 1;
 }
 [[ "$version_output" != *"Build 000000" ]] || { echo 'Unstamped build refused' >&2; exit 1; }
-echo "Starting $version_output"
+echo "Starting $version_output with arguments: ${*:-default settings}"
 # Stop only exact Homepage dist executable and this tunnel's token-file process.
 ps -axo pid=,command= | while read -r pid command; do
   if [[ "$command" == "$APP" || "$command" == "$APP "* ]]; then
@@ -30,7 +30,7 @@ ps -axo pid=,command= | while read -r pid command; do
     kill "$pid" 2>/dev/null || true
   fi
 done
-nohup "$APP" > "$APP_DIR/homepage.log" 2>&1 < /dev/null &
+nohup "$APP" "$@" > "$APP_DIR/homepage.log" 2>&1 < /dev/null &
 nohup "$CLOUDFLARED" tunnel run --token-file "$TOKEN" \
   > "$APP_DIR/.cloudflared/tunnel.log" 2>&1 < /dev/null &
 disown -a || true

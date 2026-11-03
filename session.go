@@ -13,26 +13,38 @@ import (
  "themauris.org/homepage/internal/suitestore"
 )
 
-const sessionCookieName = "mauri_suite_session"
+const sessionCookieName = "mauri_home_session"
+const legacySessionCookieName = "mauri_suite_session"
 const sessionLifetime = 12*time.Hour
+const defaultHandoffLifetime = time.Hour
 
 type sessionRecord struct { Digest string; Expires time.Time }
 type sessionService struct {
  mu sync.Mutex
  sessions map[string]sessionRecord
+ handoffs map[string]sessionRecord
  store *suitestore.Store
  now func() time.Time
+ handoffLifetime time.Duration
 }
 
 func newSessionService(store *suitestore.Store) *sessionService {
- return &sessionService{sessions:make(map[string]sessionRecord),store:store,now:time.Now}
+ return &sessionService{sessions:make(map[string]sessionRecord),handoffs:make(map[string]sessionRecord),store:store,now:time.Now,handoffLifetime:defaultHandoffLifetime}
 }
 func (s *sessionService) cookie(r *http.Request, value string, maxAge int) *http.Cookie {
  cookie:=&http.Cookie{Name:sessionCookieName,Value:value,Path:"/",Secure:true,HttpOnly:true,SameSite:http.SameSiteLaxMode,MaxAge:maxAge}
- // Set the parent domain only for the configured public suite hosts.
- host:=r.Host
- if strings.HasSuffix(host,".themauris.org") && !strings.Contains(host,":") {cookie.Domain="themauris.org"}
+ // Host-only cookie: Homepage's own UI may use it, but suite applications
+ // never receive or authenticate through this cookie.
  return cookie
+}
+// Expire the former parent-domain cookie on sign-in and sign-out. Safari
+// can otherwise retain both cookies with the same name and send either first.
+func clearLegacyDomainCookie(w http.ResponseWriter,r *http.Request) {
+ if r.Host!="home.themauris.org" {return}
+ http.SetCookie(w,&http.Cookie{Name:legacySessionCookieName,Value:"",Path:"/",Domain:"themauris.org",Secure:true,HttpOnly:true,SameSite:http.SameSiteLaxMode,MaxAge:-1})
+ // Also expire the old host-only variant; it must not coexist with
+ // Homepage's new, distinctly named login cookie.
+ http.SetCookie(w,&http.Cookie{Name:legacySessionCookieName,Value:"",Path:"/",Secure:true,HttpOnly:true,SameSite:http.SameSiteLaxMode,MaxAge:-1})
 }
 func validSessionOrigin(r *http.Request) bool {
  origin:=r.Header.Get("Origin")
@@ -88,10 +100,123 @@ func (s *sessionService) authenticateSession(r *http.Request) (string,string,boo
  user,role,err:=s.store.AuthenticateDigest(v.Digest)
  return user,role,err==nil
 }
+// A Homepage-only session is an independent 12-hour opaque credential,
+// explicitly sent by the Homepage browser. App bearers never authorize it.
+func (s *sessionService) homepageSession(r *http.Request) (sessionRecord,string,string,bool) {
+ id,has:=strings.CutPrefix(r.Header.Get("Authorization"),"Session ")
+ if !has || len(id)!=64{return sessionRecord{},"","",false}
+ if _,err:=hex.DecodeString(id);err!=nil{return sessionRecord{},"","",false}
+ s.mu.Lock();record,exists:=s.sessions[id];s.mu.Unlock()
+ if !exists || !s.now().Before(record.Expires){return sessionRecord{},"","",false}
+ user,role,err:=s.store.AuthenticateDigest(record.Digest)
+ return record,user,role,err==nil
+}
+// authenticateHandoff checks the independent one-hour bearer and revalidates
+// its originating credential digest so role changes/revocations take effect.
+func (s *sessionService) authenticateHandoff(r *http.Request) (string,string,bool) {
+ token,ok:=strings.CutPrefix(r.Header.Get("Authorization"),"Bearer ")
+ if !ok || len(token)!=64{return "","",false}
+ digest:=sha256.Sum256([]byte(token))
+ key:=hex.EncodeToString(digest[:])
+ s.mu.Lock();record,found:=s.handoffs[key]
+ if found && !s.now().Before(record.Expires){delete(s.handoffs,key);found=false}
+ s.mu.Unlock()
+ if !found{return "","",false}
+ user,role,err:=s.store.AuthenticateDigest(record.Digest)
+ return user,role,err==nil
+}
+// handoffHandler issues a new browser-transfer bearer, but never the durable
+// approved user credential. Link fragments are not transmitted to HTTP servers.
+func (s *sessionService) handoffHandler(w http.ResponseWriter,r *http.Request) {
+ w.Header().Set("Cache-Control","no-store")
+ w.Header().Set("X-Content-Type-Options","nosniff")
+ if r.Method!=http.MethodPost {w.Header().Set("Allow","POST");http.Error(w,"method not allowed",405);return}
+ if !validSessionOrigin(r){http.Error(w,"invalid origin",403);return}
+ // When a fresh approved token is provided, it takes precedence over
+ // any older Homepage cookie (which might represent a different user).
+ approved,hasBearer:=strings.CutPrefix(r.Header.Get("Authorization"),"Bearer ")
+ var user,role string
+ var source sessionRecord
+ if hasBearer {
+  var err error
+  user,role,err=s.store.Authenticate(approved)
+  if err!=nil{http.Error(w,"authentication failed",401);return}
+  digest:=sha256.Sum256([]byte(approved))
+  source=sessionRecord{Digest:hex.EncodeToString(digest[:])}
+ }else if strings.HasPrefix(r.Header.Get("Authorization"),"Session ") {
+  var ok bool
+  source,user,role,ok=s.homepageSession(r)
+  if !ok{http.Error(w,"Homepage session invalid",401);return}
+ }else{
+  var ok bool
+  user,role,ok=s.authenticateSession(r)
+  if !ok{http.Error(w,"session invalid",401);return}
+  c,_:=r.Cookie(sessionCookieName)
+  s.mu.Lock();source=s.sessions[c.Value];s.mu.Unlock()
+ }
+ var nonce [32]byte
+ if _,err:=rand.Read(nonce[:]);err!=nil{http.Error(w,"token unavailable",500);return}
+ token:=hex.EncodeToString(nonce[:])
+ hash:=sha256.Sum256([]byte(token))
+ expires:=s.now().Add(s.handoffLifetime)
+ s.mu.Lock()
+ for key,v:=range s.handoffs {if !s.now().Before(v.Expires){delete(s.handoffs,key)}}
+ s.handoffs[hex.EncodeToString(hash[:])]=sessionRecord{Digest:source.Digest,Expires:expires}
+ s.mu.Unlock()
+ w.Header().Set("Content-Type","application/json")
+ _=json.NewEncoder(w).Encode(map[string]any{"token":token,"expiresAt":expires.UTC().Format(time.RFC3339),"user":user,"role":role})
+}
+// renewHandoffHandler rotates an unexpired app bearer without a browser cookie.
+// The new token supersedes the old one; an expired token cannot be renewed.
+func (s *sessionService) renewHandoffHandler(w http.ResponseWriter,r *http.Request) {
+ w.Header().Set("Cache-Control","no-store")
+ w.Header().Set("Vary","Origin")
+ origin:=r.Header.Get("Origin")
+ if r.Method==http.MethodOptions {
+  if !allowedStorageOrigin(origin) || origin=="https://home.themauris.org" || r.Header.Get("Access-Control-Request-Method")!=http.MethodPost ||
+   strings.ToLower(strings.TrimSpace(r.Header.Get("Access-Control-Request-Headers")))!="authorization" {
+   http.Error(w,"preflight not allowed",403);return
+  }
+  w.Header().Set("Access-Control-Allow-Origin",origin)
+  w.Header().Set("Access-Control-Allow-Methods","POST")
+  w.Header().Set("Access-Control-Allow-Headers","Authorization")
+  w.Header().Set("Access-Control-Max-Age","300")
+  w.WriteHeader(http.StatusNoContent);return
+ }
+ if r.Method!=http.MethodPost {w.Header().Set("Allow","POST, OPTIONS");http.Error(w,"method not allowed",405);return}
+ if origin!="https://newsgo.themauris.org" && origin!="https://stocks.themauris.org" {http.Error(w,"origin not allowed",403);return}
+ w.Header().Set("Access-Control-Allow-Origin",origin)
+ user,role,ok:=s.authenticateHandoff(r)
+ if !ok{http.Error(w,"account token invalid or expired",401);return}
+ old,ok:=strings.CutPrefix(r.Header.Get("Authorization"),"Bearer ")
+ if !ok{http.Error(w,"token required",401);return}
+ oldHash:=sha256.Sum256([]byte(old))
+ oldKey:=hex.EncodeToString(oldHash[:])
+ var nonce [32]byte
+ if _,err:=rand.Read(nonce[:]);err!=nil{http.Error(w,"renewal unavailable",500);return}
+ newToken:=hex.EncodeToString(nonce[:])
+ newHash:=sha256.Sum256([]byte(newToken))
+ expires:=s.now().Add(s.handoffLifetime)
+ s.mu.Lock()
+ record,found:=s.handoffs[oldKey]
+ if !found || !s.now().Before(record.Expires){s.mu.Unlock();http.Error(w,"token expired",401);return}
+ delete(s.handoffs,oldKey)
+ s.handoffs[hex.EncodeToString(newHash[:])]=sessionRecord{Digest:record.Digest,Expires:expires}
+ s.mu.Unlock()
+ w.Header().Set("Content-Type","application/json")
+ _=json.NewEncoder(w).Encode(map[string]string{"token":newToken,"expiresAt":expires.UTC().Format(time.RFC3339),"user":user,"role":role})
+}
 // storageHandler uses server-derived identity; cookie-authenticated writes
 // require an exact same-origin Origin header to prevent cross-site mutations.
 func (s *sessionService) storageHandler(next http.Handler) http.Handler {
  return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
+  if user,_,ok:=s.authenticateHandoff(r);ok {next.ServeHTTP(w,suitestore.WithIdentity(r,user));return}
+  // Suite browsers must present the one-hour handoff. Homepage's login
+  // cookie is not an alternative identity for cross-origin application APIs.
+  origin:=r.Header.Get("Origin")
+  if origin!="" && origin!="https://home.themauris.org" {
+   http.Error(w,"one-hour account token required",401);return
+  }
   if _,err:=r.Cookie(sessionCookieName);err==nil {
    user,_,ok:=s.authenticateSession(r)
    if !ok{http.Error(w,"session invalid",401);return}
@@ -107,16 +232,41 @@ func (s *sessionService) profileHandler(w http.ResponseWriter,r *http.Request) {
  w.Header().Set("Cache-Control","no-store")
  w.Header().Set("Vary","Origin")
  origin:=r.Header.Get("Origin")
- if origin!="" && allowedStorageOrigin(origin) {
+ if r.Method==http.MethodOptions {
+  // An Authorization header on a cross-origin GET requires a browser
+  // preflight. Reject untrusted origins, methods, or request headers.
+  if !allowedStorageOrigin(origin) || r.Header.Get("Access-Control-Request-Method")!=http.MethodGet {
+   http.Error(w,"preflight not allowed",403);return
+  }
+  headers:=strings.ToLower(strings.TrimSpace(r.Header.Get("Access-Control-Request-Headers")))
+  if headers!="" && headers!="authorization" {
+   http.Error(w,"preflight headers not allowed",403);return
+  }
   w.Header().Set("Access-Control-Allow-Origin",origin)
   w.Header().Set("Access-Control-Allow-Credentials","true")
+  w.Header().Set("Access-Control-Allow-Methods","GET")
+  w.Header().Set("Access-Control-Allow-Headers","Authorization")
+  w.Header().Set("Access-Control-Max-Age","300")
+  w.WriteHeader(http.StatusNoContent);return
  }
- if r.Method!=http.MethodGet {w.Header().Set("Allow","GET");http.Error(w,"method not allowed",405);return}
+ if r.Method!=http.MethodGet {w.Header().Set("Allow","GET, OPTIONS");http.Error(w,"method not allowed",405);return}
  if origin!="" && !allowedStorageOrigin(origin){http.Error(w,"origin not allowed",403);return}
- user,role,ok:=s.authenticateSession(r)
- if !ok {http.Error(w,"session invalid",401);return}
+ if origin!="" {w.Header().Set("Access-Control-Allow-Origin",origin);w.Header().Set("Access-Control-Allow-Credentials","true")}
+ user,role,ok:=s.authenticateHandoff(r)
+ // The cookie is only valid for Homepage's own same-origin page, never
+ // as fallback for NewsGo or MauriStocks.
+ if !ok && (origin=="" || origin=="https://home.themauris.org") {
+  user,role,ok=s.authenticateSession(r)
+ }
+ if !ok {http.Error(w,"account token invalid or expired",401);return}
  w.Header().Set("Content-Type","application/json")
- _=json.NewEncoder(w).Encode(map[string]string{"user":user,"role":role})
+ result:=map[string]string{"user":user,"role":role}
+ if bearer,exists:=strings.CutPrefix(r.Header.Get("Authorization"),"Bearer ");exists {
+  sum:=sha256.Sum256([]byte(bearer))
+  s.mu.Lock();record,found:=s.handoffs[hex.EncodeToString(sum[:])];s.mu.Unlock()
+  if found && s.now().Before(record.Expires){result["expiresAt"]=record.Expires.UTC().Format(time.RFC3339)}
+ }
+ _=json.NewEncoder(w).Encode(result)
 }
 
 func (s *sessionService) handler(w http.ResponseWriter,r *http.Request) {
@@ -139,25 +289,43 @@ func (s *sessionService) handler(w http.ResponseWriter,r *http.Request) {
   s.sessions[id]=sessionRecord{Digest:hex.EncodeToString(digest[:]),Expires:expires}
   s.mu.Unlock()
   http.SetCookie(w,s.cookie(r,id,int(sessionLifetime.Seconds())))
+  clearLegacyDomainCookie(w,r)
   w.Header().Set("Content-Type","application/json")
-  _=json.NewEncoder(w).Encode(map[string]any{"user":user,"role":role,"expiresAt":expires.UTC().Format(time.RFC3339)})
+  _=json.NewEncoder(w).Encode(map[string]any{"user":user,"role":role,"expiresAt":expires.UTC().Format(time.RFC3339),"sessionToken":id})
   return
  }
  if r.Method==http.MethodGet && r.URL.Path=="/api/session" {
-  user,role,ok:=s.authenticateSession(r)
+  var user,role,id string
+  var v sessionRecord
+  var ok bool
+  if strings.HasPrefix(r.Header.Get("Authorization"),"Session ") {
+   v,user,role,ok=s.homepageSession(r)
+   id,_=strings.CutPrefix(r.Header.Get("Authorization"),"Session ")
+  }else{
+   user,role,ok=s.authenticateSession(r)
+   if ok{
+    c,_:=r.Cookie(sessionCookieName)
+    id=c.Value
+    s.mu.Lock();v=s.sessions[id];s.mu.Unlock()
+   }
+  }
   if !ok{http.Error(w,"session invalid",401);return}
-  c,_:=r.Cookie(sessionCookieName)
-  s.mu.Lock();v:=s.sessions[c.Value];s.mu.Unlock()
   w.Header().Set("Content-Type","application/json")
-  _=json.NewEncoder(w).Encode(map[string]any{"user":user,"role":role,"expiresAt":v.Expires.UTC().Format(time.RFC3339)})
+  _=json.NewEncoder(w).Encode(map[string]any{"user":user,"role":role,"expiresAt":v.Expires.UTC().Format(time.RFC3339),"sessionToken":id})
   return
  }
  if r.Method==http.MethodDelete && r.URL.Path=="/api/session" {
   if !validSessionOrigin(r){http.Error(w,"invalid origin",403);return}
+  if id,ok:=strings.CutPrefix(r.Header.Get("Authorization"),"Session ");ok{
+   if _,_,_,valid:=s.homepageSession(r);valid{
+    s.mu.Lock();delete(s.sessions,id);s.mu.Unlock()
+   }
+  }
   if c,err:=r.Cookie(sessionCookieName);err==nil {
    s.mu.Lock();delete(s.sessions,c.Value);s.mu.Unlock()
   }
   http.SetCookie(w,s.cookie(r,"",-1))
+  clearLegacyDomainCookie(w,r)
   w.WriteHeader(http.StatusNoContent)
   return
  }
