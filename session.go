@@ -112,10 +112,21 @@ func (s *sessionService) handoffHandler(w http.ResponseWriter,r *http.Request) {
  if r.Method!=http.MethodPost {w.Header().Set("Allow","POST");http.Error(w,"method not allowed",405);return}
  if !validSessionOrigin(r){http.Error(w,"invalid origin",403);return}
  user,role,ok:=s.authenticateSession(r)
- if !ok{http.Error(w,"session invalid",401);return}
- c,_:=r.Cookie(sessionCookieName)
- s.mu.Lock();source,found:=s.sessions[c.Value];s.mu.Unlock()
- if !found{http.Error(w,"session invalid",401);return}
+ var source sessionRecord
+ if ok {
+  c,_:=r.Cookie(sessionCookieName)
+  s.mu.Lock();source=s.sessions[c.Value];s.mu.Unlock()
+ }else{
+  // A fresh Homepage sign-in can issue a transfer bearer without relying
+  // on Safari retaining the cross-subdomain session cookie.
+  approved,hasBearer:=strings.CutPrefix(r.Header.Get("Authorization"),"Bearer ")
+  if !hasBearer {http.Error(w,"session invalid",401);return}
+  var err error
+  user,role,err=s.store.Authenticate(approved)
+  if err!=nil{http.Error(w,"authentication failed",401);return}
+  digest:=sha256.Sum256([]byte(approved))
+  source=sessionRecord{Digest:hex.EncodeToString(digest[:])}
+ }
  var nonce [32]byte
  if _,err:=rand.Read(nonce[:]);err!=nil{http.Error(w,"token unavailable",500);return}
  token:=hex.EncodeToString(nonce[:])
