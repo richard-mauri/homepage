@@ -100,13 +100,9 @@ function enableOptionalAuth(){
  const refresh=async()=>{
   try{
    const response=await fetch('/api/session',{credentials:'same-origin',cache:'no-store'});
-   if(!response.ok){
-    if(!suiteHandoffToken||Date.now()>=suiteHandoffExpires)throw Error('no session');
-    const bearer=await fetch('/api/session/profile',{headers:{Authorization:'Bearer '+suiteHandoffToken},cache:'no-store'});
-    if(!bearer.ok)throw Error('no session');
-    const data=await bearer.json();
-    identity.textContent=data.user+' ('+data.role+')';manage.hidden=data.role!=='admin';signedIn.hidden=false;signIn.hidden=true;applyHandoffLinks();return true;
-   }
+   // A short-lived app bearer is not a Homepage login. Never display
+   // a signed-in Homepage identity unless the 12-hour session is valid.
+   if(!response.ok)throw Error('Homepage login session unavailable');
    const session=await response.json();
    identity.textContent=session.user+' ('+session.role+')';
    manage.hidden=session.role!=='admin';
@@ -121,13 +117,7 @@ function enableOptionalAuth(){
    if(!response.ok)throw Error('Token not approved (HTTP '+response.status+').');
    await renewHandoff(token.value.trim());
    if(!suiteHandoffToken)throw Error('Unable to issue one-hour app access.');
-   if(!await refresh()){
-    // Safari may fail to retain the cookie; a validated one-hour handoff
-    // still permits launching suite apps immediately after sign-in.
-    const profile=await fetch('/api/session/profile',{headers:{Authorization:'Bearer '+suiteHandoffToken},cache:'no-store'});
-    if(!profile.ok)throw Error('Sign-in could not be verified.');
-    const data=await profile.json();identity.textContent=data.user+' ('+data.role+')';manage.hidden=data.role!=='admin';signedIn.hidden=false;signIn.hidden=true;
-   }
+   if(!await refresh())throw Error('Homepage sign-in session was not retained. Please enable cookies for home.themauris.org and sign in again.');
    hideDialog();
   }catch(error){message.textContent=error.message;}
   finally{submit.disabled=false;}
