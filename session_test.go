@@ -170,6 +170,38 @@ func TestHandoffBearerExpiryAndRevocation(t *testing.T) {
  if got:=profile();got!=401{t.Fatalf("revoked handoff: %d",got)}
 }
 
+func TestHandoffExplicitIdentityOverridesStaleCookie(t *testing.T){
+ root:=t.TempDir()
+ store,err:=suitestore.New(root,"newsgo")
+ if err!=nil{t.Fatal(err)}
+ oldToken:=strings.Repeat("a",64)
+ newToken:=strings.Repeat("b",64)
+ digest:=func(token string)string{h:=sha256.Sum256([]byte(token));return hex.EncodeToString(h[:])}
+ authFile:=filepath.Join(root,"auth","approved-tokens.json")
+ if err:=os.MkdirAll(filepath.Dir(authFile),0700);err!=nil{t.Fatal(err)}
+ entries,_:=json.Marshal([]suitestore.Credential{{User:"olduser",Digest:digest(oldToken)},{User:"newuser",Digest:digest(newToken)}})
+ if err:=os.WriteFile(authFile,entries,0600);err!=nil{t.Fatal(err)}
+ svc:=newSessionService(store)
+ login:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/session",nil)
+ login.Header.Set("Origin","https://home.themauris.org");login.Header.Set("Authorization","Bearer "+oldToken)
+ out:=httptest.NewRecorder();svc.handler(out,login)
+ if out.Code!=200{t.Fatalf("login: %d",out.Code)}
+ issue:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/handoff/token",nil)
+ issue.Header.Set("Origin","https://home.themauris.org")
+ issue.Header.Set("Authorization","Bearer "+newToken)
+ issue.AddCookie(out.Result().Cookies()[0])
+ out=httptest.NewRecorder();svc.handoffHandler(out,issue)
+ if out.Code!=200{t.Fatalf("issue: %d",out.Code)}
+ var result struct{Token string `json:"token"`}
+ if err:=json.Unmarshal(out.Body.Bytes(),&result);err!=nil{t.Fatal(err)}
+ req:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/api/session/profile",nil)
+ req.Header.Set("Authorization","Bearer "+result.Token)
+ out=httptest.NewRecorder();svc.profileHandler(out,req)
+ if out.Code!=200 || !strings.Contains(out.Body.String(),`"user":"newuser"`){
+  t.Fatalf("handoff used stale cookie identity: %d %s",out.Code,out.Body.String())
+ }
+}
+
 func TestHandoffRejectsForeignOrigin(t *testing.T) {
  svc:=newSessionService(nil)
  req:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/handoff/token",nil)
