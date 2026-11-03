@@ -165,7 +165,22 @@ func (s *sessionService) profileHandler(w http.ResponseWriter,r *http.Request) {
   w.Header().Set("Access-Control-Allow-Origin",origin)
   w.Header().Set("Access-Control-Allow-Credentials","true")
  }
- if r.Method!=http.MethodGet {w.Header().Set("Allow","GET");http.Error(w,"method not allowed",405);return}
+ if r.Method==http.MethodOptions {
+  // An Authorization header on a cross-origin GET requires a browser
+  // preflight. Reject untrusted origins, methods, or request headers.
+  if !allowedStorageOrigin(origin) || r.Header.Get("Access-Control-Request-Method")!=http.MethodGet {
+   http.Error(w,"preflight not allowed",403);return
+  }
+  headers:=strings.ToLower(strings.TrimSpace(r.Header.Get("Access-Control-Request-Headers")))
+  if headers!="" && headers!="authorization" {
+   http.Error(w,"preflight headers not allowed",403);return
+  }
+  w.Header().Set("Access-Control-Allow-Methods","GET")
+  w.Header().Set("Access-Control-Allow-Headers","Authorization")
+  w.Header().Set("Access-Control-Max-Age","300")
+  w.WriteHeader(http.StatusNoContent);return
+ }
+ if r.Method!=http.MethodGet {w.Header().Set("Allow","GET, OPTIONS");http.Error(w,"method not allowed",405);return}
  if origin!="" && !allowedStorageOrigin(origin){http.Error(w,"origin not allowed",403);return}
  user,role,ok:=s.authenticateHandoff(r)
  if !ok {user,role,ok=s.authenticateSession(r)}
