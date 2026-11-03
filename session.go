@@ -100,6 +100,17 @@ func (s *sessionService) authenticateSession(r *http.Request) (string,string,boo
  user,role,err:=s.store.AuthenticateDigest(v.Digest)
  return user,role,err==nil
 }
+// A Homepage-only session is an independent 12-hour opaque credential,
+// explicitly sent by the Homepage browser. App bearers never authorize it.
+func (s *sessionService) homepageSession(r *http.Request) (sessionRecord,string,string,bool) {
+ id,has:=strings.CutPrefix(r.Header.Get("Authorization"),"Session ")
+ if !has || len(id)!=64{return sessionRecord{},"","",false}
+ if _,err:=hex.DecodeString(id);err!=nil{return sessionRecord{},"","",false}
+ s.mu.Lock();record,exists:=s.sessions[id];s.mu.Unlock()
+ if !exists || !s.now().Before(record.Expires){return sessionRecord{},"","",false}
+ user,role,err:=s.store.AuthenticateDigest(record.Digest)
+ return record,user,role,err==nil
+}
 // authenticateHandoff checks the independent one-hour bearer and revalidates
 // its originating credential digest so role changes/revocations take effect.
 func (s *sessionService) authenticateHandoff(r *http.Request) (string,string,bool) {
@@ -132,6 +143,10 @@ func (s *sessionService) handoffHandler(w http.ResponseWriter,r *http.Request) {
   if err!=nil{http.Error(w,"authentication failed",401);return}
   digest:=sha256.Sum256([]byte(approved))
   source=sessionRecord{Digest:hex.EncodeToString(digest[:])}
+ }else if strings.HasPrefix(r.Header.Get("Authorization"),"Session ") {
+  var ok bool
+  source,user,role,ok=s.homepageSession(r)
+  if !ok{http.Error(w,"Homepage session invalid",401);return}
  }else{
   var ok bool
   user,role,ok=s.authenticateSession(r)
@@ -276,20 +291,34 @@ func (s *sessionService) handler(w http.ResponseWriter,r *http.Request) {
   http.SetCookie(w,s.cookie(r,id,int(sessionLifetime.Seconds())))
   clearLegacyDomainCookie(w,r)
   w.Header().Set("Content-Type","application/json")
-  _=json.NewEncoder(w).Encode(map[string]any{"user":user,"role":role,"expiresAt":expires.UTC().Format(time.RFC3339)})
+  _=json.NewEncoder(w).Encode(map[string]any{"user":user,"role":role,"expiresAt":expires.UTC().Format(time.RFC3339),"sessionToken":id})
   return
  }
  if r.Method==http.MethodGet && r.URL.Path=="/api/session" {
-  user,role,ok:=s.authenticateSession(r)
+  var user,role string
+  var v sessionRecord
+  var ok bool
+  if strings.HasPrefix(r.Header.Get("Authorization"),"Session ") {
+   v,user,role,ok=s.homepageSession(r)
+  }else{
+   user,role,ok=s.authenticateSession(r)
+   if ok{
+    c,_:=r.Cookie(sessionCookieName)
+    s.mu.Lock();v=s.sessions[c.Value];s.mu.Unlock()
+   }
+  }
   if !ok{http.Error(w,"session invalid",401);return}
-  c,_:=r.Cookie(sessionCookieName)
-  s.mu.Lock();v:=s.sessions[c.Value];s.mu.Unlock()
   w.Header().Set("Content-Type","application/json")
   _=json.NewEncoder(w).Encode(map[string]any{"user":user,"role":role,"expiresAt":v.Expires.UTC().Format(time.RFC3339)})
   return
  }
  if r.Method==http.MethodDelete && r.URL.Path=="/api/session" {
   if !validSessionOrigin(r){http.Error(w,"invalid origin",403);return}
+  if id,ok:=strings.CutPrefix(r.Header.Get("Authorization"),"Session ");ok{
+   if _,_,_,valid:=s.homepageSession(r);valid{
+    s.mu.Lock();delete(s.sessions,id);s.mu.Unlock()
+   }
+  }
   if c,err:=r.Cookie(sessionCookieName);err==nil {
    s.mu.Lock();delete(s.sessions,c.Value);s.mu.Unlock()
   }
