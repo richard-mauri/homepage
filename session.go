@@ -35,6 +35,12 @@ func (s *sessionService) cookie(r *http.Request, value string, maxAge int) *http
  // never receive or authenticate through this cookie.
  return cookie
 }
+// Expire the former parent-domain cookie on sign-in and sign-out. Safari
+// can otherwise retain both cookies with the same name and send either first.
+func clearLegacyDomainCookie(w http.ResponseWriter,r *http.Request) {
+ if r.Host!="home.themauris.org" {return}
+ http.SetCookie(w,&http.Cookie{Name:sessionCookieName,Value:"",Path:"/",Domain:"themauris.org",Secure:true,HttpOnly:true,SameSite:http.SameSiteLaxMode,MaxAge:-1})
+}
 func validSessionOrigin(r *http.Request) bool {
  origin:=r.Header.Get("Origin")
  if origin=="" {return false}
@@ -217,6 +223,7 @@ func (s *sessionService) handler(w http.ResponseWriter,r *http.Request) {
   s.sessions[id]=sessionRecord{Digest:hex.EncodeToString(digest[:]),Expires:expires}
   s.mu.Unlock()
   http.SetCookie(w,s.cookie(r,id,int(sessionLifetime.Seconds())))
+  clearLegacyDomainCookie(w,r)
   w.Header().Set("Content-Type","application/json")
   _=json.NewEncoder(w).Encode(map[string]any{"user":user,"role":role,"expiresAt":expires.UTC().Format(time.RFC3339)})
   return
@@ -236,6 +243,7 @@ func (s *sessionService) handler(w http.ResponseWriter,r *http.Request) {
    s.mu.Lock();delete(s.sessions,c.Value);s.mu.Unlock()
   }
   http.SetCookie(w,s.cookie(r,"",-1))
+  clearLegacyDomainCookie(w,r)
   w.WriteHeader(http.StatusNoContent)
   return
  }
