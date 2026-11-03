@@ -22,3 +22,5 @@ curl -fsS http://127.0.0.1:8787/healthz
 ```
 
 For the normal 60-minute behavior, restart the same launcher without the argument (`./homego.sh`). Existing browser account tabs will need a new token after the Homepage restart.
+
+Latest candidate: Clicking a NewsGo or Stocks launcher card now issues a fresh handoff before same-tab navigation. Homepage `POST /api/handoff/renew` rotates an unexpired bearer from the app origin; profile returns `expiresAt` so browser UI can show actual time remaining. Rotation removes the old bearer. Five-minute and 60-minute CLI settings still apply. Direct app renewal does not use cookies or a Homepage redirect while valid. CI and iOS Safari acceptance must be rechecked on the latest head.
