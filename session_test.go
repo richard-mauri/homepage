@@ -73,7 +73,7 @@ func TestStorageSessionRevocationAndCSRF(t *testing.T) {
   resp:=httptest.NewRecorder();handler.ServeHTTP(resp,req)
   return resp.Code
  }
- if got:=write("https://evil.example");got!=403{t.Fatalf("foreign origin accepted: %d",got)}
+ if got:=write("https://evil.example");got!=401{t.Fatalf("cross-origin cookie accepted: %d",got)}
  if got:=write("");got!=403{t.Fatalf("missing origin accepted: %d",got)}
  if got:=write("https://home.themauris.org");got!=200{t.Fatalf("same-origin write failed: %d",got)}
  if err:=os.WriteFile(authFile,[]byte("[]"),0600);err!=nil{t.Fatal(err)}
