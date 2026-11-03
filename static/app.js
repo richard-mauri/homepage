@@ -7,7 +7,30 @@ const icons = {
 const accent={cyan:['#68cde0','rgba(104,205,224,.12)'],mint:['#75ddb6','rgba(117,221,182,.12)'],amber:['#eac081','rgba(234,192,129,.12)'],violet:['#b7a1f6','rgba(183,161,246,.12)']};
 function svg(name){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]||icons.code}</svg>`}
 function makeCard(app){const a=document.createElement('a');a.className='app-card';a.href=app.url;a.rel='noopener noreferrer';if(app.url.startsWith('https://')||app.url.startsWith('http://'))a.target='_blank';const [color,glow]=accent[app.accent]||accent.cyan;a.style.setProperty('--card-accent',color);a.style.setProperty('--card-glow',glow);const top=document.createElement('div');top.className='card-top';const icon=document.createElement('span');icon.className='card-icon';icon.innerHTML=svg(app.icon);const arrow=document.createElement('span');arrow.className='card-arrow';arrow.textContent='↗';top.append(icon,arrow);const content=document.createElement('div');content.className='card-content';for(const [cls,val,tag] of [['card-category',app.category,'div'],['card-name',app.name,'h3'],['card-subtitle',app.subtitle,'div'],['card-description',app.description,'p']]){let el=document.createElement(tag);el.className=cls;el.textContent=val;content.append(el)}const bottom=document.createElement('div');bottom.className='card-bottom';bottom.innerHTML='<span>OPEN APPLICATION</span><span class="direction">→</span>';a.append(top,content,bottom);return a}
-async function init(){const root=document.querySelector('#cards');try{const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)throw Error('Configuration unavailable');const c=await r.json();root.replaceChildren(...c.apps.map(makeCard));document.querySelector('.count').textContent='/ '+String(c.apps.length).padStart(2,'0');if(c.persistenceAvailable)enableOptionalAuth()}catch(e){root.textContent='Applications are temporarily unavailable. Please refresh to try again.'}}
+// Handoff tokens are kept only in memory and put in URL fragments for
+// approved suite destinations. The durable sign-in token is never forwarded.
+let suiteHandoffToken='',suiteHandoffExpires=0;
+function applyHandoffLinks(){
+ for(const link of document.querySelectorAll('#cards a.app-card')){
+  const url=new URL(link.href);
+  if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org')continue;
+  if(suiteHandoffToken && Date.now()<suiteHandoffExpires-30000){
+   url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);
+  }else{url.hash=''}
+  link.href=url.toString();
+ }
+}
+async function renewHandoff(){
+ try{
+  const response=await fetch('/api/handoff/token',{method:'POST',credentials:'same-origin',cache:'no-store'});
+  if(!response.ok)throw Error('not authenticated');
+  const data=await response.json();
+  if(!/^[a-f0-9]{64}$/.test(data.token)||!Date.parse(data.expiresAt))throw Error('bad handoff');
+  suiteHandoffToken=data.token;suiteHandoffExpires=Date.parse(data.expiresAt);
+ }catch(_){suiteHandoffToken='';suiteHandoffExpires=0}
+ applyHandoffLinks();
+}
+async function init(){const root=document.querySelector('#cards');try{const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)throw Error('Configuration unavailable');const c=await r.json();root.replaceChildren(...c.apps.map(makeCard));applyHandoffLinks();document.querySelector('.count').textContent='/ '+String(c.apps.length).padStart(2,'0');if(c.persistenceAvailable)enableOptionalAuth()}catch(e){root.textContent='Applications are temporarily unavailable. Please refresh to try again.'}}
 function tick(){document.querySelector('#clock').textContent=new Intl.DateTimeFormat('en-US',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'America/Los_Angeles'}).format(new Date())}
 const themeKey='themauris-theme';try{if(localStorage.getItem(themeKey)==='light')document.documentElement.dataset.theme='light'}catch(_){}document.querySelector('#themeToggle').addEventListener('click',()=>{const next=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=next;try{localStorage.setItem(themeKey,next)}catch(_){}});document.querySelector('#year').textContent=new Date().getFullYear();tick();setInterval(tick,30_000);init();
 
@@ -60,8 +83,8 @@ function enableOptionalAuth(){
    identity.textContent=session.user+' ('+session.role+')';
    manage.hidden=session.role!=='admin';
    signedIn.hidden=false;signIn.hidden=true;
-   return true;
-  }catch(_){signedIn.hidden=true;signIn.hidden=false;manage.hidden=true;return false;}
+   await renewHandoff();return true;
+  }catch(_){signedIn.hidden=true;signIn.hidden=false;manage.hidden=true;suiteHandoffToken='';suiteHandoffExpires=0;applyHandoffLinks();return false;}
  };
  form.addEventListener('submit',async event=>{
   event.preventDefault();submit.disabled=true;message.textContent='';
@@ -83,4 +106,5 @@ function enableOptionalAuth(){
   finally{signOut.disabled=false;}
  });
  refresh();
+ window.addEventListener('focus',()=>{if(Date.now()>suiteHandoffExpires-5*60*1000)void refresh()});
 }
