@@ -274,3 +274,50 @@ func TestHandoffRejectsForeignOrigin(t *testing.T) {
  out:=httptest.NewRecorder();svc.handoffHandler(out,req)
  if out.Code!=403{t.Fatalf("foreign origin accepted: %d",out.Code)}
 }
+
+func TestHandoffRenewalRotatesAndRespectsExpiry(t *testing.T) {
+ root:=t.TempDir()
+ store,err:=suitestore.New(root,"newsgo")
+ if err!=nil{t.Fatal(err)}
+ approved:=strings.Repeat("e",64)
+ sum:=sha256.Sum256([]byte(approved))
+ authFile:=filepath.Join(root,"auth","approved-tokens.json")
+ if err:=os.MkdirAll(filepath.Dir(authFile),0700);err!=nil{t.Fatal(err)}
+ contents,_:=json.Marshal([]suitestore.Credential{{User:"reader",Digest:hex.EncodeToString(sum[:]),Role:"user"}})
+ if err:=os.WriteFile(authFile,contents,0600);err!=nil{t.Fatal(err)}
+ svc:=newSessionService(store)
+ svc.handoffLifetime=5*time.Minute
+ now:=time.Now().UTC().Truncate(time.Second)
+ svc.now=func()time.Time{return now}
+ issue:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/handoff/token",nil)
+ issue.Header.Set("Origin","https://home.themauris.org")
+ issue.Header.Set("Authorization","Bearer "+approved)
+ out:=httptest.NewRecorder();svc.handoffHandler(out,issue)
+ if out.Code!=200{t.Fatalf("issue: %d",out.Code)}
+ var old struct{Token string `json:"token"`}
+ if err:=json.Unmarshal(out.Body.Bytes(),&old);err!=nil{t.Fatal(err)}
+ preflight:=httptest.NewRequest(http.MethodOptions,"https://home.themauris.org/api/handoff/renew",nil)
+ preflight.Header.Set("Origin","https://newsgo.themauris.org")
+ preflight.Header.Set("Access-Control-Request-Method","POST")
+ preflight.Header.Set("Access-Control-Request-Headers","authorization")
+ out=httptest.NewRecorder();svc.renewHandoffHandler(out,preflight)
+ if out.Code!=204 || out.Header().Get("Access-Control-Allow-Origin")!="https://newsgo.themauris.org"{
+  t.Fatalf("preflight: %d",out.Code)
+ }
+ renewal:=func(token,origin string)*httptest.ResponseRecorder{
+  req:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/handoff/renew",nil)
+  req.Header.Set("Origin",origin)
+  req.Header.Set("Authorization","Bearer "+token)
+  result:=httptest.NewRecorder();svc.renewHandoffHandler(result,req);return result
+ }
+ now=now.Add(4*time.Minute)
+ out=renewal(old.Token,"https://newsgo.themauris.org")
+ if out.Code!=200{t.Fatalf("renewal: %d %s",out.Code,out.Body.String())}
+ var fresh struct{Token string `json:"token"`;ExpiresAt string `json:"expiresAt"`}
+ if err:=json.Unmarshal(out.Body.Bytes(),&fresh);err!=nil{t.Fatal(err)}
+ if fresh.Token==old.Token || fresh.ExpiresAt!=now.Add(5*time.Minute).Format(time.RFC3339){t.Fatal("renewal did not rotate/reset lifetime")}
+ if got:=renewal(old.Token,"https://newsgo.themauris.org").Code;got!=401{t.Fatalf("old token accepted: %d",got)}
+ if got:=renewal(fresh.Token,"https://evil.example").Code;got!=403{t.Fatalf("foreign origin accepted: %d",got)}
+ now=now.Add(5*time.Minute)
+ if got:=renewal(fresh.Token,"https://newsgo.themauris.org").Code;got!=401{t.Fatalf("expired token renewed: %d",got)}
+}
