@@ -29,8 +29,8 @@ async function renewHandoff(approvedToken=''){
   if(!/^[a-f0-9]{64}$/.test(data.token)||!Date.parse(data.expiresAt))throw Error('bad handoff');
   suiteHandoffToken=data.token;suiteHandoffExpires=Date.parse(data.expiresAt);
   try{sessionStorage.setItem('suite-handoff-v1',JSON.stringify({token:suiteHandoffToken,expires:suiteHandoffExpires}))}catch(_){}
- }catch(_){if(Date.now()>=suiteHandoffExpires){suiteHandoffToken='';suiteHandoffExpires=0;try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}}}
- applyHandoffLinks();
+  applyHandoffLinks();return true;
+ }catch(_){suiteHandoffToken='';suiteHandoffExpires=0;try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}applyHandoffLinks();return false}
 }
 // Mint a fresh handoff at application launch instead of reusing an older
 // token created when Homepage obtained focus.
@@ -43,8 +43,8 @@ async function openSuiteApp(event){
   alert('Sign in to Homepage before launching this account-enabled application.');
   return;
  }
- await renewHandoff();
- if(!suiteHandoffToken || Date.now()>=suiteHandoffExpires){
+ const issued=await renewHandoff();
+ if(!issued || !suiteHandoffToken || Date.now()>=suiteHandoffExpires){
   alert('Homepage session expired. Please sign in again.');
   return;
  }
