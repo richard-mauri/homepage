@@ -32,7 +32,27 @@ async function renewHandoff(approvedToken=''){
  }catch(_){if(Date.now()>=suiteHandoffExpires){suiteHandoffToken='';suiteHandoffExpires=0;try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}}}
  applyHandoffLinks();
 }
-async function init(){const root=document.querySelector('#cards');try{const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)throw Error('Configuration unavailable');const c=await r.json();root.replaceChildren(...c.apps.map(makeCard));applyHandoffLinks();document.querySelector('.count').textContent='/ '+String(c.apps.length).padStart(2,'0');if(c.persistenceAvailable)enableOptionalAuth()}catch(e){root.textContent='Applications are temporarily unavailable. Please refresh to try again.'}}
+// Mint a fresh handoff at application launch instead of reusing an older
+// token created when Homepage obtained focus.
+async function openSuiteApp(event){
+ const link=event.currentTarget;
+ const url=new URL(link.href);
+ if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org')return;
+ event.preventDefault();
+ if(!suiteHandoffToken){
+  alert('Sign in to Homepage before launching this account-enabled application.');
+  return;
+ }
+ await renewHandoff();
+ if(!suiteHandoffToken || Date.now()>=suiteHandoffExpires){
+  alert('Homepage session expired. Please sign in again.');
+  return;
+ }
+ url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);
+ // Same-tab navigation avoids Safari blocking a popup after async renewal.
+ location.assign(url.toString());
+}
+async function init(){const root=document.querySelector('#cards');try{const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)throw Error('Configuration unavailable');const c=await r.json();root.replaceChildren(...c.apps.map(makeCard));applyHandoffLinks();for(const link of root.querySelectorAll('a.app-card'))link.addEventListener('click',openSuiteApp);document.querySelector('.count').textContent='/ '+String(c.apps.length).padStart(2,'0');if(c.persistenceAvailable)enableOptionalAuth()}catch(e){root.textContent='Applications are temporarily unavailable. Please refresh to try again.'}}
 function tick(){document.querySelector('#clock').textContent=new Intl.DateTimeFormat('en-US',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'America/Los_Angeles'}).format(new Date())}
 const themeKey='themauris-theme';try{if(localStorage.getItem(themeKey)==='light')document.documentElement.dataset.theme='light'}catch(_){}document.querySelector('#themeToggle').addEventListener('click',()=>{const next=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=next;try{localStorage.setItem(themeKey,next)}catch(_){}});document.querySelector('#year').textContent=new Date().getFullYear();tick();setInterval(tick,30_000);init();
 
