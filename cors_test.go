@@ -36,19 +36,32 @@ func TestSuiteSubdomainStorageCORS(t *testing.T){
  preflight.Header.Set("Access-Control-Request-Headers","content-type")
  w=httptest.NewRecorder();handler.ServeHTTP(w,preflight)
  if w.Code!=204||w.Header().Get("Access-Control-Allow-Origin")!="https://stocks.themauris.org"||w.Header().Get("Access-Control-Allow-Credentials")!="true"{t.Fatalf("preflight: %d %+v",w.Code,w.Header())}
+ // A suite origin must use the one-hour token, not the Homepage cookie.
+ cookieOnly:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/api/storage/mauristocks",nil)
+ cookieOnly.Header.Set("Origin","https://stocks.themauris.org")
+ cookieOnly.AddCookie(cookie)
+ w=httptest.NewRecorder();handler.ServeHTTP(w,cookieOnly)
+ if w.Code!=401{t.Fatalf("cross-origin cookie accepted: %d",w.Code)}
+ issue:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/handoff/token",nil)
+ issue.Header.Set("Origin","https://home.themauris.org")
+ issue.AddCookie(cookie)
+ w=httptest.NewRecorder();svc.handoffHandler(w,issue)
+ if w.Code!=200{t.Fatalf("handoff: %d",w.Code)}
+ var granted struct {Token string `json:"token"`}
+ if err:=json.Unmarshal(w.Body.Bytes(),&granted);err!=nil{t.Fatal(err)}
  write:=func(origin string) *httptest.ResponseRecorder {
   r:=httptest.NewRequest(http.MethodPut,"https://home.themauris.org/api/storage/mauristocks",strings.NewReader(`{"revision":0,"data":{"symbols":["CAT"]}}`))
-  r.AddCookie(cookie)
+  r.Header.Set("Authorization","Bearer "+granted.Token)
   if origin!=""{r.Header.Set("Origin",origin)}
   w:=httptest.NewRecorder();handler.ServeHTTP(w,r);return w
  }
  if got:=write("https://evil.example").Code;got!=403{t.Fatalf("foreign origin: %d",got)}
- if got:=write("").Code;got!=403{t.Fatalf("missing origin: %d",got)}
- if got:=write("https://stocks.themauris.org").Code;got!=200{t.Fatalf("allowed origin: %d",got)}
+ if got:=write("https://stocks.themauris.org").Code;got!=200{t.Fatalf("allowed token origin: %d",got)}
  read:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/api/storage/mauristocks",nil)
- read.AddCookie(cookie);read.Header.Set("Origin","https://newsgo.themauris.org")
+ read.Header.Set("Authorization","Bearer "+granted.Token)
+ read.Header.Set("Origin","https://newsgo.themauris.org")
  w=httptest.NewRecorder();handler.ServeHTTP(w,read)
- if w.Code!=200||!strings.Contains(w.Body.String(),"CAT"){t.Fatalf("subdomain read: %d %s",w.Code,w.Body.String())}
+ if w.Code!=200||!strings.Contains(w.Body.String(),"CAT"){t.Fatalf("token read: %d %s",w.Code,w.Body.String())}
  invalid:=httptest.NewRequest(http.MethodOptions,"https://home.themauris.org/api/storage/mauristocks",nil)
  invalid.Header.Set("Origin","https://attacker.themauris.org")
  invalid.Header.Set("Access-Control-Request-Method","PUT")
