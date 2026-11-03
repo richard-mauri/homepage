@@ -10,6 +10,7 @@ import (
  "path/filepath"
  "strings"
  "testing"
+ "time"
 
  "themauris.org/homepage/internal/suitestore"
 )
@@ -120,4 +121,59 @@ func TestSuiteProfileReadOnlyAndOriginPolicy(t *testing.T) {
  if w=fetch("https://evil.example",true,http.MethodGet);w.Code!=403 || w.Header().Get("Access-Control-Allow-Origin")!="" {t.Fatal("untrusted origin not rejected")}
  if w=fetch("https://stocks.themauris.org",false,http.MethodGet);w.Code!=401 {t.Fatal("anonymous profile access")}
  if w=fetch("https://stocks.themauris.org",true,http.MethodPost);w.Code!=405 {t.Fatal("profile must be read only")}
+}
+
+func TestHandoffBearerExpiryAndRevocation(t *testing.T) {
+ root:=t.TempDir()
+ store,err:=suitestore.New(root,"newsgo")
+ if err!=nil{t.Fatal(err)}
+ token:=strings.Repeat("f",64)
+ digest:=sha256.Sum256([]byte(token))
+ authFile:=filepath.Join(root,"auth","approved-tokens.json")
+ if err:=os.MkdirAll(filepath.Dir(authFile),0700);err!=nil{t.Fatal(err)}
+ entries,_:=json.Marshal([]suitestore.Credential{{User:"reader",Digest:hex.EncodeToString(digest[:]),Role:"user"}})
+ if err:=os.WriteFile(authFile,entries,0600);err!=nil{t.Fatal(err)}
+ svc:=newSessionService(store)
+ start:=time.Now()
+ svc.now=func()time.Time{return start}
+ login:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/session",nil)
+ login.Header.Set("Origin","https://home.themauris.org")
+ login.Header.Set("Authorization","Bearer "+token)
+ response:=httptest.NewRecorder();svc.handler(response,login)
+ if response.Code!=200{t.Fatalf("login: %d",response.Code)}
+ cookie:=response.Result().Cookies()[0]
+ issue:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/handoff/token",nil)
+ issue.Header.Set("Origin","https://home.themauris.org");issue.AddCookie(cookie)
+ response=httptest.NewRecorder();svc.handoffHandler(response,issue)
+ if response.Code!=200{t.Fatalf("issue: %d %s",response.Code,response.Body.String())}
+ var handed struct{Token string `json:"token"`}
+ if err:=json.Unmarshal(response.Body.Bytes(),&handed);err!=nil{t.Fatal(err)}
+ if len(handed.Token)!=64||handed.Token==token{t.Fatal("missing or durable handoff token")}
+ profile:=func()int{
+  req:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/api/session/profile",nil)
+  req.Header.Set("Origin","https://newsgo.themauris.org")
+  req.Header.Set("Authorization","Bearer "+handed.Token)
+  out:=httptest.NewRecorder();svc.profileHandler(out,req)
+  return out.Code
+ }
+ if got:=profile();got!=200{t.Fatalf("profile via handoff: %d",got)}
+ handler:=svc.suiteStorageHandler(store.Handler())
+ req:=httptest.NewRequest(http.MethodPut,"https://home.themauris.org/api/storage/newsgo",strings.NewReader(`{"revision":0,"data":{"subscriptions":[]}}`))
+ req.Header.Set("Origin","https://newsgo.themauris.org")
+ req.Header.Set("Authorization","Bearer "+handed.Token)
+ out:=httptest.NewRecorder();handler.ServeHTTP(out,req)
+ if out.Code!=200{t.Fatalf("storage via handoff: %d %s",out.Code,out.Body.String())}
+ svc.now=func()time.Time{return start.Add(61*time.Minute)}
+ if got:=profile();got!=401{t.Fatalf("expired handoff: %d",got)}
+ svc.now=func()time.Time{return start}
+ if err:=os.WriteFile(authFile,[]byte("[]"),0600);err!=nil{t.Fatal(err)}
+ if got:=profile();got!=401{t.Fatalf("revoked handoff: %d",got)}
+}
+
+func TestHandoffRejectsForeignOrigin(t *testing.T) {
+ svc:=newSessionService(nil)
+ req:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/handoff/token",nil)
+ req.Header.Set("Origin","https://evil.example")
+ out:=httptest.NewRecorder();svc.handoffHandler(out,req)
+ if out.Code!=403{t.Fatalf("foreign origin accepted: %d",out.Code)}
 }
