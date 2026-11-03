@@ -31,9 +31,8 @@ func newSessionService(store *suitestore.Store) *sessionService {
 }
 func (s *sessionService) cookie(r *http.Request, value string, maxAge int) *http.Cookie {
  cookie:=&http.Cookie{Name:sessionCookieName,Value:value,Path:"/",Secure:true,HttpOnly:true,SameSite:http.SameSiteLaxMode,MaxAge:maxAge}
- // Set the parent domain only for the configured public suite hosts.
- host:=r.Host
- if strings.HasSuffix(host,".themauris.org") && !strings.Contains(host,":") {cookie.Domain="themauris.org"}
+ // Host-only cookie: Homepage's own UI may use it, but suite applications
+ // never receive or authenticate through this cookie.
  return cookie
 }
 func validSessionOrigin(r *http.Request) bool {
