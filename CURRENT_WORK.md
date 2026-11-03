@@ -1,15 +1,24 @@
 # Homepage current work
 
-**Date:** 2026-11-02. **Status:** Draft central authentication/storage backend accepted in Safari; application client integrations remain pending. Not merged.
+**Date:** 2026-11-03. **Status:** Mobile header layout fix in draft; not merged or deployed.
 
-- Authoritative merged baseline: `main`; scoped working branch: `feat/central-suite-storage`, draft PR #3.
-- The previous `feat/versioned-build-workflow` candidate is separate and not silently merged.
-- Implemented: `internal/suitestore` validates NewsGo-style hashed tokens (ordinary and admin users), stores per-user/per-app revisioned JSON, performs atomic writes, checks write conflicts, and has auth/isolation tests.
-- Added `configureSuiteStorage` to Homepage's Go server. **Default disabled**; with operator-set `SUITE_DATA_DIR`, GET/PUT `/api/storage/{newsgo|mauristocks}` endpoints are registered and require bearer tokens. No token registry or NewsGo data is migrated automatically. Without a populated `SUITE_DATA_DIR/auth/approved-tokens.json`, authentication fails closed. Owner configured `SUITE_DATA_DIR="$APP_DIR/private"` in `homego.sh`, with `private/` Git-ignored. The local directory must remain permission-restricted and backed up.
-- Added opt-in session endpoints at `/api/session`: same-origin POST using existing bearer token establishes a random 12-hour Secure, HttpOnly, SameSite=Lax cookie scoped to themauris.org; GET reports current session; DELETE logs out. Sessions are in process memory and do not persist across restart. **Storage API now accepts validated browser sessions or bearer tokens.** Session requests revalidate the token digest and role against the approved-token registry on each use, so revocation takes effect without waiting for expiration. Cookie-authenticated writes require a same-origin Origin header (no cross-origin CORS support yet). The separate admin UI exists; app client integration is still pending. Owner has explicitly enabled storage on the Homepage live test tunnel to validate authentication and isolation; this is not a release.
-- Added `.github/workflows/ci.yml` for Go tests and macOS cross-builds. Previous CI passed on prior heads; check CI on the exact latest PR head. Admin UI role behavior was checked by owner in Safari; complete accessibility verification remains outstanding.
-- Added opt-in `/api/admin/users` backend API for admin-only user listing (no digests), token issuance/rotation, role changes and revocation. Preserves user settings on rotation/revocation; protects against removal of the last administrator. Newly issued token is returned once. The standalone administrator UI is implemented; the API remains disabled unless `SUITE_DATA_DIR` is set.\n- Added opt-in standalone `/suite-admin` page for token-based login, session status/logout, and administrator-only user listing/issuance/role changes/rotation/revocation. Existing Homepage launcher UI files remain unchanged; new page requires Safari accessibility/visual testing at integration acceptance. Token shown only on issuance/rotation; UI deliberately does not save raw tokens in localStorage.\n- Added a narrowly allowlisted credentialed storage CORS policy for `home.themauris.org`, `stocks.themauris.org`, and `newsgo.themauris.org`. Existing sessions permit `GET/PUT /api/storage/{app}` from these origins; untrusted origins and cookie writes lacking Origin are rejected. Added CORS and negative-origin tests. This does not automatically integrate app clients or permit cross-origin token-management operations.\n- Added optional **header Sign in button and modal** to the main Homepage launcher. The browser-only experience remains the default. When suite storage is configured, the modal permits token login; the header displays username, Sign out, and (admins only) Manage tokens without saving token values in localStorage or modifying app settings. It is a login/session milestone only: NewsGo and MauriStocks still use their prior local behavior until individual client integration, and signing in alone does NOT synchronize them yet. Owner verified Sign in, sign out, regular-user and admin states in Safari on the public HTTPS tunnel (Build 000014). The initially missing button was due to a scrolled page position (bounding rect y=-40), not CSS or JS failure. CSS now includes a global `[hidden]` rule to prevent both states appearing simultaneously.\n- **Remaining:** cross-subdomain client integration and session policy review, security review, persistent root provisioning, backup/recovery and migration, initial credential registry migration, NewsGo and MauriStocks integration, final Mac/Safari/Cloudflare acceptance.
-- No other application repositories, tunnels, DNS, or semantic versions were changed by this branch. Owner ran Homepage for HTTPS acceptance.
-- Mac acceptance still uses `go test -count=1 ./...`, `./devbuild.sh`, stamped Intel binary, Homepage-only launch and Safari/Cloudflare checks as applicable. No merge, release, or deployment without owner authorization.
+- GitHub `main` is the merged baseline. Scope: [issue #4](https://github.com/richard-mauri/homepage/issues/4), branch `fix/4-mobile-header-layout`, draft PR pending creation.
+- Problem observed on iPhone Safari: a signed-in admin username was clipped at the top, and the header separator overlapped the light/dark theme button.
+- Root cause: at viewports 600px wide or smaller, the header was fixed at 86px tall while its injected authentication controls wrapped onto multiple lines.
+- Fix: use content-driven mobile header height and wrapping; put the signed-in account controls on a full-width row, keep the username in view, and position clock/theme controls above the header's bottom divider. Desktop layout, sessions, storage, portrait, and other applications untouched.
+- Validation: GitHub CI pending; final iPhone Safari signed-in/signed-out, admin/ordinary user and theme checks pending. No claim of deployment.
+- Owner's Mac verification:
 
-- Asset caching fix accepted: Homepage Build 000014 publicly served versioned JS/CSS URLs; `/api/config` reported `persistenceAvailable: true`, versioned `app.js` contained modal code, and Safari executed the sign-in UI. Owner copied test credentials/settings from `/tmp` into the private persistent directory and committed `.gitignore` plus `homego.sh` configuration; confirm private-directory backups separately. Next: coordinate MauriStocks client integration on a separate draft branch, keeping localStorage default and never auto-overwriting either side.
+```bash
+cd ~/projects/homepage
+git fetch origin
+git checkout fix/4-mobile-header-layout
+git pull --ff-only origin fix/4-mobile-header-layout
+go test -count=1 ./...
+./devbuild.sh
+./dist/homepage-darwin-amd64 -version
+./homego.sh
+curl -fsS http://127.0.0.1:8787/healthz
+```
+
+Do not merge, release, or restart any service without owner approval.
