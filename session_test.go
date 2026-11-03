@@ -30,7 +30,7 @@ func TestSessionLifecycle(t *testing.T){
  w:=httptest.NewRecorder();svc.handler(w,login)
  if w.Code!=200{t.Fatalf("login: %d %s",w.Code,w.Body.String())}
  cookies:=w.Result().Cookies()
- if len(cookies)!=1||!cookies[0].Secure||!cookies[0].HttpOnly||cookies[0].Domain!="themauris.org" {t.Fatalf("unsafe cookie: %+v",cookies)}
+ if len(cookies)!=1||!cookies[0].Secure||!cookies[0].HttpOnly||cookies[0].Domain!="" {t.Fatalf("unsafe cookie: %+v",cookies)}
  req:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/api/session",nil);req.AddCookie(cookies[0])
  w=httptest.NewRecorder();svc.handler(w,req)
  if w.Code!=200||!strings.Contains(w.Body.String(),`"role":"user"`){t.Fatalf("session: %d %s",w.Code,w.Body.String())}
