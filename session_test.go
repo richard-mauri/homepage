@@ -162,6 +162,8 @@ func TestHandoffBearerExpiryAndRevocation(t *testing.T) {
  entries,_:=json.Marshal([]suitestore.Credential{{User:"reader",Digest:hex.EncodeToString(digest[:]),Role:"user"}})
  if err:=os.WriteFile(authFile,entries,0600);err!=nil{t.Fatal(err)}
  svc:=newSessionService(store)
+ if svc.handoffLifetime!=time.Hour{t.Fatalf("default lifetime: %s",svc.handoffLifetime)}
+ svc.handoffLifetime=5*time.Minute
  start:=time.Now()
  svc.now=func()time.Time{return start}
  login:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/session",nil)
@@ -174,9 +176,10 @@ func TestHandoffBearerExpiryAndRevocation(t *testing.T) {
  issue.Header.Set("Origin","https://home.themauris.org");issue.AddCookie(cookie)
  response=httptest.NewRecorder();svc.handoffHandler(response,issue)
  if response.Code!=200{t.Fatalf("issue: %d %s",response.Code,response.Body.String())}
- var handed struct{Token string `json:"token"`}
+ var handed struct{Token string `json:"token"`; ExpiresAt string `json:"expiresAt"`}
  if err:=json.Unmarshal(response.Body.Bytes(),&handed);err!=nil{t.Fatal(err)}
  if len(handed.Token)!=64||handed.Token==token{t.Fatal("missing or durable handoff token")}
+ if handed.ExpiresAt!=start.Add(5*time.Minute).UTC().Format(time.RFC3339){t.Fatalf("issued expiration: %s",handed.ExpiresAt)}
  profile:=func()int{
   req:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/api/session/profile",nil)
   req.Header.Set("Origin","https://newsgo.themauris.org")
@@ -191,9 +194,15 @@ func TestHandoffBearerExpiryAndRevocation(t *testing.T) {
  req.Header.Set("Authorization","Bearer "+handed.Token)
  out:=httptest.NewRecorder();handler.ServeHTTP(out,req)
  if out.Code!=200{t.Fatalf("storage via handoff: %d %s",out.Code,out.Body.String())}
- svc.now=func()time.Time{return start.Add(61*time.Minute)}
+ svc.now=func()time.Time{return start.Add(4*time.Minute+59*time.Second)}
+ if got:=profile();got!=200{t.Fatalf("premature expiry: %d",got)}
+ svc.now=func()time.Time{return start.Add(5*time.Minute)}
  if got:=profile();got!=401{t.Fatalf("expired handoff: %d",got)}
  svc.now=func()time.Time{return start}
+ response=httptest.NewRecorder();svc.handoffHandler(response,issue)
+ if response.Code!=200{t.Fatalf("new handoff: %d",response.Code)}
+ if err:=json.Unmarshal(response.Body.Bytes(),&handed);err!=nil{t.Fatal(err)}
+ if got:=profile();got!=200{t.Fatalf("replacement handoff invalid: %d",got)}
  if err:=os.WriteFile(authFile,[]byte("[]"),0600);err!=nil{t.Fatal(err)}
  if got:=profile();got!=401{t.Fatalf("revoked handoff: %d",got)}
 }
