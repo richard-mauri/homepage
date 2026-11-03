@@ -146,6 +146,12 @@ func (s *sessionService) handoffHandler(w http.ResponseWriter,r *http.Request) {
 func (s *sessionService) storageHandler(next http.Handler) http.Handler {
  return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
   if user,_,ok:=s.authenticateHandoff(r);ok {next.ServeHTTP(w,suitestore.WithIdentity(r,user));return}
+  // Suite browsers must present the one-hour handoff. Homepage's login
+  // cookie is not an alternative identity for cross-origin application APIs.
+  origin:=r.Header.Get("Origin")
+  if origin!="" && origin!="https://home.themauris.org" {
+   http.Error(w,"one-hour account token required",401);return
+  }
   if _,err:=r.Cookie(sessionCookieName);err==nil {
    user,_,ok:=s.authenticateSession(r)
    if !ok{http.Error(w,"session invalid",401);return}
@@ -182,8 +188,12 @@ func (s *sessionService) profileHandler(w http.ResponseWriter,r *http.Request) {
  if origin!="" && !allowedStorageOrigin(origin){http.Error(w,"origin not allowed",403);return}
  if origin!="" {w.Header().Set("Access-Control-Allow-Origin",origin);w.Header().Set("Access-Control-Allow-Credentials","true")}
  user,role,ok:=s.authenticateHandoff(r)
- if !ok {user,role,ok=s.authenticateSession(r)}
- if !ok {http.Error(w,"session invalid",401);return}
+ // The cookie is only valid for Homepage's own same-origin page, never
+ // as fallback for NewsGo or MauriStocks.
+ if !ok && (origin=="" || origin=="https://home.themauris.org") {
+  user,role,ok=s.authenticateSession(r)
+ }
+ if !ok {http.Error(w,"account token invalid or expired",401);return}
  w.Header().Set("Content-Type","application/json")
  _=json.NewEncoder(w).Encode(map[string]string{"user":user,"role":role})
 }
