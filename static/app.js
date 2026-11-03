@@ -10,6 +10,7 @@ function makeCard(app){const a=document.createElement('a');a.className='app-card
 // Handoff tokens are kept only in memory and put in URL fragments for
 // approved suite destinations. The durable sign-in token is never forwarded.
 let suiteHandoffToken='',suiteHandoffExpires=0;
+try{const saved=JSON.parse(sessionStorage.getItem('suite-handoff-v1')||'null');if(saved&&/^[a-f0-9]{64}$/.test(saved.token)&&saved.expires>Date.now()){suiteHandoffToken=saved.token;suiteHandoffExpires=saved.expires}}catch(_){}
 function applyHandoffLinks(){
  for(const link of document.querySelectorAll('#cards a.app-card')){
   const url=new URL(link.href);
@@ -20,14 +21,15 @@ function applyHandoffLinks(){
   link.href=url.toString();
  }
 }
-async function renewHandoff(){
+async function renewHandoff(approvedToken=''){
  try{
-  const response=await fetch('/api/handoff/token',{method:'POST',credentials:'same-origin',cache:'no-store'});
+  const response=await fetch('/api/handoff/token',{method:'POST',credentials:'same-origin',cache:'no-store',...(approvedToken?{headers:{Authorization:'Bearer '+approvedToken}}:{})});
   if(!response.ok)throw Error('not authenticated');
   const data=await response.json();
   if(!/^[a-f0-9]{64}$/.test(data.token)||!Date.parse(data.expiresAt))throw Error('bad handoff');
   suiteHandoffToken=data.token;suiteHandoffExpires=Date.parse(data.expiresAt);
- }catch(_){suiteHandoffToken='';suiteHandoffExpires=0}
+  try{sessionStorage.setItem('suite-handoff-v1',JSON.stringify({token:suiteHandoffToken,expires:suiteHandoffExpires}))}catch(_){}
+ }catch(_){if(Date.now()>=suiteHandoffExpires){suiteHandoffToken='';suiteHandoffExpires=0;try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}}}
  applyHandoffLinks();
 }
 async function init(){const root=document.querySelector('#cards');try{const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)throw Error('Configuration unavailable');const c=await r.json();root.replaceChildren(...c.apps.map(makeCard));applyHandoffLinks();document.querySelector('.count').textContent='/ '+String(c.apps.length).padStart(2,'0');if(c.persistenceAvailable)enableOptionalAuth()}catch(e){root.textContent='Applications are temporarily unavailable. Please refresh to try again.'}}
@@ -78,20 +80,34 @@ function enableOptionalAuth(){
  const refresh=async()=>{
   try{
    const response=await fetch('/api/session',{credentials:'same-origin',cache:'no-store'});
-   if(!response.ok)throw Error('no session');
+   if(!response.ok){
+    if(!suiteHandoffToken||Date.now()>=suiteHandoffExpires)throw Error('no session');
+    const bearer=await fetch('/api/session/profile',{headers:{Authorization:'Bearer '+suiteHandoffToken},cache:'no-store'});
+    if(!bearer.ok)throw Error('no session');
+    const data=await bearer.json();
+    identity.textContent=data.user+' ('+data.role+')';manage.hidden=data.role!=='admin';signedIn.hidden=false;signIn.hidden=true;applyHandoffLinks();return true;
+   }
    const session=await response.json();
    identity.textContent=session.user+' ('+session.role+')';
    manage.hidden=session.role!=='admin';
    signedIn.hidden=false;signIn.hidden=true;
    await renewHandoff();return true;
-  }catch(_){signedIn.hidden=true;signIn.hidden=false;manage.hidden=true;suiteHandoffToken='';suiteHandoffExpires=0;applyHandoffLinks();return false;}
+  }catch(_){signedIn.hidden=true;signIn.hidden=false;manage.hidden=true;suiteHandoffToken='';suiteHandoffExpires=0;try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}applyHandoffLinks();return false;}
  };
  form.addEventListener('submit',async event=>{
   event.preventDefault();submit.disabled=true;message.textContent='';
   try{
    const response=await fetch('/api/session',{method:'POST',credentials:'same-origin',headers:{Authorization:'Bearer '+token.value.trim()},cache:'no-store'});
    if(!response.ok)throw Error('Token not approved (HTTP '+response.status+').');
-   if(!await refresh())throw Error('Session not retained. Please use HTTPS.');
+   await renewHandoff(token.value.trim());
+   if(!suiteHandoffToken)throw Error('Unable to issue one-hour app access.');
+   if(!await refresh()){
+    // Safari may fail to retain the cookie; a validated one-hour handoff
+    // still permits launching suite apps immediately after sign-in.
+    const profile=await fetch('/api/session/profile',{headers:{Authorization:'Bearer '+suiteHandoffToken},cache:'no-store'});
+    if(!profile.ok)throw Error('Sign-in could not be verified.');
+    const data=await profile.json();identity.textContent=data.user+' ('+data.role+')';manage.hidden=data.role!=='admin';signedIn.hidden=false;signIn.hidden=true;
+   }
    hideDialog();
   }catch(error){message.textContent=error.message;}
   finally{submit.disabled=false;}
@@ -101,7 +117,8 @@ function enableOptionalAuth(){
   try{
    const response=await fetch('/api/session',{method:'DELETE',credentials:'same-origin',cache:'no-store'});
    if(!response.ok)throw Error('Sign out failed (HTTP '+response.status+').');
-   await refresh();
+   suiteHandoffToken='';suiteHandoffExpires=0;try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}
+   applyHandoffLinks();await refresh();
   }catch(error){alert(error.message);}
   finally{signOut.disabled=false;}
  });
