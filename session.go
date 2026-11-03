@@ -13,7 +13,8 @@ import (
  "themauris.org/homepage/internal/suitestore"
 )
 
-const sessionCookieName = "mauri_suite_session"
+const sessionCookieName = "mauri_home_session"
+const legacySessionCookieName = "mauri_suite_session"
 const sessionLifetime = 12*time.Hour
 const defaultHandoffLifetime = time.Hour
 
@@ -40,7 +41,10 @@ func (s *sessionService) cookie(r *http.Request, value string, maxAge int) *http
 // can otherwise retain both cookies with the same name and send either first.
 func clearLegacyDomainCookie(w http.ResponseWriter,r *http.Request) {
  if r.Host!="home.themauris.org" {return}
- http.SetCookie(w,&http.Cookie{Name:sessionCookieName,Value:"",Path:"/",Domain:"themauris.org",Secure:true,HttpOnly:true,SameSite:http.SameSiteLaxMode,MaxAge:-1})
+ http.SetCookie(w,&http.Cookie{Name:legacySessionCookieName,Value:"",Path:"/",Domain:"themauris.org",Secure:true,HttpOnly:true,SameSite:http.SameSiteLaxMode,MaxAge:-1})
+ // Also expire the old host-only variant; it must not coexist with
+ // Homepage's new, distinctly named login cookie.
+ http.SetCookie(w,&http.Cookie{Name:legacySessionCookieName,Value:"",Path:"/",Secure:true,HttpOnly:true,SameSite:http.SameSiteLaxMode,MaxAge:-1})
 }
 func validSessionOrigin(r *http.Request) bool {
  origin:=r.Header.Get("Origin")
