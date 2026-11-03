@@ -27,4 +27,15 @@
 .suite-modal button:focus-visible,.suite-account button:focus-visible,.suite-account a:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .suite-modal form button{margin-top:14px}
 .suite-modal-message:empty{display:none}
-@media(max-width:600px){.topright{flex-wrap:wrap;justify-content:flex-end}.suite-account-auth{justify-content:flex-end}.suite-account-auth>span{width:100%;text-align:right}}
+/* On narrow screens, account controls occupy their own row. The header
+   grows with its content so its border stays beneath clock and theme button. */
+@media(max-width:600px){
+ .topbar{height:auto;min-height:86px;flex-wrap:wrap;align-items:center;gap:14px;padding:16px 0 18px}
+ .brand{min-width:0}
+ .topright{width:100%;min-width:0;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:10px}
+ .suite-account{width:100%;min-width:0}
+ .suite-account-auth{width:100%;justify-content:flex-start;gap:8px}
+ .suite-account-auth>span{width:100%;text-align:left}
+ #clock{margin-left:auto}
+ .theme-toggle{flex:none}
+}
