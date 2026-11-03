@@ -202,6 +202,34 @@ func TestHandoffExplicitIdentityOverridesStaleCookie(t *testing.T){
  }
 }
 
+func TestProfileBearerCORSPreflight(t *testing.T) {
+ svc:=newSessionService(nil)
+ testCase:=func(origin, method, headers string, expected int) {
+  t.Helper()
+  req:=httptest.NewRequest(http.MethodOptions,"https://home.themauris.org/api/session/profile",nil)
+  req.Header.Set("Origin",origin)
+  req.Header.Set("Access-Control-Request-Method",method)
+  if headers!=""{req.Header.Set("Access-Control-Request-Headers",headers)}
+  w:=httptest.NewRecorder();svc.profileHandler(w,req)
+  if w.Code!=expected{t.Fatalf("origin=%q method=%q headers=%q: got %d, want %d",origin,method,headers,w.Code,expected)}
+  if expected==http.StatusNoContent {
+   if w.Header().Get("Access-Control-Allow-Origin")!=origin ||
+      w.Header().Get("Access-Control-Allow-Headers")!="Authorization" ||
+      w.Header().Get("Access-Control-Allow-Methods")!="GET" ||
+      w.Header().Get("Access-Control-Allow-Credentials")!="true"{
+     t.Fatal("trusted bearer preflight missing required CORS response headers")
+   }
+  }else if w.Header().Get("Access-Control-Allow-Origin")!=""{
+   t.Fatal("untrusted origin allowed")
+  }
+ }
+ testCase("https://newsgo.themauris.org","GET","authorization",204)
+ testCase("https://stocks.themauris.org","GET","Authorization",204)
+ testCase("https://evil.example","GET","authorization",403)
+ testCase("https://newsgo.themauris.org","PUT","authorization",403)
+ testCase("https://newsgo.themauris.org","GET","x-secret",403)
+}
+
 func TestHandoffRejectsForeignOrigin(t *testing.T) {
  svc:=newSessionService(nil)
  req:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/handoff/token",nil)
