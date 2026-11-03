@@ -15,17 +15,19 @@ import (
 
 const sessionCookieName = "mauri_suite_session"
 const sessionLifetime = 12*time.Hour
+const handoffLifetime = time.Hour
 
 type sessionRecord struct { Digest string; Expires time.Time }
 type sessionService struct {
  mu sync.Mutex
  sessions map[string]sessionRecord
+ handoffs map[string]sessionRecord
  store *suitestore.Store
  now func() time.Time
 }
 
 func newSessionService(store *suitestore.Store) *sessionService {
- return &sessionService{sessions:make(map[string]sessionRecord),store:store,now:time.Now}
+ return &sessionService{sessions:make(map[string]sessionRecord),handoffs:make(map[string]sessionRecord),store:store,now:time.Now}
 }
 func (s *sessionService) cookie(r *http.Request, value string, maxAge int) *http.Cookie {
  cookie:=&http.Cookie{Name:sessionCookieName,Value:value,Path:"/",Secure:true,HttpOnly:true,SameSite:http.SameSiteLaxMode,MaxAge:maxAge}
@@ -88,10 +90,49 @@ func (s *sessionService) authenticateSession(r *http.Request) (string,string,boo
  user,role,err:=s.store.AuthenticateDigest(v.Digest)
  return user,role,err==nil
 }
+// authenticateHandoff checks the independent one-hour bearer and revalidates
+// its originating credential digest so role changes/revocations take effect.
+func (s *sessionService) authenticateHandoff(r *http.Request) (string,string,bool) {
+ token,ok:=strings.CutPrefix(r.Header.Get("Authorization"),"Bearer ")
+ if !ok || len(token)!=64{return "","",false}
+ digest:=sha256.Sum256([]byte(token))
+ key:=hex.EncodeToString(digest[:])
+ s.mu.Lock();record,found:=s.handoffs[key]
+ if found && !s.now().Before(record.Expires){delete(s.handoffs,key);found=false}
+ s.mu.Unlock()
+ if !found{return "","",false}
+ user,role,err:=s.store.AuthenticateDigest(record.Digest)
+ return user,role,err==nil
+}
+// handoffHandler issues a new browser-transfer bearer, but never the durable
+// approved user credential. Link fragments are not transmitted to HTTP servers.
+func (s *sessionService) handoffHandler(w http.ResponseWriter,r *http.Request) {
+ w.Header().Set("Cache-Control","no-store")
+ w.Header().Set("X-Content-Type-Options","nosniff")
+ if r.Method!=http.MethodPost {w.Header().Set("Allow","POST");http.Error(w,"method not allowed",405);return}
+ if !validSessionOrigin(r){http.Error(w,"invalid origin",403);return}
+ user,role,ok:=s.authenticateSession(r)
+ if !ok{http.Error(w,"session invalid",401);return}
+ c,_:=r.Cookie(sessionCookieName)
+ s.mu.Lock();source,found:=s.sessions[c.Value];s.mu.Unlock()
+ if !found{http.Error(w,"session invalid",401);return}
+ var nonce [32]byte
+ if _,err:=rand.Read(nonce[:]);err!=nil{http.Error(w,"token unavailable",500);return}
+ token:=hex.EncodeToString(nonce[:])
+ hash:=sha256.Sum256([]byte(token))
+ expires:=s.now().Add(handoffLifetime)
+ s.mu.Lock()
+ for key,v:=range s.handoffs {if !s.now().Before(v.Expires){delete(s.handoffs,key)}}
+ s.handoffs[hex.EncodeToString(hash[:])]=sessionRecord{Digest:source.Digest,Expires:expires}
+ s.mu.Unlock()
+ w.Header().Set("Content-Type","application/json")
+ _=json.NewEncoder(w).Encode(map[string]any{"token":token,"expiresAt":expires.UTC().Format(time.RFC3339),"user":user,"role":role})
+}
 // storageHandler uses server-derived identity; cookie-authenticated writes
 // require an exact same-origin Origin header to prevent cross-site mutations.
 func (s *sessionService) storageHandler(next http.Handler) http.Handler {
  return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
+  if user,_,ok:=s.authenticateHandoff(r);ok {next.ServeHTTP(w,suitestore.WithIdentity(r,user));return}
   if _,err:=r.Cookie(sessionCookieName);err==nil {
    user,_,ok:=s.authenticateSession(r)
    if !ok{http.Error(w,"session invalid",401);return}
@@ -113,7 +154,8 @@ func (s *sessionService) profileHandler(w http.ResponseWriter,r *http.Request) {
  }
  if r.Method!=http.MethodGet {w.Header().Set("Allow","GET");http.Error(w,"method not allowed",405);return}
  if origin!="" && !allowedStorageOrigin(origin){http.Error(w,"origin not allowed",403);return}
- user,role,ok:=s.authenticateSession(r)
+ user,role,ok:=s.authenticateHandoff(r)
+ if !ok {user,role,ok=s.authenticateSession(r)}
  if !ok {http.Error(w,"session invalid",401);return}
  w.Header().Set("Content-Type","application/json")
  _=json.NewEncoder(w).Encode(map[string]string{"user":user,"role":role})
