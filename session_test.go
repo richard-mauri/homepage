@@ -207,6 +207,59 @@ func TestHandoffBearerExpiryAndRevocation(t *testing.T) {
  if got:=profile();got!=401{t.Fatalf("revoked handoff: %d",got)}
 }
 
+// The Homepage sign-in remains valid after its shorter app handoff expires,
+// including a same-tab return request with no browser cookie whatsoever.
+func TestHomepageSessionSurvivesAppTokenExpiry(t *testing.T){
+ root:=t.TempDir()
+ store,err:=suitestore.New(root,"newsgo")
+ if err!=nil{t.Fatal(err)}
+ approved:=strings.Repeat("a",64)
+ hash:=sha256.Sum256([]byte(approved))
+ authFile:=filepath.Join(root,"auth","approved-tokens.json")
+ if err:=os.MkdirAll(filepath.Dir(authFile),0700);err!=nil{t.Fatal(err)}
+ content,_:=json.Marshal([]suitestore.Credential{{User:"reader",Digest:hex.EncodeToString(hash[:]),Role:"user"}})
+ if err:=os.WriteFile(authFile,content,0600);err!=nil{t.Fatal(err)}
+ svc:=newSessionService(store);svc.handoffLifetime=5*time.Minute
+ now:=time.Now().UTC().Truncate(time.Second)
+ svc.now=func()time.Time{return now}
+ signIn:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/session",nil)
+ signIn.Header.Set("Origin","https://home.themauris.org")
+ signIn.Header.Set("Authorization","Bearer "+approved)
+ out:=httptest.NewRecorder();svc.handler(out,signIn)
+ if out.Code!=200{t.Fatalf("sign-in: %d",out.Code)}
+ var login struct{SessionToken string `json:"sessionToken"`;ExpiresAt string `json:"expiresAt"`}
+ if err:=json.Unmarshal(out.Body.Bytes(),&login);err!=nil{t.Fatal(err)}
+ if len(login.SessionToken)!=64 || login.ExpiresAt!=now.Add(12*time.Hour).Format(time.RFC3339){t.Fatal("missing twelve-hour session")}
+ get:=func()*httptest.ResponseRecorder{
+  req:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/api/session",nil)
+  req.Header.Set("Authorization","Session "+login.SessionToken)
+  out:=httptest.NewRecorder();svc.handler(out,req);return out
+ }
+ if result:=get();result.Code!=200 {t.Fatalf("cookie-free session: %d",result.Code)}
+ handoff:=func()*httptest.ResponseRecorder{
+  req:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/handoff/token",nil)
+  req.Header.Set("Origin","https://home.themauris.org")
+  req.Header.Set("Authorization","Session "+login.SessionToken)
+  result:=httptest.NewRecorder();svc.handoffHandler(result,req);return result
+ }
+ issue:=handoff()
+ if issue.Code!=200{t.Fatalf("app token issue: %d",issue.Code)}
+ var short struct{Token string `json:"token"`}
+ if err:=json.Unmarshal(issue.Body.Bytes(),&short);err!=nil{t.Fatal(err)}
+ now=now.Add(6*time.Minute)
+ profile:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/api/session/profile",nil)
+ profile.Header.Set("Origin","https://newsgo.themauris.org")
+ profile.Header.Set("Authorization","Bearer "+short.Token)
+ resp:=httptest.NewRecorder();svc.profileHandler(resp,profile)
+ if resp.Code!=401{t.Fatalf("app bearer not expired: %d",resp.Code)}
+ if result:=get();result.Code!=200 || !strings.Contains(result.Body.String(),`"user":"reader"`){
+  t.Fatalf("Homepage login lost when app token expired: %d",result.Code)
+ }
+ if result:=handoff();result.Code!=200{t.Fatalf("new app token after return: %d",result.Code)}
+ now=now.Add(12*time.Hour)
+ if result:=get();result.Code!=401{t.Fatalf("expired Homepage session accepted: %d",result.Code)}
+}
+
 func TestHandoffExplicitIdentityOverridesStaleCookie(t *testing.T){
  root:=t.TempDir()
  store,err:=suitestore.New(root,"newsgo")
