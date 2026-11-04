@@ -13,6 +13,19 @@ function appTabName(address){
  const url=new URL(address);
  return 'mauri_app_'+url.hostname.replace(/[^a-z0-9]/gi,'_').toLowerCase();
 }
+// A named window is not always rediscoverable in Safari after its opener is
+// cleared. Keep the WindowProxy in this Homepage tab and focus it on reuse.
+// References live only in page memory; a Homepage reload may lose them.
+const appTabHandles=new Map();
+function existingAppTab(name){
+ const tab=appTabHandles.get(name);
+ if(!tab)return null;
+ try{
+  if(!tab.closed){tab.focus();return tab}
+ }catch(_){}
+ appTabHandles.delete(name);
+ return null;
+}
 function makeCard(app){const a=document.createElement('a');a.className='app-card';a.href=app.url;a.rel='noopener noreferrer';if(app.url.startsWith('https://')||app.url.startsWith('http://'))a.target=appTabName(app.url);const [color,glow]=accent[app.accent]||accent.cyan;a.style.setProperty('--card-accent',color);a.style.setProperty('--card-glow',glow);const top=document.createElement('div');top.className='card-top';const icon=document.createElement('span');icon.className='card-icon';icon.innerHTML=svg(app.icon);const arrow=document.createElement('span');arrow.className='card-arrow';arrow.textContent='↗';top.append(icon,arrow);const content=document.createElement('div');content.className='card-content';for(const [cls,val,tag] of [['card-category',app.category,'div'],['card-name',app.name,'h3'],['card-subtitle',app.subtitle,'div'],['card-description',app.description,'p']]){let el=document.createElement(tag);el.className=cls;el.textContent=val;content.append(el)}const bottom=document.createElement('div');bottom.className='card-bottom';bottom.innerHTML='<span>OPEN APPLICATION</span><span class="direction">→</span>';a.append(top,content,bottom);return a}
 // Handoff tokens are kept only in memory and put in URL fragments for
 // approved suite destinations. The durable sign-in token is never forwarded.
@@ -73,9 +86,13 @@ async function openSuiteApp(event){
  // No token is ever attached to the persistent card href. Hand-off tokens
  // are created afresh only for signed-in suite launches.
  if(isSuite)url.hash='';
+ // Prefer the actual handle to an existing app tab. Looking up the
+ // named browsing context alone can create a duplicate in Safari.
+ if(existingAppTab(tabName)){event.preventDefault();return;}
  const opened=window.open('',tabName);
  if(!opened)return; // Native link with noopener remains the fallback.
  event.preventDefault();
+ appTabHandles.set(tabName,opened);
  try{
   // Initial about:blank inherits our origin, allowing removal of the
   // reverse opener reference before the application is navigated.
