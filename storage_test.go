@@ -6,7 +6,6 @@ import (
  "net/http/httptest"
  "path/filepath"
  "testing"
- "time"
 )
 
 func TestStorageDisabledByDefault(t *testing.T) {
