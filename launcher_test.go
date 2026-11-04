@@ -14,7 +14,8 @@ func TestHomepageSameTabLauncherContract(t *testing.T){
  script:=string(code)
  for _,required:=range []string{
   "a.href=app.url",
-  "if(!homeSessionToken || Date.now()>=homeSessionExpires)return;",
+  "if(!homeSessionToken || Date.now()>=homeSessionExpires){",
+  "url.hash='suite_mode=local';",
   "const issued=await renewHandoff();",
   "location.assign(url.toString());",
   "url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);",
