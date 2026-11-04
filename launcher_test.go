@@ -15,6 +15,10 @@ func TestHomepageNamedTabLauncherContract(t *testing.T){
  for _,required:=range []string{
   "return 'mauri_app_'+url.hostname",
   "a.target=appTabName(app.url)",
+  "const appTabHandles=new Map();",
+  "if(!tab.closed){tab.focus();return tab}",
+  "if(existingAppTab(tabName)){event.preventDefault();return;}",
+  "appTabHandles.set(tabName,opened);",
   "const opened=window.open('',tabName);",
   "event.preventDefault();",
   "opened.location.href=url.toString();",
