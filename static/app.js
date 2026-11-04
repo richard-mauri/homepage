@@ -66,7 +66,7 @@ async function renewHandoff(approvedToken=''){
 async function openSuiteApp(event){
  if(event.defaultPrevented || event.button!==0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)return;
  const link=event.currentTarget;
- if(link.dataset.opening==='true')return;
+ if(link.dataset.opening==='true'){event.preventDefault();return;}
  const url=new URL(link.href);
  const isSuite=url.origin==='https://newsgo.themauris.org' || url.origin==='https://stocks.themauris.org';
  const tabName=appTabName(url.toString());
