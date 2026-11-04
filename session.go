@@ -18,7 +18,7 @@ const legacySessionCookieName = "mauri_suite_session"
 const sessionLifetime = 12*time.Hour
 const defaultHandoffLifetime = time.Hour
 
-type sessionRecord struct { Digest string; Expires time.Time }
+type sessionRecord struct { Digest string; Expires time.Time; ParentSession string }
 type sessionService struct {
  mu sync.Mutex
  sessions map[string]sessionRecord
@@ -120,6 +120,12 @@ func (s *sessionService) authenticateHandoff(r *http.Request) (string,string,boo
  key:=hex.EncodeToString(digest[:])
  s.mu.Lock();record,found:=s.handoffs[key]
  if found && !s.now().Before(record.Expires){delete(s.handoffs,key);found=false}
+ if found && record.ParentSession!="" {
+  parent,exists:=s.sessions[record.ParentSession]
+  if !exists || !s.now().Before(parent.Expires) || parent.Digest!=record.Digest {
+   delete(s.handoffs,key);found=false
+  }
+ }
  s.mu.Unlock()
  if !found{return "","",false}
  user,role,err:=s.store.AuthenticateDigest(record.Digest)
@@ -137,22 +143,31 @@ func (s *sessionService) handoffHandler(w http.ResponseWriter,r *http.Request) {
  approved,hasBearer:=strings.CutPrefix(r.Header.Get("Authorization"),"Bearer ")
  var user,role string
  var source sessionRecord
+ var parentSession string
  if hasBearer {
   var err error
   user,role,err=s.store.Authenticate(approved)
   if err!=nil{http.Error(w,"authentication failed",401);return}
   digest:=sha256.Sum256([]byte(approved))
   source=sessionRecord{Digest:hex.EncodeToString(digest[:])}
+  // A credential-authenticated handoff issued immediately after sign-in
+  // is also owned by that browser's active matching Homepage session.
+  if c,err:=r.Cookie(sessionCookieName);err==nil {
+   s.mu.Lock();v,exists:=s.sessions[c.Value];s.mu.Unlock()
+   if exists && v.Digest==source.Digest && s.now().Before(v.Expires){parentSession=c.Value}
+  }
  }else if strings.HasPrefix(r.Header.Get("Authorization"),"Session ") {
   var ok bool
   source,user,role,ok=s.homepageSession(r)
   if !ok{http.Error(w,"Homepage session invalid",401);return}
+  parentSession,_=strings.CutPrefix(r.Header.Get("Authorization"),"Session ")
  }else{
   var ok bool
   user,role,ok=s.authenticateSession(r)
   if !ok{http.Error(w,"session invalid",401);return}
   c,_:=r.Cookie(sessionCookieName)
   s.mu.Lock();source=s.sessions[c.Value];s.mu.Unlock()
+  parentSession=c.Value
  }
  var nonce [32]byte
  if _,err:=rand.Read(nonce[:]);err!=nil{http.Error(w,"token unavailable",500);return}
@@ -160,8 +175,14 @@ func (s *sessionService) handoffHandler(w http.ResponseWriter,r *http.Request) {
  hash:=sha256.Sum256([]byte(token))
  expires:=s.now().Add(s.handoffLifetime)
  s.mu.Lock()
+ if parentSession!="" {
+  parent,exists:=s.sessions[parentSession]
+  if !exists || !s.now().Before(parent.Expires) || parent.Digest!=source.Digest {
+   s.mu.Unlock();http.Error(w,"Homepage session signed out",401);return
+  }
+ }
  for key,v:=range s.handoffs {if !s.now().Before(v.Expires){delete(s.handoffs,key)}}
- s.handoffs[hex.EncodeToString(hash[:])]=sessionRecord{Digest:source.Digest,Expires:expires}
+ s.handoffs[hex.EncodeToString(hash[:])]=sessionRecord{Digest:source.Digest,Expires:expires,ParentSession:parentSession}
  s.mu.Unlock()
  w.Header().Set("Content-Type","application/json")
  _=json.NewEncoder(w).Encode(map[string]any{"token":token,"expiresAt":expires.UTC().Format(time.RFC3339),"user":user,"role":role})
@@ -200,8 +221,14 @@ func (s *sessionService) renewHandoffHandler(w http.ResponseWriter,r *http.Reque
  s.mu.Lock()
  record,found:=s.handoffs[oldKey]
  if !found || !s.now().Before(record.Expires){s.mu.Unlock();http.Error(w,"token expired",401);return}
+ if record.ParentSession!="" {
+  parent,exists:=s.sessions[record.ParentSession]
+  if !exists || !s.now().Before(parent.Expires) || parent.Digest!=record.Digest {
+   delete(s.handoffs,oldKey);s.mu.Unlock();http.Error(w,"Homepage session signed out",401);return
+  }
+ }
  delete(s.handoffs,oldKey)
- s.handoffs[hex.EncodeToString(newHash[:])]=sessionRecord{Digest:record.Digest,Expires:expires}
+ s.handoffs[hex.EncodeToString(newHash[:])]=sessionRecord{Digest:record.Digest,Expires:expires,ParentSession:record.ParentSession}
  s.mu.Unlock()
  w.Header().Set("Content-Type","application/json")
  _=json.NewEncoder(w).Encode(map[string]string{"token":newToken,"expiresAt":expires.UTC().Format(time.RFC3339),"user":user,"role":role})
@@ -316,14 +343,19 @@ func (s *sessionService) handler(w http.ResponseWriter,r *http.Request) {
  }
  if r.Method==http.MethodDelete && r.URL.Path=="/api/session" {
   if !validSessionOrigin(r){http.Error(w,"invalid origin",403);return}
+  // Revoke handoffs belonging to the signed-out Homepage login, not
+  // handoffs belonging to independent sessions on other devices.
+  revoked:=make(map[string]bool)
   if id,ok:=strings.CutPrefix(r.Header.Get("Authorization"),"Session ");ok{
-   if _,_,_,valid:=s.homepageSession(r);valid{
-    s.mu.Lock();delete(s.sessions,id);s.mu.Unlock()
-   }
+   if _,_,_,valid:=s.homepageSession(r);valid {revoked[id]=true}
   }
-  if c,err:=r.Cookie(sessionCookieName);err==nil {
-   s.mu.Lock();delete(s.sessions,c.Value);s.mu.Unlock()
+  if c,err:=r.Cookie(sessionCookieName);err==nil {revoked[c.Value]=true}
+  s.mu.Lock()
+  for id:=range revoked {delete(s.sessions,id)}
+  for key,handoff:=range s.handoffs {
+   if revoked[handoff.ParentSession] && handoff.ParentSession!="" {delete(s.handoffs,key)}
   }
+  s.mu.Unlock()
   http.SetCookie(w,s.cookie(r,"",-1))
   clearLegacyDomainCookie(w,r)
   w.WriteHeader(http.StatusNoContent)
