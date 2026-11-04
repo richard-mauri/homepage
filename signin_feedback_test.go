@@ -31,7 +31,7 @@ func TestPersonalSignInProgressAndErrors(t *testing.T) {
   "message.textContent='Checking your personal token…'",
   "message.textContent='Token accepted. Preparing application access…'",
   "response.status===401||response.status===403",
-  "signIn timed out",
+  "Sign in timed out",
   "Network error.",
   "clearTimeout(timeout)",
   "submit.removeAttribute('aria-busy')",
