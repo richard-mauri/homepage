@@ -68,3 +68,22 @@ func TestSuiteSubdomainStorageCORS(t *testing.T){
  w=httptest.NewRecorder();handler.ServeHTTP(w,invalid)
  if w.Code!=403||w.Header().Get("Access-Control-Allow-Origin")!=""{t.Fatalf("untrusted subdomain: %d",w.Code)}
 }
+
+// The Homepage launcher must not make authentication a prerequisite to using
+// NewsGo or MauriStocks with browser-local settings.
+func TestSuiteLauncherSignInIsOptional(t *testing.T){
+ script,err:=os.ReadFile("static/app.js")
+ if err!=nil{t.Fatal(err)}
+ code:=string(script)
+ for _,required:=range []string{
+  "if(!homeSessionToken || Date.now()>=homeSessionExpires)return;",
+  "if(issued && suiteHandoffToken && Date.now()<suiteHandoffExpires)",
+  "url.hash='';",
+  "location.assign(url.toString());",
+ }{
+  if !strings.Contains(code,required){t.Errorf("launcher is missing %q",required)}
+ }
+ if strings.Contains(code,"alert('Sign in to Homepage before launching") || strings.Contains(code,"alert('Homepage session expired. Please sign in again."){
+  t.Error("optional app launch is blocked by a native sign-in alert")
+ }
+}
