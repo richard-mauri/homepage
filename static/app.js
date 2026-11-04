@@ -101,12 +101,12 @@ function enableOptionalAuth(){
  const form=document.createElement('form');
  const label=document.createElement('label');label.htmlFor='suiteToken';label.textContent='Approved personal token';
  const token=document.createElement('input');token.id='suiteToken';token.type='password';token.autocomplete='off';token.spellcheck=false;token.required=true;token.minLength=64;token.maxLength=64;
- const submit=document.createElement('button');submit.type='submit';submit.textContent='Sign in';
+ const submit=document.createElement('button');submit.type='submit';submit.className='suite-signin-submit';submit.textContent='Sign in';
  form.append(label,token,submit);
  const message=document.createElement('p');message.className='suite-modal-message';message.setAttribute('role','status');message.setAttribute('aria-live','polite');
  dialog.append(header,description,form,message);overlay.append(dialog);document.body.append(overlay);
- let previousFocus=null;
- function hideDialog(){overlay.hidden=true;token.value='';message.textContent='';if(previousFocus)previousFocus.focus();}
+ let previousFocus=null,signInPending=false;
+ function hideDialog(){if(signInPending)return;overlay.hidden=true;token.value='';message.textContent='';if(previousFocus)previousFocus.focus();}
  function showDialog(){previousFocus=document.activeElement;overlay.hidden=false;message.textContent='';token.focus();}
  signIn.addEventListener('click',showDialog);
  close.addEventListener('click',hideDialog);
@@ -134,17 +134,35 @@ function enableOptionalAuth(){
   }catch(_){signedIn.hidden=true;signIn.hidden=false;manage.hidden=true;suiteHandoffToken='';suiteHandoffExpires=0;try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}applyHandoffLinks();return false;}
  };
  form.addEventListener('submit',async event=>{
-  event.preventDefault();submit.disabled=true;message.textContent='';
+  event.preventDefault();
+  if(signInPending)return;
+  signInPending=true;submit.disabled=true;submit.textContent='Signing in…';
+  submit.setAttribute('aria-busy','true');token.disabled=true;close.disabled=true;
+  message.textContent='Checking your personal token…';
+  const approvedToken=token.value.trim();
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),15000);
+  let authenticated=false;
   try{
-   const response=await fetch('/api/session',{method:'POST',credentials:'same-origin',headers:{Authorization:'Bearer '+token.value.trim()},cache:'no-store'});
-   if(!response.ok)throw Error('Token not approved (HTTP '+response.status+').');
+   const response=await fetch('/api/session',{method:'POST',credentials:'same-origin',headers:{Authorization:'Bearer '+approvedToken},cache:'no-store',signal:controller.signal});
+   clearTimeout(timeout);
+   if(response.status===401||response.status===403)throw Error('Personal token rejected or expired. Check your token and try again.');
+   if(!response.ok)throw Error('Sign in failed (HTTP '+response.status+'). Please try again.');
+   message.textContent='Token accepted. Preparing application access…';
    rememberHomeLogin(await response.json());
-   await renewHandoff(token.value.trim());
+   await renewHandoff(approvedToken);
    if(!suiteHandoffToken)throw Error('Unable to issue one-hour app access.');
-   if(!await refresh())throw Error('Homepage sign-in session was not retained. Please enable cookies for home.themauris.org and sign in again.');
-   hideDialog();
-  }catch(error){message.textContent=error.message;}
-  finally{submit.disabled=false;}
+   if(!await refresh())throw Error('Homepage sign-in session was not retained. Please sign in again.');
+   authenticated=true;
+   message.textContent='Signed in successfully.';
+  }catch(error){
+   message.textContent=error.name==='AbortError'?'Sign in timed out. Check your connection and try again.':error instanceof TypeError?'Network error. Check your connection and try again.':error.message;
+  }finally{
+   clearTimeout(timeout);
+   signInPending=false;submit.disabled=false;submit.textContent='Sign in';
+   submit.removeAttribute('aria-busy');token.disabled=false;close.disabled=false;
+   if(authenticated)hideDialog();
+  }
  });
  signOut.addEventListener('click',async()=>{
   signOut.disabled=true;

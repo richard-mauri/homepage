@@ -26,6 +26,12 @@
 .suite-modal button{border:1px solid var(--line);border-radius:9px;background:var(--light);color:var(--text);padding:10px 14px;cursor:pointer;font:inherit}
 .suite-modal button:focus-visible,.suite-account button:focus-visible,.suite-account a:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .suite-modal form button{margin-top:14px}
+.suite-modal .suite-signin-submit{font-weight:700;transition:background-color .15s,border-color .15s,box-shadow .15s,transform .1s}
+.suite-modal .suite-signin-submit:hover:not(:disabled){background:var(--light);border-color:var(--accent);color:var(--accent)}
+.suite-modal .suite-signin-submit:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.suite-modal .suite-signin-submit:active:not(:disabled){transform:translateY(1px);background:var(--light);border-color:var(--accent);color:var(--accent)}
+.suite-modal .suite-signin-submit:disabled{opacity:.78;cursor:progress;background:var(--light);border-color:var(--accent);color:var(--accent)}
+.suite-modal-message{min-height:1.4em}
 .suite-modal-message:empty{display:none}
 /* On narrow screens, account controls occupy their own row. The header
    grows with its content so its border stays beneath clock and theme button. */
