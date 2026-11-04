@@ -162,7 +162,7 @@ func TestHandoffBearerExpiryAndRevocation(t *testing.T) {
  entries,_:=json.Marshal([]suitestore.Credential{{User:"reader",Digest:hex.EncodeToString(digest[:]),Role:"user"}})
  if err:=os.WriteFile(authFile,entries,0600);err!=nil{t.Fatal(err)}
  svc:=newSessionService(store)
- if svc.handoffLifetime!=time.Hour{t.Fatalf("default lifetime: %s",svc.handoffLifetime)}
+ if svc.handoffLifetime!=12*time.Hour{t.Fatalf("default lifetime: %s",svc.handoffLifetime)}
  svc.handoffLifetime=5*time.Minute
  start:=time.Now()
  svc.now=func()time.Time{return start}
