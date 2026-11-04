@@ -113,11 +113,11 @@ func issueAfterSignOut(t *testing.T,svc *sessionService,session string)string{
  return ""
 }
 
-func TestHomepageSignInHandoffUsesRevocableSession(t *testing.T){
+func TestHomepageMintsHandoffOnlyOnCardLaunch(t *testing.T){
  content,err:=os.ReadFile("static/app.js")
  if err!=nil{t.Fatal(err)}
  js:=string(content)
- if !strings.Contains(js,"await renewHandoff();") {t.Fatal("Homepage sign in must mint app handoffs with its session")}
+ if strings.Count(js,"await renewHandoff();")!=1 {t.Fatal("app bearer must be issued only at card launch, not login or status refresh")}
  if strings.Contains(js,"await renewHandoff(approvedToken)") {t.Fatal("direct token handoff escapes logout's session ownership")}
 }
 
