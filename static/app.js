@@ -34,12 +34,12 @@ const homeSessionHeaders=()=>homeSessionToken?{Authorization:'Session '+homeSess
 let suiteHandoffToken='',suiteHandoffExpires=0;
 try{const saved=JSON.parse(sessionStorage.getItem('suite-handoff-v1')||'null');if(saved&&/^[a-f0-9]{64}$/.test(saved.token)&&saved.expires>Date.now()){suiteHandoffToken=saved.token;suiteHandoffExpires=saved.expires}}catch(_){}
 function applyHandoffLinks(){
+ // Never leave a cached handoff credential on a card. Only attach a newly
+ // issued token when actually launching from a signed-in Homepage session.
  for(const link of document.querySelectorAll('#cards a.app-card')){
   const url=new URL(link.href);
   if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org')continue;
-  if(suiteHandoffToken && Date.now()<suiteHandoffExpires-30000){
-   url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);
-  }else{url.hash=''}
+  url.hash='';
   link.href=url.toString();
  }
 }
@@ -60,18 +60,16 @@ async function openSuiteApp(event){
  const link=event.currentTarget;
  const url=new URL(link.href);
  if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org')return;
+ // Sign-in enables optional server-side settings, never app access.
+ // For signed-out visitors, allow the original link to open normally.
+ if(!homeSessionToken || Date.now()>=homeSessionExpires)return;
  event.preventDefault();
- if(!homeSessionToken || Date.now()>=homeSessionExpires){
-  alert('Sign in to Homepage before launching this account-enabled application.');
-  return;
- }
  const issued=await renewHandoff();
- if(!issued || !suiteHandoffToken || Date.now()>=suiteHandoffExpires){
-  alert('Homepage session expired. Please sign in again.');
-  return;
+ if(issued && suiteHandoffToken && Date.now()<suiteHandoffExpires){
+  url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);
  }
- url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);
- // Same-tab navigation avoids Safari blocking a popup after async renewal.
+ // On issuance failure, still launch without a bearer: browser-local mode.
+ // Same-tab navigation avoids Safari blocking a popup after async issuance.
  location.assign(url.toString());
 }
 async function init(){const root=document.querySelector('#cards');try{const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)throw Error('Configuration unavailable');const c=await r.json();root.replaceChildren(...c.apps.map(makeCard));applyHandoffLinks();for(const link of root.querySelectorAll('a.app-card'))link.addEventListener('click',openSuiteApp);document.querySelector('.count').textContent='/ '+String(c.apps.length).padStart(2,'0');if(c.persistenceAvailable)enableOptionalAuth()}catch(e){root.textContent='Applications are temporarily unavailable. Please refresh to try again.'}}
