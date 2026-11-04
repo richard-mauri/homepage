@@ -147,7 +147,7 @@ function enableOptionalAuth(){
    if(!response.ok)throw Error('Sign in failed (HTTP '+response.status+'). Please try again.');
    message.textContent='Token accepted. Preparing application access…';
    rememberHomeLogin(await response.json());
-   await renewHandoff(approvedToken);
+   await renewHandoff();
    if(!suiteHandoffToken)throw Error('Unable to issue one-hour app access.');
    if(!await refresh())throw Error('Homepage sign-in session was not retained. Please sign in again.');
    authenticated=true;
