@@ -34,8 +34,8 @@ const homeSessionHeaders=()=>homeSessionToken?{Authorization:'Session '+homeSess
 let suiteHandoffToken='',suiteHandoffExpires=0;
 try{const saved=JSON.parse(sessionStorage.getItem('suite-handoff-v1')||'null');if(saved&&/^[a-f0-9]{64}$/.test(saved.token)&&saved.expires>Date.now()){suiteHandoffToken=saved.token;suiteHandoffExpires=saved.expires}}catch(_){}
 function applyHandoffLinks(){
- // Never leave a cached handoff credential on a card. Only attach a newly
- // issued token when actually launching from a signed-in Homepage session.
+ // Keep card destinations free of cached credentials. Only attach a fresh
+ // bearer when navigating from an authenticated Homepage session.
  for(const link of document.querySelectorAll('#cards a.app-card')){
   const url=new URL(link.href);
   if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org')continue;
@@ -60,16 +60,15 @@ async function openSuiteApp(event){
  const link=event.currentTarget;
  const url=new URL(link.href);
  if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org')return;
- // Sign-in enables optional server-side settings, never app access.
- // For signed-out visitors, allow the original link to open normally.
+ // Account sign-in enables optional server preferences, never basic app access.
+ // When signed out, follow the ordinary same-tab browser link.
  if(!homeSessionToken || Date.now()>=homeSessionExpires)return;
  event.preventDefault();
  const issued=await renewHandoff();
  if(issued && suiteHandoffToken && Date.now()<suiteHandoffExpires){
   url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);
  }
- // On issuance failure, open browser-local mode without a bearer.
- // Intentionally navigate in this tab; each app provides a Home link.
+ // If handoff fails, the app still opens with browser-local preferences.
  location.assign(url.toString());
 }
 async function init(){const root=document.querySelector('#cards');try{const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)throw Error('Configuration unavailable');const c=await r.json();root.replaceChildren(...c.apps.map(makeCard));applyHandoffLinks();for(const link of root.querySelectorAll('a.app-card'))link.addEventListener('click',openSuiteApp);document.querySelector('.count').textContent='/ '+String(c.apps.length).padStart(2,'0');if(c.persistenceAvailable)enableOptionalAuth()}catch(e){root.textContent='Applications are temporarily unavailable. Please refresh to try again.'}}
@@ -99,12 +98,12 @@ function enableOptionalAuth(){
  const form=document.createElement('form');
  const label=document.createElement('label');label.htmlFor='suiteToken';label.textContent='Approved personal token';
  const token=document.createElement('input');token.id='suiteToken';token.type='password';token.autocomplete='off';token.spellcheck=false;token.required=true;token.minLength=64;token.maxLength=64;
- const submit=document.createElement('button');submit.type='submit';submit.textContent='Sign in';
+ const submit=document.createElement('button');submit.type='submit';submit.className='suite-signin-submit';submit.textContent='Sign in';
  form.append(label,token,submit);
  const message=document.createElement('p');message.className='suite-modal-message';message.setAttribute('role','status');message.setAttribute('aria-live','polite');
  dialog.append(header,description,form,message);overlay.append(dialog);document.body.append(overlay);
- let previousFocus=null;
- function hideDialog(){overlay.hidden=true;token.value='';message.textContent='';if(previousFocus)previousFocus.focus();}
+ let previousFocus=null,signInPending=false;
+ function hideDialog(){if(signInPending)return;overlay.hidden=true;token.value='';message.textContent='';if(previousFocus)previousFocus.focus();}
  function showDialog(){previousFocus=document.activeElement;overlay.hidden=false;message.textContent='';token.focus();}
  signIn.addEventListener('click',showDialog);
  close.addEventListener('click',hideDialog);
@@ -132,17 +131,35 @@ function enableOptionalAuth(){
   }catch(_){signedIn.hidden=true;signIn.hidden=false;manage.hidden=true;suiteHandoffToken='';suiteHandoffExpires=0;try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}applyHandoffLinks();return false;}
  };
  form.addEventListener('submit',async event=>{
-  event.preventDefault();submit.disabled=true;message.textContent='';
+  event.preventDefault();
+  if(signInPending)return;
+  signInPending=true;submit.disabled=true;submit.textContent='Signing in…';
+  submit.setAttribute('aria-busy','true');token.disabled=true;close.disabled=true;
+  message.textContent='Checking your personal token…';
+  const approvedToken=token.value.trim();
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),15000);
+  let authenticated=false;
   try{
-   const response=await fetch('/api/session',{method:'POST',credentials:'same-origin',headers:{Authorization:'Bearer '+token.value.trim()},cache:'no-store'});
-   if(!response.ok)throw Error('Token not approved (HTTP '+response.status+').');
+   const response=await fetch('/api/session',{method:'POST',credentials:'same-origin',headers:{Authorization:'Bearer '+approvedToken},cache:'no-store',signal:controller.signal});
+   clearTimeout(timeout);
+   if(response.status===401||response.status===403)throw Error('Personal token rejected or expired. Check your token and try again.');
+   if(!response.ok)throw Error('Sign in failed (HTTP '+response.status+'). Please try again.');
+   message.textContent='Token accepted. Preparing application access…';
    rememberHomeLogin(await response.json());
-   await renewHandoff(token.value.trim());
+   await renewHandoff(approvedToken);
    if(!suiteHandoffToken)throw Error('Unable to issue one-hour app access.');
-   if(!await refresh())throw Error('Homepage sign-in session was not retained. Please enable cookies for home.themauris.org and sign in again.');
-   hideDialog();
-  }catch(error){message.textContent=error.message;}
-  finally{submit.disabled=false;}
+   if(!await refresh())throw Error('Homepage sign-in session was not retained. Please sign in again.');
+   authenticated=true;
+   message.textContent='Signed in successfully.';
+  }catch(error){
+   message.textContent=error.name==='AbortError'?'Sign in timed out. Check your connection and try again.':error instanceof TypeError?'Network error. Check your connection and try again.':error.message;
+  }finally{
+   clearTimeout(timeout);
+   signInPending=false;submit.disabled=false;submit.textContent='Sign in';
+   submit.removeAttribute('aria-busy');token.disabled=false;close.disabled=false;
+   if(authenticated)hideDialog();
+  }
  });
  signOut.addEventListener('click',async()=>{
   signOut.disabled=true;

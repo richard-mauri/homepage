@@ -1,35 +1,9 @@
-# Homepage current work
+# Homepage current work — 2026-11-04
 
-Date: 2026-11-03. Baseline: GitHub `main`. Active issue [#6](https://github.com/richard-mauri/homepage/issues/6), feature branch `feat/6-hourly-suite-token` (draft PR in progress).
+Authoritative merged baseline: GitHub `main`, including merged [PR #14](https://github.com/richard-mauri/homepage/pull/14) (Personal settings sign-in feedback). Active issue [#11](https://github.com/richard-mauri/homepage/issues/11), branch `fix/11-reusable-app-tabs`, [PR #12](https://github.com/richard-mauri/homepage/pull/12) (same-tab launch and optional browser-only access).
 
-Implemented candidate: one-hour random handoff bearer issued by Homepage with `POST /api/handoff/token`, from its existing session or immediately after approved-token sign-in. Handed-off bearer uses fragment on NewsGo and MauriStocks links and Homepage browser tab sessionStorage; the server stores token digests only in memory, checks expiry and approved-token digest/role on use. Homepage account profile and storage endpoints accept that bearer under their origin policy. Homepage retains a host-only login cookie solely for its own sign-in UI and token issuance. Cross-app cookie authentication is removed; suite profile and storage requests from NewsGo/MauriStocks require the one-hour bearer. Regression tests cover expiry, revocation and storage. The server CLI flag `-handoff-minutes` sets bearer lifetime (1–1440 minutes, default 60); `./homego.sh -handoff-minutes 5` forwards this flag for a short browser test. It only affects newly issued handoff tokens, not Homepage's own login-session duration. No changes to appVersion or private data.
+PR #12 is reconciled with the newer main by a merge commit that retains PR #14's Personal settings Sign in hover/pressed/busy feedback, timeout and token/session handling. Homepage card destinations now open in the same tab. Signed-out NewsGo/MauriStocks launches are not blocked or interrupted by native Safari alerts; signed-in launches still request a fresh per-app handoff bearer. A failed handoff allows a browser-only launch. Launcher card links never prepopulate cached handoff tokens.
 
-Owner's first Safari trial showed both applications failing account identity despite Homepage sign-in. The root issue was Homepage's read-only profile endpoint replying 405 to the CORS OPTIONS preflight triggered by the Authorization header. This candidate now handles trusted GET+Authorization OPTIONS and includes success/rejection tests. Owner must rebuild Homepage and relaunch the apps from its cards to verify.
+Changes are limited to browser launcher behavior, the same-tab architecture contract, this current status and the launcher regression test. No server authorization changes, app semantic version change, private settings, credentials, tunnel/DNS or other application code changes.
 
-Follow-up: NewsGo and MauriStocks client draft branches must also be deployed for end-to-end verification. iOS Safari acceptance required for same-tab launch, reload, expiration, token expiry and per-user account isolation. Server restart clears one-hour bearer records; subsequent login/handoff required. CI and owner acceptance pending. No merge/restart authorized.
-
-Mac test:
-```
-cd ~/projects/homepage
-git fetch origin
-git checkout feat/6-hourly-suite-token
-git pull --ff-only origin feat/6-hourly-suite-token
-go test -count=1 ./...
-./devbuild.sh
-./dist/homepage-darwin-amd64 -version
-./homego.sh -handoff-minutes 5
-curl -fsS http://127.0.0.1:8787/healthz
-```
-
-For the normal 60-minute behavior, restart the same launcher without the argument (`./homego.sh`). Existing browser account tabs will need a new token after the Homepage restart.
-
-Latest candidate: Clicking a NewsGo or Stocks launcher card now issues a fresh handoff before same-tab navigation. Homepage `POST /api/handoff/renew` rotates an unexpired bearer from the app origin; profile returns `expiresAt` so browser UI can show actual time remaining. Rotation removes the old bearer. Five-minute and 60-minute CLI settings still apply. Direct app renewal does not use cookies or a Homepage redirect while valid. CI and iOS Safari acceptance must be rechecked on the latest head.
-
-## Homepage return-after-expiration correction
-Owner observed that NewsGo's expired-token Open Homepage link landed on a signed-out Homepage. Investigation found Homepage's browser UI could treat a still-valid short-lived app bearer as proof of Homepage login if GET `/api/session` failed; the condition went undetected until the five-minute bearer expired. The candidate now requires the independent Homepage session to validate before displaying a signed-in identity or confirming login. The host-only Homepage cookie is uniquely named `mauri_home_session` and expired old `mauri_suite_session` cookie variants are removed to avoid duplicate-name handling. The 12-hour Homepage session is still process-memory-backed; a Homepage server restart invalidates it, unlike a continuously running service. Owner should test returning from NewsGo after a five-minute expiration and inspect whether Homepage still shows signed in. No NewsGo changes required for the return link. Safari verification pending.
-
-## Return from expired app token (new candidate)
-Owner observed repeated Homepage logout after NewsGo's five-minute token expired and Open Homepage was clicked. The launcher previously depended on Safari retaining and resending a Homepage cookie, despite keeping the 12-hour session alive on the server. The candidate now returns a distinct random `sessionToken` and 12-hour expiration from Homepage sign-in/status, stores only that temporary Homepage ID in Homepage-origin localStorage, and sends it explicitly as `Authorization: Session` for status and handoff issuance. Old Homepage cookie use remains only for the standalone admin UI/initial migration and does not authenticate NewsGo/MauriStocks. The approved personal token remains password-input-only, never stored in browser. Added a cookie-free six-minute return regression test proving Homepage login survives a five-minute app token and can issue a new app token; the twelve-hour session still expires on time. GitHub CI passes; Safari acceptance not yet performed. If Homepage service restarts during testing, server-memory login records are lost.
-
-## Current — 2026-11-04 same-tab navigation correction
-Baseline GitHub main. Owner rejected reusable named-tab design (PR #12): Safari failed to raise background app tabs and inline notice was not visible. Revision of branch `fix/11-reusable-app-tabs` / draft PR #12 switches to same-tab navigation. Ordinary ScraperGo/SailingGo anchors navigate in place; signed-out NewsGo/MauriStocks navigate normally; signed-in NewsGo/MauriStocks issue a fresh handoff token then call location.assign in the same tab, falling back to browser-local mode on issuance failure. Existing issue #11 and superseded #10 tracked. Four app repositories each need their own explicit Homepage return link, tracked independently. Tests/CI and owner Mac/Safari verification required. No merge/restart/release authorized.
+GitHub Go CI must be verified on the reconciled PR head. Owner Mac/Safari acceptance is still pending, including signed-out launches for all four apps, same-tab Back to Homepage navigation, signed-in handoff and personal settings, expired/rejected sessions, failed handoff fallback, and PR #14 dialog hover/busy states in light/dark themes. No merge, tag, release or restart is authorized before owner acceptance.
