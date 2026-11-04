@@ -55,14 +55,12 @@ func config() Config {
 }
 func main() {
  version:=flag.Bool("version",false,"show version and exit")
- handoffMinutes:=flag.Int("handoff-minutes",60,"app handoff token lifetime in minutes (1-1440; default 60)")
  flag.Parse()
  if *version {fmt.Printf("Homepage v%s · %s\n",appVersion,appBuild);return}
- if *handoffMinutes<1 || *handoffMinutes>1440 {log.Fatal("-handoff-minutes must be between 1 and 1440")}
  addr:=env("LISTEN_ADDR","127.0.0.1:8787")
  sub,err:=fs.Sub(assets,"static");if err!=nil {log.Fatal(err)}
  mux:=http.NewServeMux()
- if err:=configureSuiteStorage(mux,os.Getenv("SUITE_DATA_DIR"),time.Duration(*handoffMinutes)*time.Minute);err!=nil {log.Fatalf("Suite storage configuration: %v",err)}
+ if err:=configureSuiteStorage(mux,os.Getenv("SUITE_DATA_DIR"));err!=nil {log.Fatalf("Suite storage configuration: %v",err)}
  mux.Handle("/static/",http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
   w.Header().Set("Cache-Control","no-cache, must-revalidate")
   http.StripPrefix("/static/",http.FileServer(http.FS(sub))).ServeHTTP(w,r)
@@ -94,13 +92,12 @@ func main() {
 // operator explicitly supplies a persistent directory. The default Homepage
 // configuration remains a launcher with no storage or authentication endpoint.
 // Session and bearer-token access are supported; cross-origin app integration remains disabled.
-func configureSuiteStorage(mux *http.ServeMux, root string, handoffDuration time.Duration) error {
+func configureSuiteStorage(mux *http.ServeMux, root string) error {
  if strings.TrimSpace(root)=="" { return nil }
  store,err:=suitestore.New(root,"newsgo","mauristocks")
  if err!=nil{return err}
  sessions:=newSessionService(store)
- sessions.handoffLifetime=handoffDuration
- log.Printf("Homepage handoff tokens expire after %s",handoffDuration)
+ log.Printf("Homepage account and app handoff lifetime: %s",sessionLifetime)
  mux.Handle("/api/storage/",sessions.suiteStorageHandler(store.Handler()))
  mux.HandleFunc("/api/session",sessions.handler)
  mux.HandleFunc("/api/session/profile",sessions.profileHandler)
