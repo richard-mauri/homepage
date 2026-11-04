@@ -16,7 +16,7 @@ import (
 const sessionCookieName = "mauri_home_session"
 const legacySessionCookieName = "mauri_suite_session"
 const sessionLifetime = 12*time.Hour
-const defaultHandoffLifetime = time.Hour
+const defaultHandoffLifetime = sessionLifetime
 
 type sessionRecord struct { Digest string; Expires time.Time; ParentSession string }
 type sessionService struct {
@@ -111,7 +111,7 @@ func (s *sessionService) homepageSession(r *http.Request) (sessionRecord,string,
  user,role,err:=s.store.AuthenticateDigest(record.Digest)
  return record,user,role,err==nil
 }
-// authenticateHandoff checks the independent one-hour bearer and revalidates
+// authenticateHandoff checks the parent-session-bound bearer and revalidates
 // its originating credential digest so role changes/revocations take effect.
 func (s *sessionService) authenticateHandoff(r *http.Request) (string,string,bool) {
  token,ok:=strings.CutPrefix(r.Header.Get("Authorization"),"Bearer ")
@@ -180,6 +180,8 @@ func (s *sessionService) handoffHandler(w http.ResponseWriter,r *http.Request) {
   if !exists || !s.now().Before(parent.Expires) || parent.Digest!=source.Digest {
    s.mu.Unlock();http.Error(w,"Homepage session signed out",401);return
   }
+  // A handoff never outlives its twelve-hour Homepage login.
+  if parent.Expires.Before(expires){expires=parent.Expires}
  }
  for key,v:=range s.handoffs {if !s.now().Before(v.Expires){delete(s.handoffs,key)}}
  s.handoffs[hex.EncodeToString(hash[:])]=sessionRecord{Digest:source.Digest,Expires:expires,ParentSession:parentSession}
@@ -226,6 +228,8 @@ func (s *sessionService) renewHandoffHandler(w http.ResponseWriter,r *http.Reque
   if !exists || !s.now().Before(parent.Expires) || parent.Digest!=record.Digest {
    delete(s.handoffs,oldKey);s.mu.Unlock();http.Error(w,"Homepage session signed out",401);return
   }
+  // Compatibility-only renewal; never extend access beyond parent expiry.
+  if parent.Expires.Before(expires){expires=parent.Expires}
  }
  delete(s.handoffs,oldKey)
  s.handoffs[hex.EncodeToString(newHash[:])]=sessionRecord{Digest:record.Digest,Expires:expires,ParentSession:record.ParentSession}
@@ -238,11 +242,11 @@ func (s *sessionService) renewHandoffHandler(w http.ResponseWriter,r *http.Reque
 func (s *sessionService) storageHandler(next http.Handler) http.Handler {
  return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
   if user,_,ok:=s.authenticateHandoff(r);ok {next.ServeHTTP(w,suitestore.WithIdentity(r,user));return}
-  // Suite browsers must present the one-hour handoff. Homepage's login
+  // Suite browsers must present the session-bound handoff. Homepage's login
   // cookie is not an alternative identity for cross-origin application APIs.
   origin:=r.Header.Get("Origin")
   if origin!="" && origin!="https://home.themauris.org" {
-   http.Error(w,"one-hour account token required",401);return
+   http.Error(w,"account handoff token required",401);return
   }
   if _,err:=r.Cookie(sessionCookieName);err==nil {
    user,_,ok:=s.authenticateSession(r)
