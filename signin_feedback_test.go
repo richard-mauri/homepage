@@ -15,6 +15,8 @@ func TestPersonalSignInVisualFeedback(t *testing.T) {
   ".suite-signin-submit:active:not(:disabled)",
   ".suite-signin-submit:disabled",
   "cursor:progress",
+  "hover:not(:disabled){background:var(--light);border-color:var(--accent);color:var(--accent)}",
+  "active:not(:disabled){transform:translateY(1px);background:var(--light);border-color:var(--accent);color:var(--accent)}",
  } {
   if !strings.Contains(string(css),want) {t.Errorf("missing sign-in visual state %q",want)}
  }
