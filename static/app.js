@@ -6,7 +6,14 @@ const icons = {
 };
 const accent={cyan:['#68cde0','rgba(104,205,224,.12)'],mint:['#75ddb6','rgba(117,221,182,.12)'],amber:['#eac081','rgba(234,192,129,.12)'],violet:['#b7a1f6','rgba(183,161,246,.12)']};
 function svg(name){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]||icons.code}</svg>`}
-function makeCard(app){const a=document.createElement('a');a.className='app-card';a.href=app.url;a.rel='noopener noreferrer';if(app.url.startsWith('https://')||app.url.startsWith('http://'))a.target='_blank';const [color,glow]=accent[app.accent]||accent.cyan;a.style.setProperty('--card-accent',color);a.style.setProperty('--card-glow',glow);const top=document.createElement('div');top.className='card-top';const icon=document.createElement('span');icon.className='card-icon';icon.innerHTML=svg(app.icon);const arrow=document.createElement('span');arrow.className='card-arrow';arrow.textContent='↗';top.append(icon,arrow);const content=document.createElement('div');content.className='card-content';for(const [cls,val,tag] of [['card-category',app.category,'div'],['card-name',app.name,'h3'],['card-subtitle',app.subtitle,'div'],['card-description',app.description,'p']]){let el=document.createElement(tag);el.className=cls;el.textContent=val;content.append(el)}const bottom=document.createElement('div');bottom.className='card-bottom';bottom.innerHTML='<span>OPEN APPLICATION</span><span class="direction">→</span>';a.append(top,content,bottom);return a}
+// Stable named browsing contexts let a Homepage-launched app tab be reused.
+// Rel=noopener is kept for the browser's native fallback; the normal launch
+// explicitly clears opener before navigating the new/reused window.
+function appTabName(address){
+ const url=new URL(address);
+ return 'mauri_app_'+url.hostname.replace(/[^a-z0-9]/gi,'_').toLowerCase();
+}
+function makeCard(app){const a=document.createElement('a');a.className='app-card';a.href=app.url;a.rel='noopener noreferrer';if(app.url.startsWith('https://')||app.url.startsWith('http://'))a.target=appTabName(app.url);const [color,glow]=accent[app.accent]||accent.cyan;a.style.setProperty('--card-accent',color);a.style.setProperty('--card-glow',glow);const top=document.createElement('div');top.className='card-top';const icon=document.createElement('span');icon.className='card-icon';icon.innerHTML=svg(app.icon);const arrow=document.createElement('span');arrow.className='card-arrow';arrow.textContent='↗';top.append(icon,arrow);const content=document.createElement('div');content.className='card-content';for(const [cls,val,tag] of [['card-category',app.category,'div'],['card-name',app.name,'h3'],['card-subtitle',app.subtitle,'div'],['card-description',app.description,'p']]){let el=document.createElement(tag);el.className=cls;el.textContent=val;content.append(el)}const bottom=document.createElement('div');bottom.className='card-bottom';bottom.innerHTML='<span>OPEN APPLICATION</span><span class="direction">→</span>';a.append(top,content,bottom);return a}
 // Handoff tokens are kept only in memory and put in URL fragments for
 // approved suite destinations. The durable sign-in token is never forwarded.
 // Homepage has its own twelve-hour sign-in credential, distinct from
@@ -34,12 +41,12 @@ const homeSessionHeaders=()=>homeSessionToken?{Authorization:'Session '+homeSess
 let suiteHandoffToken='',suiteHandoffExpires=0;
 try{const saved=JSON.parse(sessionStorage.getItem('suite-handoff-v1')||'null');if(saved&&/^[a-f0-9]{64}$/.test(saved.token)&&saved.expires>Date.now()){suiteHandoffToken=saved.token;suiteHandoffExpires=saved.expires}}catch(_){}
 function applyHandoffLinks(){
+ // Never leave a cached handoff credential on a card. Only attach a newly
+ // issued token when actually launching from a signed-in Homepage session.
  for(const link of document.querySelectorAll('#cards a.app-card')){
   const url=new URL(link.href);
   if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org')continue;
-  if(suiteHandoffToken && Date.now()<suiteHandoffExpires-30000){
-   url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);
-  }else{url.hash=''}
+  url.hash='';
   link.href=url.toString();
  }
 }
@@ -54,25 +61,42 @@ async function renewHandoff(approvedToken=''){
   applyHandoffLinks();return true;
  }catch(_){suiteHandoffToken='';suiteHandoffExpires=0;try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}applyHandoffLinks();return false}
 }
-// Mint a fresh handoff at application launch instead of reusing an older
-// token created when Homepage obtained focus.
+// Open the named app tab synchronously during the click. Safari can block a
+// popup created after awaiting the signed-in handoff request.
 async function openSuiteApp(event){
+ if(event.defaultPrevented || event.button!==0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)return;
  const link=event.currentTarget;
+ if(link.dataset.opening==='true')return;
  const url=new URL(link.href);
- if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org')return;
+ const isSuite=url.origin==='https://newsgo.themauris.org' || url.origin==='https://stocks.themauris.org';
+ const tabName=appTabName(url.toString());
+ // No token is ever attached to the persistent card href. Hand-off tokens
+ // are created afresh only for signed-in suite launches.
+ if(isSuite)url.hash='';
+ const opened=window.open('',tabName);
+ if(!opened)return; // Native link with noopener remains the fallback.
  event.preventDefault();
- if(!homeSessionToken || Date.now()>=homeSessionExpires){
-  alert('Sign in to Homepage before launching this account-enabled application.');
-  return;
+ try{
+  // Initial about:blank inherits our origin, allowing removal of the
+  // reverse opener reference before the application is navigated.
+  try{if(opened.location.href==='about:blank')opened.opener=null}catch(_){}
+  if(isSuite && homeSessionToken && Date.now()<homeSessionExpires){
+   link.dataset.opening='true';
+   const issued=await renewHandoff();
+   if(issued && suiteHandoffToken && Date.now()<suiteHandoffExpires){
+    url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);
+   }
+  }
+  // Assigning location through the preopened handle works after await,
+  // even when the destination is cross-origin. Homepage stays in its tab.
+  opened.location.href=url.toString();
+  opened.focus();
+ }catch(_){
+  // Do not replace the Homepage tab or leak credentials on navigation errors.
+  // User may retry the ordinary card link.
+ }finally{
+  delete link.dataset.opening;
  }
- const issued=await renewHandoff();
- if(!issued || !suiteHandoffToken || Date.now()>=suiteHandoffExpires){
-  alert('Homepage session expired. Please sign in again.');
-  return;
- }
- url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);
- // Same-tab navigation avoids Safari blocking a popup after async renewal.
- location.assign(url.toString());
 }
 async function init(){const root=document.querySelector('#cards');try{const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)throw Error('Configuration unavailable');const c=await r.json();root.replaceChildren(...c.apps.map(makeCard));applyHandoffLinks();for(const link of root.querySelectorAll('a.app-card'))link.addEventListener('click',openSuiteApp);document.querySelector('.count').textContent='/ '+String(c.apps.length).padStart(2,'0');if(c.persistenceAvailable)enableOptionalAuth()}catch(e){root.textContent='Applications are temporarily unavailable. Please refresh to try again.'}}
 function tick(){document.querySelector('#clock').textContent=new Intl.DateTimeFormat('en-US',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'America/Los_Angeles'}).format(new Date())}
