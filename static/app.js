@@ -17,6 +17,21 @@ function appTabName(address){
 // cleared. Keep the WindowProxy in this Homepage tab and focus it on reuse.
 // References live only in page memory; a Homepage reload may lose them.
 const appTabHandles=new Map();
+// Safari may ignore focus() on another tab. Make a repeat click visible
+// rather than implying a tab was raised when the browser did not switch.
+function showAppTabNotice(label){
+ let notice=document.querySelector('#appTabNotice');
+ if(!notice){
+  notice=document.createElement('p');
+  notice.id='appTabNotice';
+  notice.className='app-tab-notice';
+  notice.setAttribute('role','status');
+  notice.setAttribute('aria-live','polite');
+  const cards=document.querySelector('#cards');
+  cards.parentNode.insertBefore(notice,cards);
+ }
+ notice.textContent=label+' is already open in another Safari tab. Select that tab to continue.';
+}
 function existingAppTab(name){
  const tab=appTabHandles.get(name);
  if(!tab)return null;
@@ -88,7 +103,11 @@ async function openSuiteApp(event){
  if(isSuite)url.hash='';
  // Prefer the actual handle to an existing app tab. Looking up the
  // named browsing context alone can create a duplicate in Safari.
- if(existingAppTab(tabName)){event.preventDefault();return;}
+ if(existingAppTab(tabName)){
+  event.preventDefault();
+  showAppTabNotice(link.querySelector('.card-name')?.textContent||'This application');
+  return;
+ }
  const opened=window.open('',tabName);
  if(!opened)return; // Native link with noopener remains the fallback.
  event.preventDefault();
