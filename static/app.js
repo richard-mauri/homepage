@@ -61,12 +61,19 @@ async function openSuiteApp(event){
  const url=new URL(link.href);
  if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org')return;
  // Account sign-in enables optional server preferences, never basic app access.
- // When signed out, follow the ordinary same-tab browser link.
- if(!homeSessionToken || Date.now()>=homeSessionExpires)return;
+ // Always explicitly distinguish a browser-only launch from a cached
+ // account handoff on the destination application's origin.
  event.preventDefault();
+ if(!homeSessionToken || Date.now()>=homeSessionExpires){
+  url.hash='suite_mode=local';
+  location.assign(url.toString());
+  return;
+ }
  const issued=await renewHandoff();
  if(issued && suiteHandoffToken && Date.now()<suiteHandoffExpires){
   url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);
+ }else{
+  url.hash='suite_mode=local';
  }
  // If handoff fails, the app still opens with browser-local preferences.
  location.assign(url.toString());
