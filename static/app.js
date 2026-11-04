@@ -134,7 +134,7 @@ function enableOptionalAuth(){
    identity.textContent=session.user+' ('+session.role+')';
    manage.hidden=session.role!=='admin';
    signedIn.hidden=false;signIn.hidden=true;
-   await renewHandoff();return true;
+   return true;
   }catch(_){signedIn.hidden=true;signIn.hidden=false;manage.hidden=true;suiteHandoffToken='';suiteHandoffExpires=0;try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}applyHandoffLinks();return false;}
  };
  form.addEventListener('submit',async event=>{
@@ -154,8 +154,6 @@ function enableOptionalAuth(){
    if(!response.ok)throw Error('Sign in failed (HTTP '+response.status+'). Please try again.');
    message.textContent='Token accepted. Preparing application access…';
    rememberHomeLogin(await response.json());
-   await renewHandoff();
-   if(!suiteHandoffToken)throw Error('Unable to issue one-hour app access.');
    if(!await refresh())throw Error('Homepage sign-in session was not retained. Please sign in again.');
    authenticated=true;
    message.textContent='Signed in successfully.';
