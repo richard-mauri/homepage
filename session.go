@@ -5,6 +5,9 @@ import (
  "crypto/sha256"
  "encoding/hex"
  "encoding/json"
+ "errors"
+ "os"
+ "path/filepath"
  "net/http"
  "strings"
  "sync"
@@ -19,7 +22,15 @@ const sessionLifetime = 12*time.Hour
 const defaultHandoffLifetime = sessionLifetime
 
 type sessionRecord struct { Digest string; Expires time.Time; ParentSession string }
+type durableSessionState struct {
+ Version int `json:"version"`
+ Sessions map[string]sessionRecord `json:"sessions"`
+ Handoffs map[string]sessionRecord `json:"handoffs"`
+}
+
 type sessionService struct {
+ persistencePath string
+ persistenceError error
  mu sync.Mutex
  sessions map[string]sessionRecord
  handoffs map[string]sessionRecord
@@ -29,8 +40,78 @@ type sessionService struct {
 }
 
 func newSessionService(store *suitestore.Store) *sessionService {
- return &sessionService{sessions:make(map[string]sessionRecord),handoffs:make(map[string]sessionRecord),store:store,now:time.Now,handoffLifetime:defaultHandoffLifetime}
+ s:=&sessionService{sessions:make(map[string]sessionRecord),handoffs:make(map[string]sessionRecord),store:store,now:time.Now,handoffLifetime:defaultHandoffLifetime}
+ if store!=nil {
+  s.persistencePath=store.SessionStatePath()
+  s.persistenceError=s.loadDurableState()
+ }
+ return s
 }
+
+// Never persist an actual browser session ID. Only its SHA-256 digest is
+// used as the server-side lookup key and written into the protected state.
+func sessionLookupKey(id string) string {
+ sum:=sha256.Sum256([]byte(id))
+ return hex.EncodeToString(sum[:])
+}
+func (s *sessionService) loadDurableState() error {
+ b,err:=os.ReadFile(s.persistencePath)
+ if errors.Is(err,os.ErrNotExist){return nil}
+ if err!=nil{return err}
+ var state durableSessionState
+ if err=json.Unmarshal(b,&state);err!=nil{return err}
+ if state.Version!=1 || state.Sessions==nil || state.Handoffs==nil {
+  return errors.New("unsupported or incomplete durable session state")
+ }
+ for key,rec:=range state.Sessions {
+  if len(key)!=64 || len(rec.Digest)!=64 || rec.Expires.IsZero() {
+   return errors.New("invalid durable session record")
+  }
+ }
+ for key,rec:=range state.Handoffs {
+  if len(key)!=64 || len(rec.Digest)!=64 || rec.Expires.IsZero() {
+   return errors.New("invalid durable handoff record")
+  }
+ }
+ s.sessions=state.Sessions
+ s.handoffs=state.Handoffs
+ return nil
+}
+
+// Called under mu. Write a complete replacement atomically, with restrictive
+// permissions, so failures cannot leave a partially written session database.
+func (s *sessionService) saveDurableStateLocked() error {
+ if s.persistencePath=="" {return nil}
+ state:=durableSessionState{Version:1,Sessions:s.sessions,Handoffs:s.handoffs}
+ b,err:=json.Marshal(state);if err!=nil{return err}
+ dir:=filepath.Dir(s.persistencePath)
+ if err=os.MkdirAll(dir,0700);err!=nil{return err}
+ tmp,err:=os.CreateTemp(dir,".homepage-auth-*.tmp");if err!=nil{return err}
+ defer os.Remove(tmp.Name())
+ if err=tmp.Chmod(0600);err!=nil{tmp.Close();return err}
+ if _,err=tmp.Write(b);err!=nil{tmp.Close();return err}
+ if err=tmp.Sync();err!=nil{tmp.Close();return err}
+ if err=tmp.Close();err!=nil{return err}
+ if err=os.Rename(tmp.Name(),s.persistencePath);err!=nil{return err}
+ // Persist the directory entry as well as the file contents.
+ d,err:=os.Open(dir);if err!=nil{return err}
+ defer d.Close()
+ return d.Sync()
+}
+func copySessionRecords(src map[string]sessionRecord) map[string]sessionRecord {
+ dst:=make(map[string]sessionRecord,len(src))
+ for key,record:=range src {dst[key]=record}
+ return dst
+}
+// Called under mu. Revert in-memory changes if the write fails.
+func (s *sessionService) commitLocked(beforeSessions,beforeHandoffs map[string]sessionRecord) error {
+ if err:=s.saveDurableStateLocked();err!=nil {
+  s.sessions=beforeSessions;s.handoffs=beforeHandoffs
+  return err
+ }
+ return nil
+}
+
 func (s *sessionService) cookie(r *http.Request, value string, maxAge int) *http.Cookie {
  cookie:=&http.Cookie{Name:sessionCookieName,Value:value,Path:"/",Secure:true,HttpOnly:true,SameSite:http.SameSiteLaxMode,MaxAge:maxAge}
  // Host-only cookie: Homepage's own UI may use it, but suite applications
@@ -94,8 +175,9 @@ func (s *sessionService) suiteStorageHandler(next http.Handler) http.Handler {
 // authenticateSession rechecks the credential registry on each request.
 // Removing a token or changing its role takes effect immediately.
 func (s *sessionService) authenticateSession(r *http.Request) (string,string,bool) {
+ if s.persistenceError!=nil{return "","",false}
  c,err:=r.Cookie(sessionCookieName);if err!=nil{return "","",false}
- s.mu.Lock();v,found:=s.sessions[c.Value];s.mu.Unlock()
+ s.mu.Lock();v,found:=s.sessions[sessionLookupKey(c.Value)];s.mu.Unlock()
  if !found || !s.now().Before(v.Expires){return "","",false}
  user,role,err:=s.store.AuthenticateDigest(v.Digest)
  return user,role,err==nil
@@ -103,10 +185,11 @@ func (s *sessionService) authenticateSession(r *http.Request) (string,string,boo
 // A Homepage-only session is an independent 12-hour opaque credential,
 // explicitly sent by the Homepage browser. App bearers never authorize it.
 func (s *sessionService) homepageSession(r *http.Request) (sessionRecord,string,string,bool) {
+ if s.persistenceError!=nil{return sessionRecord{},"","",false}
  id,has:=strings.CutPrefix(r.Header.Get("Authorization"),"Session ")
  if !has || len(id)!=64{return sessionRecord{},"","",false}
  if _,err:=hex.DecodeString(id);err!=nil{return sessionRecord{},"","",false}
- s.mu.Lock();record,exists:=s.sessions[id];s.mu.Unlock()
+ s.mu.Lock();record,exists:=s.sessions[sessionLookupKey(id)];s.mu.Unlock()
  if !exists || !s.now().Before(record.Expires){return sessionRecord{},"","",false}
  user,role,err:=s.store.AuthenticateDigest(record.Digest)
  return record,user,role,err==nil
@@ -114,6 +197,7 @@ func (s *sessionService) homepageSession(r *http.Request) (sessionRecord,string,
 // authenticateHandoff checks the parent-session-bound bearer and revalidates
 // its originating credential digest so role changes/revocations take effect.
 func (s *sessionService) authenticateHandoff(r *http.Request) (string,string,bool) {
+ if s.persistenceError!=nil{return "","",false}
  token,ok:=strings.CutPrefix(r.Header.Get("Authorization"),"Bearer ")
  if !ok || len(token)!=64{return "","",false}
  digest:=sha256.Sum256([]byte(token))
@@ -153,21 +237,22 @@ func (s *sessionService) handoffHandler(w http.ResponseWriter,r *http.Request) {
   // A credential-authenticated handoff issued immediately after sign-in
   // is also owned by that browser's active matching Homepage session.
   if c,err:=r.Cookie(sessionCookieName);err==nil {
-   s.mu.Lock();v,exists:=s.sessions[c.Value];s.mu.Unlock()
-   if exists && v.Digest==source.Digest && s.now().Before(v.Expires){parentSession=c.Value}
+   s.mu.Lock();v,exists:=s.sessions[sessionLookupKey(c.Value)];s.mu.Unlock()
+   if exists && v.Digest==source.Digest && s.now().Before(v.Expires){parentSession=sessionLookupKey(c.Value)}
   }
  }else if strings.HasPrefix(r.Header.Get("Authorization"),"Session ") {
   var ok bool
   source,user,role,ok=s.homepageSession(r)
   if !ok{http.Error(w,"Homepage session invalid",401);return}
-  parentSession,_=strings.CutPrefix(r.Header.Get("Authorization"),"Session ")
+  rawSession,_:=strings.CutPrefix(r.Header.Get("Authorization"),"Session ")
+  parentSession=sessionLookupKey(rawSession)
  }else{
   var ok bool
   user,role,ok=s.authenticateSession(r)
   if !ok{http.Error(w,"session invalid",401);return}
   c,_:=r.Cookie(sessionCookieName)
-  s.mu.Lock();source=s.sessions[c.Value];s.mu.Unlock()
-  parentSession=c.Value
+  s.mu.Lock();source=s.sessions[sessionLookupKey(c.Value)];s.mu.Unlock()
+  parentSession=sessionLookupKey(c.Value)
  }
  var nonce [32]byte
  if _,err:=rand.Read(nonce[:]);err!=nil{http.Error(w,"token unavailable",500);return}
@@ -175,6 +260,8 @@ func (s *sessionService) handoffHandler(w http.ResponseWriter,r *http.Request) {
  hash:=sha256.Sum256([]byte(token))
  expires:=s.now().Add(s.handoffLifetime)
  s.mu.Lock()
+ if s.persistenceError!=nil {s.mu.Unlock();http.Error(w,"session storage unavailable",503);return}
+ beforeSessions,beforeHandoffs:=copySessionRecords(s.sessions),copySessionRecords(s.handoffs)
  if parentSession!="" {
   parent,exists:=s.sessions[parentSession]
   if !exists || !s.now().Before(parent.Expires) || parent.Digest!=source.Digest {
@@ -185,6 +272,9 @@ func (s *sessionService) handoffHandler(w http.ResponseWriter,r *http.Request) {
  }
  for key,v:=range s.handoffs {if !s.now().Before(v.Expires){delete(s.handoffs,key)}}
  s.handoffs[hex.EncodeToString(hash[:])]=sessionRecord{Digest:source.Digest,Expires:expires,ParentSession:parentSession}
+ if err:=s.commitLocked(beforeSessions,beforeHandoffs);err!=nil {
+  s.mu.Unlock();http.Error(w,"session storage unavailable",503);return
+ }
  s.mu.Unlock()
  w.Header().Set("Content-Type","application/json")
  _=json.NewEncoder(w).Encode(map[string]any{"token":token,"expiresAt":expires.UTC().Format(time.RFC3339),"user":user,"role":role})
@@ -221,6 +311,8 @@ func (s *sessionService) renewHandoffHandler(w http.ResponseWriter,r *http.Reque
  newHash:=sha256.Sum256([]byte(newToken))
  expires:=s.now().Add(s.handoffLifetime)
  s.mu.Lock()
+ if s.persistenceError!=nil {s.mu.Unlock();http.Error(w,"session storage unavailable",503);return}
+ beforeSessions,beforeHandoffs:=copySessionRecords(s.sessions),copySessionRecords(s.handoffs)
  record,found:=s.handoffs[oldKey]
  if !found || !s.now().Before(record.Expires){s.mu.Unlock();http.Error(w,"token expired",401);return}
  if record.ParentSession!="" {
@@ -233,6 +325,9 @@ func (s *sessionService) renewHandoffHandler(w http.ResponseWriter,r *http.Reque
  }
  delete(s.handoffs,oldKey)
  s.handoffs[hex.EncodeToString(newHash[:])]=sessionRecord{Digest:record.Digest,Expires:expires,ParentSession:record.ParentSession}
+ if err:=s.commitLocked(beforeSessions,beforeHandoffs);err!=nil {
+  s.mu.Unlock();http.Error(w,"session storage unavailable",503);return
+ }
  s.mu.Unlock()
  w.Header().Set("Content-Type","application/json")
  _=json.NewEncoder(w).Encode(map[string]string{"token":newToken,"expiresAt":expires.UTC().Format(time.RFC3339),"user":user,"role":role})
@@ -301,6 +396,7 @@ func (s *sessionService) profileHandler(w http.ResponseWriter,r *http.Request) {
 }
 
 func (s *sessionService) handler(w http.ResponseWriter,r *http.Request) {
+ if s.persistenceError!=nil {http.Error(w,"session storage unavailable",503);return}
  w.Header().Set("Cache-Control","no-store")
  w.Header().Set("X-Content-Type-Options","nosniff")
  if r.Method==http.MethodPost && r.URL.Path=="/api/session" {
@@ -315,9 +411,13 @@ func (s *sessionService) handler(w http.ResponseWriter,r *http.Request) {
   id:=hex.EncodeToString(nonce[:])
   expires:=s.now().Add(sessionLifetime)
   s.mu.Lock()
+  beforeSessions,beforeHandoffs:=copySessionRecords(s.sessions),copySessionRecords(s.handoffs)
   for k,v:=range s.sessions {if !s.now().Before(v.Expires){delete(s.sessions,k)}}
   digest:=sha256.Sum256([]byte(token))
-  s.sessions[id]=sessionRecord{Digest:hex.EncodeToString(digest[:]),Expires:expires}
+  s.sessions[sessionLookupKey(id)]=sessionRecord{Digest:hex.EncodeToString(digest[:]),Expires:expires}
+  if err:=s.commitLocked(beforeSessions,beforeHandoffs);err!=nil {
+   s.mu.Unlock();http.Error(w,"session storage unavailable",503);return
+  }
   s.mu.Unlock()
   http.SetCookie(w,s.cookie(r,id,int(sessionLifetime.Seconds())))
   clearLegacyDomainCookie(w,r)
@@ -337,7 +437,7 @@ func (s *sessionService) handler(w http.ResponseWriter,r *http.Request) {
    if ok{
     c,_:=r.Cookie(sessionCookieName)
     id=c.Value
-    s.mu.Lock();v=s.sessions[id];s.mu.Unlock()
+    s.mu.Lock();v=s.sessions[sessionLookupKey(id)];s.mu.Unlock()
    }
   }
   if !ok{http.Error(w,"session invalid",401);return}
@@ -351,13 +451,17 @@ func (s *sessionService) handler(w http.ResponseWriter,r *http.Request) {
   // handoffs belonging to independent sessions on other devices.
   revoked:=make(map[string]bool)
   if id,ok:=strings.CutPrefix(r.Header.Get("Authorization"),"Session ");ok{
-   if _,_,_,valid:=s.homepageSession(r);valid {revoked[id]=true}
+   if _,_,_,valid:=s.homepageSession(r);valid {revoked[sessionLookupKey(id)]=true}
   }
-  if c,err:=r.Cookie(sessionCookieName);err==nil {revoked[c.Value]=true}
+  if c,err:=r.Cookie(sessionCookieName);err==nil {revoked[sessionLookupKey(c.Value)]=true}
   s.mu.Lock()
+  beforeSessions,beforeHandoffs:=copySessionRecords(s.sessions),copySessionRecords(s.handoffs)
   for id:=range revoked {delete(s.sessions,id)}
   for key,handoff:=range s.handoffs {
    if revoked[handoff.ParentSession] && handoff.ParentSession!="" {delete(s.handoffs,key)}
+  }
+  if err:=s.commitLocked(beforeSessions,beforeHandoffs);err!=nil {
+   s.mu.Unlock();http.Error(w,"session storage unavailable",503);return
   }
   s.mu.Unlock()
   http.SetCookie(w,s.cookie(r,"",-1))
