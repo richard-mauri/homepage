@@ -6,7 +6,7 @@ const icons = {
 };
 const accent={cyan:['#68cde0','rgba(104,205,224,.12)'],mint:['#75ddb6','rgba(117,221,182,.12)'],amber:['#eac081','rgba(234,192,129,.12)'],violet:['#b7a1f6','rgba(183,161,246,.12)']};
 function svg(name){return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]||icons.code}</svg>`}
-function makeCard(app){const a=document.createElement('a');a.className='app-card';a.href=app.url;a.rel='noopener noreferrer';if(app.url.startsWith('https://')||app.url.startsWith('http://'))a.target='_blank';const [color,glow]=accent[app.accent]||accent.cyan;a.style.setProperty('--card-accent',color);a.style.setProperty('--card-glow',glow);const top=document.createElement('div');top.className='card-top';const icon=document.createElement('span');icon.className='card-icon';icon.innerHTML=svg(app.icon);const arrow=document.createElement('span');arrow.className='card-arrow';arrow.textContent='↗';top.append(icon,arrow);const content=document.createElement('div');content.className='card-content';for(const [cls,val,tag] of [['card-category',app.category,'div'],['card-name',app.name,'h3'],['card-subtitle',app.subtitle,'div'],['card-description',app.description,'p']]){let el=document.createElement(tag);el.className=cls;el.textContent=val;content.append(el)}const bottom=document.createElement('div');bottom.className='card-bottom';bottom.innerHTML='<span>OPEN APPLICATION</span><span class="direction">→</span>';a.append(top,content,bottom);return a}
+function makeCard(app){const a=document.createElement('a');a.className='app-card';a.href=app.url;a.rel='noopener noreferrer';const [color,glow]=accent[app.accent]||accent.cyan;a.style.setProperty('--card-accent',color);a.style.setProperty('--card-glow',glow);const top=document.createElement('div');top.className='card-top';const icon=document.createElement('span');icon.className='card-icon';icon.innerHTML=svg(app.icon);const arrow=document.createElement('span');arrow.className='card-arrow';arrow.textContent='↗';top.append(icon,arrow);const content=document.createElement('div');content.className='card-content';for(const [cls,val,tag] of [['card-category',app.category,'div'],['card-name',app.name,'h3'],['card-subtitle',app.subtitle,'div'],['card-description',app.description,'p']]){let el=document.createElement(tag);el.className=cls;el.textContent=val;content.append(el)}const bottom=document.createElement('div');bottom.className='card-bottom';bottom.innerHTML='<span>OPEN APPLICATION</span><span class="direction">→</span>';a.append(top,content,bottom);return a}
 // Handoff tokens are kept only in memory and put in URL fragments for
 // approved suite destinations. The durable sign-in token is never forwarded.
 // Homepage has its own twelve-hour sign-in credential, distinct from
@@ -34,12 +34,12 @@ const homeSessionHeaders=()=>homeSessionToken?{Authorization:'Session '+homeSess
 let suiteHandoffToken='',suiteHandoffExpires=0;
 try{const saved=JSON.parse(sessionStorage.getItem('suite-handoff-v1')||'null');if(saved&&/^[a-f0-9]{64}$/.test(saved.token)&&saved.expires>Date.now()){suiteHandoffToken=saved.token;suiteHandoffExpires=saved.expires}}catch(_){}
 function applyHandoffLinks(){
+ // Keep card destinations free of cached credentials. Only attach a fresh
+ // bearer when navigating from an authenticated Homepage session.
  for(const link of document.querySelectorAll('#cards a.app-card')){
   const url=new URL(link.href);
   if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org')continue;
-  if(suiteHandoffToken && Date.now()<suiteHandoffExpires-30000){
-   url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);
-  }else{url.hash=''}
+  url.hash='';
   link.href=url.toString();
  }
 }
@@ -60,18 +60,22 @@ async function openSuiteApp(event){
  const link=event.currentTarget;
  const url=new URL(link.href);
  if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org')return;
+ // Account sign-in enables optional server preferences, never basic app access.
+ // Always explicitly distinguish a browser-only launch from a cached
+ // account handoff on the destination application's origin.
  event.preventDefault();
  if(!homeSessionToken || Date.now()>=homeSessionExpires){
-  alert('Sign in to Homepage before launching this account-enabled application.');
+  url.hash='suite_mode=local';
+  location.assign(url.toString());
   return;
  }
  const issued=await renewHandoff();
- if(!issued || !suiteHandoffToken || Date.now()>=suiteHandoffExpires){
-  alert('Homepage session expired. Please sign in again.');
-  return;
+ if(issued && suiteHandoffToken && Date.now()<suiteHandoffExpires){
+  url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);
+ }else{
+  url.hash='suite_mode=local';
  }
- url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);
- // Same-tab navigation avoids Safari blocking a popup after async renewal.
+ // If handoff fails, the app still opens with browser-local preferences.
  location.assign(url.toString());
 }
 async function init(){const root=document.querySelector('#cards');try{const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)throw Error('Configuration unavailable');const c=await r.json();root.replaceChildren(...c.apps.map(makeCard));applyHandoffLinks();for(const link of root.querySelectorAll('a.app-card'))link.addEventListener('click',openSuiteApp);document.querySelector('.count').textContent='/ '+String(c.apps.length).padStart(2,'0');if(c.persistenceAvailable)enableOptionalAuth()}catch(e){root.textContent='Applications are temporarily unavailable. Please refresh to try again.'}}
@@ -130,7 +134,7 @@ function enableOptionalAuth(){
    identity.textContent=session.user+' ('+session.role+')';
    manage.hidden=session.role!=='admin';
    signedIn.hidden=false;signIn.hidden=true;
-   await renewHandoff();return true;
+   return true;
   }catch(_){signedIn.hidden=true;signIn.hidden=false;manage.hidden=true;suiteHandoffToken='';suiteHandoffExpires=0;try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}applyHandoffLinks();return false;}
  };
  form.addEventListener('submit',async event=>{
@@ -150,8 +154,6 @@ function enableOptionalAuth(){
    if(!response.ok)throw Error('Sign in failed (HTTP '+response.status+'). Please try again.');
    message.textContent='Token accepted. Preparing application access…';
    rememberHomeLogin(await response.json());
-   await renewHandoff(approvedToken);
-   if(!suiteHandoffToken)throw Error('Unable to issue one-hour app access.');
    if(!await refresh())throw Error('Homepage sign-in session was not retained. Please sign in again.');
    authenticated=true;
    message.textContent='Signed in successfully.';
