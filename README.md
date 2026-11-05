@@ -9,7 +9,7 @@ Personal Go-powered launchpad published at https://home.themauris.org/ through i
 | NewsGo | https://newsgo.themauris.org/ |
 | ScraperGo | https://scrapergo.themauris.org/ |
 
-The cards open new tabs. Override their targets with `SAILING_URL`, `STOCKS_URL`, `NEWSGO_URL`, and `SCRAPERGO_URL` if necessary.
+The cards navigate in the current tab. When signed in, launching NewsGo or Stocks passes a session-bound Homepage handoff token; when signed out, those applications open in browser-only mode. Homepage manages the single 12-hour login session. Override their targets with `SAILING_URL`, `STOCKS_URL`, `NEWSGO_URL`, and `SCRAPERGO_URL` if necessary.
 
 ## Development and local use
 
