@@ -6,13 +6,13 @@ No merge, release, tag, `appVersion` change or tunnel/DNS modification without o
 
 ## Runtime-change Mac acceptance
 
-For branch `feat/versioned-build-workflow`, the owner runs:
+For a scoped runtime-change branch (substitute its exact name), the owner runs:
 
 ```bash
 cd ~/projects/homepage
 git fetch origin
-git checkout feat/versioned-build-workflow
-git pull --ff-only origin feat/versioned-build-workflow
+git checkout ACTUAL-PR-BRANCH
+git pull --ff-only origin ACTUAL-PR-BRANCH
 go test -count=1 ./...
 ./devbuild.sh
 ./dist/homepage-darwin-amd64 -version
