@@ -51,6 +51,9 @@ func New(root string, namespaces ...string) (*Store,error) {
  if err:=os.MkdirAll(root,0700);err!=nil{return nil,err}
  return &Store{root:root,namespaces:allowed},nil
 }
+// SessionStatePath locates Homepage's private durable auth state beside the
+// approved credential registry, under the configured SUITE_DATA_DIR.
+func (s *Store) SessionStatePath() string {return filepath.Join(s.root,"auth","homepage-sessions.json")}
 func (s *Store) credentialPath() string {return filepath.Join(s.root,"auth","approved-tokens.json")}
 func (s *Store) recordPath(user, app string) string {return filepath.Join(s.root,"users",user,app+".json")}
 
