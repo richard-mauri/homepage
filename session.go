@@ -244,14 +244,15 @@ func (s *sessionService) handoffHandler(w http.ResponseWriter,r *http.Request) {
   var ok bool
   source,user,role,ok=s.homepageSession(r)
   if !ok{http.Error(w,"Homepage session invalid",401);return}
-  parentSession,_=strings.CutPrefix(r.Header.Get("Authorization"),"Session ")
+  rawSession,_:=strings.CutPrefix(r.Header.Get("Authorization"),"Session ")
+  parentSession=sessionLookupKey(rawSession)
  }else{
   var ok bool
   user,role,ok=s.authenticateSession(r)
   if !ok{http.Error(w,"session invalid",401);return}
   c,_:=r.Cookie(sessionCookieName)
   s.mu.Lock();source=s.sessions[c.Value];s.mu.Unlock()
-  parentSession=c.Value
+  parentSession=sessionLookupKey(c.Value)
  }
  var nonce [32]byte
  if _,err:=rand.Read(nonce[:]);err!=nil{http.Error(w,"token unavailable",500);return}
