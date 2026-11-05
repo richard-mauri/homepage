@@ -251,7 +251,7 @@ func (s *sessionService) handoffHandler(w http.ResponseWriter,r *http.Request) {
   user,role,ok=s.authenticateSession(r)
   if !ok{http.Error(w,"session invalid",401);return}
   c,_:=r.Cookie(sessionCookieName)
-  s.mu.Lock();source=s.sessions[c.Value];s.mu.Unlock()
+  s.mu.Lock();source=s.sessions[sessionLookupKey(c.Value)];s.mu.Unlock()
   parentSession=sessionLookupKey(c.Value)
  }
  var nonce [32]byte
