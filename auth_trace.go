@@ -4,7 +4,7 @@ import (
  "crypto/sha256"
  "encoding/hex"
  "encoding/json"
- "fmt"
+ "io"
  "log"
  "net/http"
  "regexp"
@@ -60,7 +60,7 @@ func authTraceHTTP(next http.Handler) http.Handler {
  })
 }
 func traceAuthFailureReason(r *http.Request) string {
- if r.URL.Path!="/api/session" {return "request_rejected"}
+ if r.URL.Path!="/api/session" || r.Method!=http.MethodGet {return "request_rejected"}
  // The exact identity of a session is never written to the log.
  id,ok:=strings.CutPrefix(r.Header.Get("Authorization"),"Session ")
  if !ok {
@@ -112,7 +112,7 @@ func clientAuthTraceHandler(w http.ResponseWriter,r *http.Request){
  var event clientTraceEvent
  if err:=dec.Decode(&event);err!=nil {http.Error(w,"invalid trace",400);return}
  var extra any
- if err:=dec.Decode(&extra);err==nil {http.Error(w,"trailing trace",400);return}
+ if err:=dec.Decode(&extra);err!=io.EOF {http.Error(w,"trailing trace",400);return}
  if !allowedTraceEvents[event.Event] || !allowedTracePhases[event.Phase] ||
   event.Status<0 || event.Status>599 || !traceIDPattern.MatchString(event.Page) {
   http.Error(w,"invalid trace event",400);return
@@ -139,4 +139,3 @@ func setSessionTraceLookup(s *sessionService){
  }else{sessionTraceLookup=nil}
 }
 
-var _=fmt.Sprintf
