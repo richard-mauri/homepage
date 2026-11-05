@@ -89,12 +89,13 @@ function enableOptionalAuth(){
  const top=document.querySelector('.topright');
  const container=document.createElement('div');container.id='suiteAccount';container.className='suite-account';
  const signIn=document.createElement('button');signIn.type='button';signIn.textContent='Sign in';
+ const retryAuth=document.createElement('button');retryAuth.type='button';retryAuth.textContent='Connection issue — Retry';retryAuth.hidden=true;
  const signedIn=document.createElement('div');signedIn.className='suite-account-auth';signedIn.hidden=true;
  const identity=document.createElement('span');
  const manage=document.createElement('a');manage.href='/suite-admin';manage.textContent='Manage tokens';manage.hidden=true;
  const signOut=document.createElement('button');signOut.type='button';signOut.textContent='Sign out';
  signedIn.append(identity,manage,signOut);
- container.append(signIn,signedIn);top.prepend(container);
+ container.append(signIn,retryAuth,signedIn);top.prepend(container);
  const overlay=document.createElement('div');overlay.className='suite-modal-backdrop';overlay.hidden=true;
  const dialog=document.createElement('section');dialog.className='suite-modal';dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');dialog.setAttribute('aria-labelledby','suiteDialogTitle');
  const header=document.createElement('div');header.className='suite-modal-header';
@@ -123,20 +124,54 @@ function enableOptionalAuth(){
    else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
   }
  });
- const refresh=async()=>{
+ // Browser navigation and Safari page restoration can encounter a brief
+ // unreachable tunnel. Only an authoritative 401/403 establishes sign-out.
+ let refreshPending=null;
+ async function refreshSession(){
+  const request=async(headers)=>{
+   const response=await fetch('/api/session',{credentials:'same-origin',cache:'no-store',headers});
+   if(response.ok)return {kind:'valid',session:await response.json()};
+   if(response.status===401||response.status===403)return {kind:'invalid'};
+   return {kind:'unavailable'};
+  };
   try{
-   const response=await fetch('/api/session',{credentials:'same-origin',cache:'no-store',headers:homeSessionHeaders()});
-   // A short-lived app bearer is not a Homepage login. Never display
-   // a signed-in Homepage identity unless the 12-hour session is valid.
-   if(!response.ok)throw Error('Homepage login session unavailable');
-   const session=await response.json();
-   rememberHomeLogin(session);
-   identity.textContent=session.user+' ('+session.role+')';
-   manage.hidden=session.role!=='admin';
-   signedIn.hidden=false;signIn.hidden=true;
-   return true;
-  }catch(_){signedIn.hidden=true;signIn.hidden=false;manage.hidden=true;suiteHandoffToken='';suiteHandoffExpires=0;try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}applyHandoffLinks();return false;}
+   const first=await request(homeSessionHeaders());
+   if(first.kind==='valid'||first.kind==='unavailable')return first;
+   // Recover from a stale/missing browser-side session ID using the
+   // independent, host-only Homepage cookie before declaring sign-out.
+   if(homeSessionToken)return await request({});
+   return first;
+  }catch(_){return {kind:'unavailable'};}
+ }
+ function showUnavailable(){
+  signedIn.hidden=true;signIn.hidden=true;retryAuth.hidden=false;
+ }
+ function showSignedOut(){
+  clearHomeLogin();
+  signedIn.hidden=true;signIn.hidden=false;retryAuth.hidden=true;manage.hidden=true;
+  suiteHandoffToken='';suiteHandoffExpires=0;
+  try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}
+  applyHandoffLinks();
+ }
+ const refresh=()=>{
+  if(refreshPending)return refreshPending;
+  refreshPending=(async()=>{
+   const state=await refreshSession();
+   if(state.kind==='valid'){
+    try{rememberHomeLogin(state.session)}catch(_){showUnavailable();return false;}
+    identity.textContent=state.session.user+' ('+state.session.role+')';
+    manage.hidden=state.session.role!=='admin';
+    signedIn.hidden=false;signIn.hidden=true;retryAuth.hidden=true;
+    return true;
+   }
+   if(state.kind==='invalid'){showSignedOut();return false;}
+   showUnavailable();
+   return false;
+  })().finally(()=>{refreshPending=null;});
+  return refreshPending;
  };
+ retryAuth.addEventListener('click',()=>{void refresh()});
+
  form.addEventListener('submit',async event=>{
   event.preventDefault();
   if(signInPending)return;
@@ -176,6 +211,10 @@ function enableOptionalAuth(){
   }catch(error){alert(error.message);}
   finally{signOut.disabled=false;}
  });
- refresh();
- window.addEventListener('focus',()=>{if(Date.now()>suiteHandoffExpires-5*60*1000)void refresh()});
+ // Validate after ordinary navigation, BFCache restoration and reconnect;
+ // never couple Homepage validation to the expiry of an app handoff.
+ void refresh();
+ window.addEventListener('focus',()=>{void refresh()});
+ window.addEventListener('pageshow',()=>{void refresh()});
+ window.addEventListener('online',()=>{void refresh()});
 }
