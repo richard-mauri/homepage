@@ -39,6 +39,7 @@ type Config struct {
  Version string `json:"version"`
  Build string `json:"build"`
  PersistenceAvailable bool `json:"persistenceAvailable"`
+ TraceEnabled bool `json:"traceEnabled"`
  Apps []App `json:"apps"`
 }
 func env(key, fallback string) string {
@@ -46,7 +47,7 @@ func env(key, fallback string) string {
  return fallback
 }
 func config() Config {
- return Config{SiteName:"The Mauris",Version:appVersion,Build:appBuild,PersistenceAvailable:strings.TrimSpace(os.Getenv("SUITE_DATA_DIR"))!="",Tagline:"A private corner of the web. Built for the things we follow, build, and explore.",Apps:[]App{
+ return Config{SiteName:"The Mauris",Version:appVersion,Build:appBuild,PersistenceAvailable:strings.TrimSpace(os.Getenv("SUITE_DATA_DIR"))!="",TraceEnabled:authTraceEnabled,Tagline:"A private corner of the web. Built for the things we follow, build, and explore.",Apps:[]App{
  {"sailing","Sailing Outlook","WEATHER & WATER","Live marine conditions, wind trends, and the Delta-to-Bay outlook.",env("SAILING_URL","https://weather.themauris.org/"),"ON THE WATER","sail","cyan",true},
  {"stocks","Stocks","MARKETS & PORTFOLIO","Market views, watchlists, and the signals worth paying attention to.",env("STOCKS_URL","https://stocks.themauris.org/"),"IN THE MARKETS","chart","mint",true},
  {"newsgo","NewsGo","NEWS INTELLIGENCE","Your news stream, organized for a faster read on what matters.",env("NEWSGO_URL","https://newsgo.themauris.org/"),"STAY INFORMED","news","amber",true},
@@ -55,11 +56,14 @@ func config() Config {
 }
 func main() {
  version:=flag.Bool("version",false,"show version and exit")
+ trace:=flag.Bool("trace",false,"trace authentication navigation without secrets to homepage.log")
  flag.Parse()
  if *version {fmt.Printf("Homepage v%s · %s\n",appVersion,appBuild);return}
+ authTraceEnabled=*trace
  addr:=env("LISTEN_ADDR","127.0.0.1:8787")
  sub,err:=fs.Sub(assets,"static");if err!=nil {log.Fatal(err)}
  mux:=http.NewServeMux()
+ mux.HandleFunc("/api/trace",clientAuthTraceHandler)
  if err:=configureSuiteStorage(mux,os.Getenv("SUITE_DATA_DIR"));err!=nil {log.Fatalf("Suite storage configuration: %v",err)}
  mux.Handle("/static/",http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
   w.Header().Set("Cache-Control","no-cache, must-revalidate")
@@ -99,11 +103,12 @@ func configureSuiteStorage(mux *http.ServeMux, root string) error {
  sessions:=newSessionService(store)
  if sessions.persistenceError!=nil {return fmt.Errorf("Homepage durable sessions unavailable: %w",sessions.persistenceError)}
  log.Printf("Homepage account and app handoff lifetime: %s",sessionLifetime)
+ setSessionTraceLookup(sessions)
  mux.Handle("/api/storage/",sessions.suiteStorageHandler(store.Handler()))
- mux.HandleFunc("/api/session",sessions.handler)
- mux.HandleFunc("/api/session/profile",sessions.profileHandler)
- mux.HandleFunc("/api/handoff/token",sessions.handoffHandler)
- mux.HandleFunc("/api/handoff/renew",sessions.renewHandoffHandler)
+ mux.Handle("/api/session",authTraceHTTP(http.HandlerFunc(sessions.handler)))
+ mux.Handle("/api/session/profile",authTraceHTTP(http.HandlerFunc(sessions.profileHandler)))
+ mux.Handle("/api/handoff/token",authTraceHTTP(http.HandlerFunc(sessions.handoffHandler)))
+ mux.Handle("/api/handoff/renew",authTraceHTTP(http.HandlerFunc(sessions.renewHandoffHandler)))
  mux.HandleFunc("/api/admin/users",sessions.adminHandler)
  mux.HandleFunc("/suite-admin",func(w http.ResponseWriter,r *http.Request){
   if r.URL.Path!="/suite-admin" || r.Method!=http.MethodGet {http.NotFound(w,r);return}

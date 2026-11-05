@@ -12,6 +12,17 @@ function makeCard(app){const a=document.createElement('a');a.className='app-card
 // Homepage has its own twelve-hour sign-in credential, distinct from
 // the short-lived app token. Store only this temporary session ID, never
 // the approved personal sign-in token.
+// Trace is opt-in via the server's -trace flag. Never report credential or
+// bearer values. The page ID is random diagnostics metadata, not a login key.
+let authTraceActive=false;
+const authTracePage=Array.from(crypto.getRandomValues(new Uint8Array(8)),n=>n.toString(16).padStart(2,'0')).join('');
+function traceClient(event,phase='-',status=0){
+ if(!authTraceActive)return;
+ const body=JSON.stringify({event,phase,status,sessionStored:!!homeSessionToken,page:authTracePage});
+ // Use keepalive so the navigation click can be observed before unload.
+ try{void fetch('/api/trace',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body,keepalive:true}).catch(()=>{});}catch(_){}
+}
+function tracedHeaders(headers={}){return {...headers,...(authTraceActive?{'X-Homepage-Trace':authTracePage}:{})};}
 const homeLoginKey='mauri-home-session-v1';
 let homeSessionToken='',homeSessionExpires=0;
 try{
@@ -45,14 +56,15 @@ function applyHandoffLinks(){
 }
 async function renewHandoff(approvedToken=''){
  try{
-  const response=await fetch('/api/handoff/token',{method:'POST',credentials:'same-origin',cache:'no-store',headers:approvedToken?{Authorization:'Bearer '+approvedToken}:homeSessionHeaders()});
+  const response=await fetch('/api/handoff/token',{method:'POST',credentials:'same-origin',cache:'no-store',headers:tracedHeaders(approvedToken?{Authorization:'Bearer '+approvedToken}:homeSessionHeaders())});
+  traceClient('handoff_response',response.ok?'valid':'rejected',response.status);
   if(!response.ok)throw Error('not authenticated');
   const data=await response.json();
   if(!/^[a-f0-9]{64}$/.test(data.token)||!Date.parse(data.expiresAt))throw Error('bad handoff');
   suiteHandoffToken=data.token;suiteHandoffExpires=Date.parse(data.expiresAt);
   try{sessionStorage.setItem('suite-handoff-v1',JSON.stringify({token:suiteHandoffToken,expires:suiteHandoffExpires}))}catch(_){}
   applyHandoffLinks();return true;
- }catch(_){suiteHandoffToken='';suiteHandoffExpires=0;try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}applyHandoffLinks();return false}
+ }catch(_){traceClient('handoff_response','network');suiteHandoffToken='';suiteHandoffExpires=0;try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}applyHandoffLinks();return false}
 }
 // Mint a fresh handoff at application launch instead of reusing an older
 // token created when Homepage obtained focus.
@@ -64,21 +76,25 @@ async function openSuiteApp(event){
  // Always explicitly distinguish a browser-only launch from a cached
  // account handoff on the destination application's origin.
  event.preventDefault();
+ traceClient('launch_begin',url.origin==='https://stocks.themauris.org'?'stocks':'newsgo');
  if(!homeSessionToken || Date.now()>=homeSessionExpires){
+  traceClient('launch_local',!homeSessionToken?'none':'expired');
   url.hash='suite_mode=local';
   location.assign(url.toString());
   return;
  }
  const issued=await renewHandoff();
  if(issued && suiteHandoffToken && Date.now()<suiteHandoffExpires){
+  traceClient('launch_handoff','success');
   url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);
  }else{
+  traceClient('launch_local','rejected');
   url.hash='suite_mode=local';
  }
  // If handoff fails, the app still opens with browser-local preferences.
  location.assign(url.toString());
 }
-async function init(){const root=document.querySelector('#cards');try{const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)throw Error('Configuration unavailable');const c=await r.json();root.replaceChildren(...c.apps.map(makeCard));applyHandoffLinks();for(const link of root.querySelectorAll('a.app-card'))link.addEventListener('click',openSuiteApp);document.querySelector('.count').textContent='/ '+String(c.apps.length).padStart(2,'0');if(c.persistenceAvailable)enableOptionalAuth()}catch(e){root.textContent='Applications are temporarily unavailable. Please refresh to try again.'}}
+async function init(){const root=document.querySelector('#cards');try{const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)throw Error('Configuration unavailable');const c=await r.json();authTraceActive=!!c.traceEnabled;traceClient('page_init','initial');root.replaceChildren(...c.apps.map(makeCard));applyHandoffLinks();for(const link of root.querySelectorAll('a.app-card'))link.addEventListener('click',openSuiteApp);document.querySelector('.count').textContent='/ '+String(c.apps.length).padStart(2,'0');if(c.persistenceAvailable)enableOptionalAuth()}catch(e){root.textContent='Applications are temporarily unavailable. Please refresh to try again.'}}
 function tick(){document.querySelector('#clock').textContent=new Intl.DateTimeFormat('en-US',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'America/Los_Angeles'}).format(new Date())}
 const themeKey='themauris-theme';try{if(localStorage.getItem(themeKey)==='light')document.documentElement.dataset.theme='light'}catch(_){}document.querySelector('#themeToggle').addEventListener('click',()=>{const next=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=next;try{localStorage.setItem(themeKey,next)}catch(_){}});document.querySelector('#year').textContent=new Date().getFullYear();tick();setInterval(tick,30_000);init();
 
@@ -128,25 +144,29 @@ function enableOptionalAuth(){
  // unreachable tunnel. Only an authoritative 401/403 establishes sign-out.
  let refreshPending=null;
  async function refreshSession(){
-  const request=async(headers)=>{
-   const response=await fetch('/api/session',{credentials:'same-origin',cache:'no-store',headers});
+  const request=async(headers,phase)=>{
+   const response=await fetch('/api/session',{credentials:'same-origin',cache:'no-store',headers:tracedHeaders(headers)});
+   traceClient('refresh_response',phase,response.status);
    if(response.ok)return {kind:'valid',session:await response.json()};
    if(response.status===401||response.status===403)return {kind:'invalid'};
    return {kind:'unavailable'};
   };
   try{
-   const first=await request(homeSessionHeaders());
+   traceClient('refresh_begin','session');
+   const first=await request(homeSessionHeaders(),'session');
    if(first.kind==='valid'||first.kind==='unavailable')return first;
    // Recover from a stale/missing browser-side session ID using the
    // independent, host-only Homepage cookie before declaring sign-out.
-   if(homeSessionToken)return await request({});
+   if(homeSessionToken)return await request({},'cookie_fallback');
    return first;
-  }catch(_){return {kind:'unavailable'};}
+  }catch(_){traceClient('refresh_error','network');return {kind:'unavailable'};}
  }
  function showUnavailable(){
+  traceClient('ui_unavailable','unavailable');
   signedIn.hidden=true;signIn.hidden=true;retryAuth.hidden=false;
  }
  function showSignedOut(){
+  traceClient('ui_signed_out','invalid');
   clearHomeLogin();
   signedIn.hidden=true;signIn.hidden=false;retryAuth.hidden=true;manage.hidden=true;
   suiteHandoffToken='';suiteHandoffExpires=0;
@@ -162,6 +182,7 @@ function enableOptionalAuth(){
     identity.textContent=state.session.user+' ('+state.session.role+')';
     manage.hidden=state.session.role!=='admin';
     signedIn.hidden=false;signIn.hidden=true;retryAuth.hidden=true;
+    traceClient('ui_signed_in','valid');
     return true;
    }
    if(state.kind==='invalid'){showSignedOut();return false;}
@@ -183,8 +204,9 @@ function enableOptionalAuth(){
   const timeout=setTimeout(()=>controller.abort(),15000);
   let authenticated=false;
   try{
-   const response=await fetch('/api/session',{method:'POST',credentials:'same-origin',headers:{Authorization:'Bearer '+approvedToken},cache:'no-store',signal:controller.signal});
+   const response=await fetch('/api/session',{method:'POST',credentials:'same-origin',headers:tracedHeaders({Authorization:'Bearer '+approvedToken}),cache:'no-store',signal:controller.signal});
    clearTimeout(timeout);
+   traceClient('signin_response',response.ok?'success':'rejected',response.status);
    if(response.status===401||response.status===403)throw Error('Personal token rejected or expired. Check your token and try again.');
    if(!response.ok)throw Error('Sign in failed (HTTP '+response.status+'). Please try again.');
    message.textContent='Token accepted. Preparing application access…';
@@ -193,6 +215,7 @@ function enableOptionalAuth(){
    authenticated=true;
    message.textContent='Signed in successfully.';
   }catch(error){
+   traceClient('signin_error',error.name==='AbortError'?'network':'rejected');
    message.textContent=error.name==='AbortError'?'Sign in timed out. Check your connection and try again.':error instanceof TypeError?'Network error. Check your connection and try again.':error.message;
   }finally{
    clearTimeout(timeout);
@@ -204,7 +227,8 @@ function enableOptionalAuth(){
  signOut.addEventListener('click',async()=>{
   signOut.disabled=true;
   try{
-   const response=await fetch('/api/session',{method:'DELETE',credentials:'same-origin',cache:'no-store',headers:homeSessionHeaders()});
+   const response=await fetch('/api/session',{method:'DELETE',credentials:'same-origin',cache:'no-store',headers:tracedHeaders(homeSessionHeaders())});
+   traceClient('signout_response',response.ok?'success':'rejected',response.status);
    if(!response.ok)throw Error('Sign out failed (HTTP '+response.status+').');
    clearHomeLogin();suiteHandoffToken='';suiteHandoffExpires=0;try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}
    applyHandoffLinks();await refresh();
@@ -213,8 +237,10 @@ function enableOptionalAuth(){
  });
  // Validate after ordinary navigation, BFCache restoration and reconnect;
  // never couple Homepage validation to the expiry of an app handoff.
- void refresh();
- window.addEventListener('focus',()=>{void refresh()});
- window.addEventListener('pageshow',()=>{void refresh()});
- window.addEventListener('online',()=>{void refresh()});
+ void void refresh();
+ window.addEventListener('focus',()=>{traceClient('page_focus','initial');void refresh()});
+ window.addEventListener('pageshow',()=>{traceClient('page_show','initial');void refresh()});
+ window.addEventListener('online',()=>{traceClient('page_online','initial');void refresh()});
+ document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){traceClient('page_show','initial');void refresh()}});
+
 }

@@ -22,7 +22,7 @@ func TestSessionRefreshDistinguishesOutageFromSignout(t *testing.T) {
   "window.addEventListener('pageshow'",
   "window.addEventListener('online'",
   "window.addEventListener('focus'",
-  "if(homeSessionToken)return await request({});",
+  "if(homeSessionToken)return await request({},'cookie_fallback');",
  }{
   if !strings.Contains(js,required){t.Errorf("session resilience behavior missing %q",required)}
  }
