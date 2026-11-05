@@ -97,6 +97,7 @@ func configureSuiteStorage(mux *http.ServeMux, root string) error {
  store,err:=suitestore.New(root,"newsgo","mauristocks")
  if err!=nil{return err}
  sessions:=newSessionService(store)
+ if sessions.persistenceError!=nil {return fmt.Errorf("Homepage durable sessions unavailable: %w",sessions.persistenceError)}
  log.Printf("Homepage account and app handoff lifetime: %s",sessionLifetime)
  mux.Handle("/api/storage/",sessions.suiteStorageHandler(store.Handler()))
  mux.HandleFunc("/api/session",sessions.handler)
