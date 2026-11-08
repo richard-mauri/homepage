@@ -109,6 +109,7 @@ func configureSuiteStorage(mux *http.ServeMux, root string) error {
  mux.Handle("/api/session/profile",authTraceHTTP(http.HandlerFunc(sessions.profileHandler)))
  mux.Handle("/api/handoff/token",authTraceHTTP(http.HandlerFunc(sessions.handoffHandler)))
  mux.Handle("/api/handoff/renew",authTraceHTTP(http.HandlerFunc(sessions.renewHandoffHandler)))
+ mux.Handle("/api/handoff/extend-session",authTraceHTTP(http.HandlerFunc(sessions.extendNewsGoSessionHandler)))
  mux.HandleFunc("/api/admin/users",sessions.adminHandler)
  mux.HandleFunc("/suite-admin",func(w http.ResponseWriter,r *http.Request){
   if r.URL.Path!="/suite-admin" || r.Method!=http.MethodGet {http.NotFound(w,r);return}
