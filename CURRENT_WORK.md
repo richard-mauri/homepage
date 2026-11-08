@@ -1,9 +1,25 @@
-# Current work
+# Current work — Homepage
 
-**Authoritative source:** GitHub `main` contains merged Homepage PR #18 for hashed durable 12-hour sessions and browser recovery. The owner reports that the same-tab round trip Homepage → MauriStocks → Back to Homepage **still** displays **Sign in**. No exact failing HTTP status or browser state has been captured, so root cause remains open under [Issue #17](https://github.com/richard-mauri/homepage/issues/17).
+## Verified development state (November 8, 2026)
 
-**Current scoped work:** [draft PR #19](https://github.com/richard-mauri/homepage/pull/19), branch `fix/auth-trace-homepage-20261105`. Add an opt-in `-trace` command-line flag to log redacted auth request outcomes and Homepage browser navigation/UI state transitions to the existing `homepage.log`. This captures whether Safari has a stored Homepage session, whether the server rejects it, whether the cookie fallback succeeds, and what UI decision follows. The browser telemetry receiver is disabled by default, same-origin, bounded, and strictly allowlisted.
+- **Merged baseline:** GitHub `main` at `4e94ace432b82bd0e3f26944e99cc30ca9361fb9`. Previous Issue #17 auth-trace draft PR #19 status was checked; no Homepage PR was open at this work session's start.
+- **Current scope:** [Issue #20](https://github.com/richard-mauri/homepage/issues/20), branch `feat/20-session-renewal`, draft [PR #21](https://github.com/richard-mauri/homepage/pull/21); coordinated with [NewsGo draft PR #69](https://github.com/richard-mauri/newsgo/pull/69) for NewsGo Issue #57.
+- **Feature:** A NewsGo-origin-only authenticated POST `/api/handoff/extend-session` accepts an unexpired, parent-bound NewsGo bearer, revalidates approved credential, extends parent session for twelve hours from renewal, rotates the child bearer and durably commits both with rollback on error. Homepage's own browser revalidates retained opaque session IDs after cross-app extension, even if its cached expiry passed.
+- **Invariants:** No durable approved credential, token printing, cross-origin cookie fallback, renewal of expired/revoked/unbound bearers, change to user records or other apps' settings. Old bearer invalid after rotation. Existing same-parent handoffs remain subject to their original expiry; sign-out revokes them all. No tunnel/DNS changes, semantic version change, release or merge.
+- **Validation:** Added session-extension lifecycle, origin/CORS, expiry/revocation and restart regression tests. [GitHub Actions run 42494535545](https://github.com/richard-mauri/homepage/actions/runs/42494535545) passed at code/documentation head `253c069d365c1ea7b1b291c79e9834fdb7285d75`; recheck after this current-status update. Mac/Safari and live tunnel remain owner-only/unverified.
+- **Owner acceptance:** After deploying Homepage and NewsGo candidate branches, sign in through Homepage and open NewsGo. Click Renew before expiry; confirm the timer resets near 12 hours without leaving NewsGo or entering a personal token. Navigate Back to Homepage and verify signed-in state persists; relaunch NewsGo and check extended expiry. Confirm sign-out/revocation and expired sessions cannot renew. Verify sibling apps and settings remain intact.
+- **Merge boundary:** Draft PR only. No merge, release, restart, or main changes without owner approval.
 
-**Validation:** Go regression tests check trace gating, no raw-token leakage, strict same-origin input validation and critical browser instrumentation. GitHub CI passed on code commit `131514f02527e495bf4b0b04d6d28c9517db042d` (workflow run 42039436448). Recheck exact PR head after this documentation update. Owner-side Safari/tunnel reproduction has not been run.
+## Mac commands
 
-**Handoff:** Review scoped branch and draft PR. Owner chooses when to build and restart Homepage in trace mode; preserve the old log first, since `homego.sh` redirects via `>` and truncates it. After testing, inspect `grep '\\[AUTH-TRACE\\]' ~/projects/homepage/homepage.log | tail -n 120` and identify the actual failed layer. Do not merge, release, tag, restart, change tunnel/DNS, or touch sister services without explicit authorization. Follow [DEVELOPMENT.md](DEVELOPMENT.md) for complete owner-side Mac commands.
+```bash
+cd ~/projects/homepage
+git fetch origin
+git checkout feat/20-session-renewal
+git pull --ff-only origin feat/20-session-renewal
+go test -count=1 ./...
+./devbuild.sh
+./dist/homepage-darwin-amd64 -version
+./homego.sh
+curl -fsS http://127.0.0.1:8787/healthz
+```

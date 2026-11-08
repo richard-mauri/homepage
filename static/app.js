@@ -27,7 +27,9 @@ const homeLoginKey='mauri-home-session-v1';
 let homeSessionToken='',homeSessionExpires=0;
 try{
  const session=JSON.parse(localStorage.getItem(homeLoginKey)||'null');
- if(session && /^[a-f0-9]{64}$/.test(session.token) && session.expires>Date.now()){
+ if(session && /^[a-f0-9]{64}$/.test(session.token) && Number.isFinite(session.expires)){
+  // A sister app may extend the durable parent login while this page is away.
+  // Retain the opaque ID for server validation even if the cached expiry passed.
   homeSessionToken=session.token;homeSessionExpires=session.expires;
  }
 }catch(_){}
