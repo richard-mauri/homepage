@@ -9,7 +9,7 @@ Personal Go-powered launchpad published at https://home.themauris.org/ through i
 | NewsGo | https://newsgo.themauris.org/ |
 | ScraperGo | https://scrapergo.themauris.org/ |
 
-The cards navigate in the current tab. When signed in, launching NewsGo or Stocks passes a session-bound Homepage handoff token; when signed out, those applications open in browser-only mode. Homepage manages the single 12-hour login session. Override their targets with `SAILING_URL`, `STOCKS_URL`, `NEWSGO_URL`, and `SCRAPERGO_URL` if necessary.
+The cards navigate in the current tab. When signed in, launching NewsGo or Stocks passes a session-bound Homepage handoff token; when signed out, those applications open in browser-only mode. Homepage manages the single 12-hour login session. While that login is still valid, NewsGo's **Renew** button can extend it to twelve hours from the renewal time without asking for the personal approved credential again. The operation rotates the NewsGo handoff bearer securely and remains subject to credential revocation; expired sessions must sign in again. Homepage validates its stored session ID when returning from NewsGo so renewed expiration is recovered. Override their targets with `SAILING_URL`, `STOCKS_URL`, `NEWSGO_URL`, and `SCRAPERGO_URL` if necessary.
 
 ## Development and local use
 
