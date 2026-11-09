@@ -139,6 +139,9 @@ func (s *sessionService) renewHomepageSessionHandler(w http.ResponseWriter, r *h
   s.mu.Unlock();http.Error(w,"session storage unavailable",http.StatusServiceUnavailable);return
  }
  s.mu.Unlock()
+ // Keep the host-only HttpOnly cookie aligned with the renewed server expiry.
+ // Otherwise Manage Tokens would lose cookie authentication at the old deadline.
+ http.SetCookie(w,s.cookie(r,id,int(sessionLifetime.Seconds())))
  w.Header().Set("Content-Type","application/json")
  _=json.NewEncoder(w).Encode(map[string]string{"sessionToken":id,"expiresAt":expiry.UTC().Format(time.RFC3339),"user":user,"role":role})
 }
