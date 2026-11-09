@@ -117,7 +117,16 @@ el('renew').addEventListener('click',async()=>{
  finally{renewPending=false;updateRemaining();}
 });
 el('logout').addEventListener('click',async()=>{
- try{await api('/api/session',{method:'DELETE'});notice('Disconnected.');el('newToken').hidden=true;el('tokenResult').textContent='';await refresh();}
+ try{
+  await api('/api/session',{method:'DELETE',headers:sessionToken?{Authorization:'Session '+sessionToken}:{}});
+  // Disconnect is the single sign-out action for the Homepage browser.
+  // Server revocation immediately invalidates all child handoff bearers.
+  try{localStorage.removeItem('mauri-home-session-v1')}catch(_){}
+  try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}
+  sessionToken='';sessionExpires=0;
+  notice('Disconnected.');el('newToken').hidden=true;el('tokenResult').textContent='';
+  await refresh();
+ }
  catch(e){notice(e.message);}
 });
 el('copyToken').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(el('tokenResult').textContent);notice('Token copied.');}catch(_){notice('Copy manually from the token above.');}});
