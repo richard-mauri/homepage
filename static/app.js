@@ -111,8 +111,7 @@ function enableOptionalAuth(){
  const signedIn=document.createElement('div');signedIn.className='suite-account-auth';signedIn.hidden=true;
  const identity=document.createElement('span');
  const manage=document.createElement('a');manage.href='/suite-admin';manage.textContent='Manage tokens';manage.hidden=true;
- const signOut=document.createElement('button');signOut.type='button';signOut.textContent='Sign out';
- signedIn.append(identity,manage,signOut);
+ signedIn.append(identity,manage);
  container.append(signIn,retryAuth,signedIn);top.prepend(container);
  const overlay=document.createElement('div');overlay.className='suite-modal-backdrop';overlay.hidden=true;
  const dialog=document.createElement('section');dialog.className='suite-modal';dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');dialog.setAttribute('aria-labelledby','suiteDialogTitle');
@@ -182,7 +181,7 @@ function enableOptionalAuth(){
    if(state.kind==='valid'){
     try{rememberHomeLogin(state.session)}catch(_){showUnavailable();return false;}
     identity.textContent=state.session.user+' ('+state.session.role+')';
-    manage.hidden=state.session.role!=='admin';
+    manage.hidden=false; // Every signed-in user can manage their session; token administration remains role-gated.
     signedIn.hidden=false;signIn.hidden=true;retryAuth.hidden=true;
     traceClient('ui_signed_in','valid');
     return true;
@@ -194,7 +193,6 @@ function enableOptionalAuth(){
   return refreshPending;
  };
  retryAuth.addEventListener('click',()=>{void refresh()});
-
  form.addEventListener('submit',async event=>{
   event.preventDefault();
   if(signInPending)return;
@@ -225,17 +223,6 @@ function enableOptionalAuth(){
    submit.removeAttribute('aria-busy');token.disabled=false;close.disabled=false;
    if(authenticated)hideDialog();
   }
- });
- signOut.addEventListener('click',async()=>{
-  signOut.disabled=true;
-  try{
-   const response=await fetch('/api/session',{method:'DELETE',credentials:'same-origin',cache:'no-store',headers:tracedHeaders(homeSessionHeaders())});
-   traceClient('signout_response',response.ok?'success':'rejected',response.status);
-   if(!response.ok)throw Error('Sign out failed (HTTP '+response.status+').');
-   clearHomeLogin();suiteHandoffToken='';suiteHandoffExpires=0;try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}
-   applyHandoffLinks();await refresh();
-  }catch(error){alert(error.message);}
-  finally{signOut.disabled=false;}
  });
  // Validate after ordinary navigation, BFCache restoration and reconnect;
  // never couple Homepage validation to the expiry of an app handoff.

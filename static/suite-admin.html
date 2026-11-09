@@ -9,13 +9,13 @@ p,.muted{color:#aac0c5}section{background:#10232d;border:1px solid #35515a;borde
 label{display:block;margin:12px 0 4px}input,select,button{font:inherit;border:1px solid #496771;border-radius:8px;padding:10px;background:#07131b;color:inherit;max-width:100%}
 input{width:100%;box-sizing:border-box}button{cursor:pointer;background:#194d53;margin:9px 7px 5px 0}button:disabled{opacity:.5;cursor:default}
 button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{background:#85414b}
-[hidden]{display:none!important}.message{white-space:pre-wrap;overflow-wrap:anywhere}.user{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;border-top:1px solid #35515a;padding:12px 0}.actions{display:flex;flex-wrap:wrap;align-items:center}code{word-break:break-all;display:block;background:#07131b;padding:12px;margin:10px 0;border-radius:8px;user-select:all}
+[hidden]{display:none!important}.message{white-space:pre-wrap;overflow-wrap:anywhere}.user{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;border-top:1px solid #35515a;padding:12px 0}.actions{display:flex;flex-wrap:wrap;align-items:center}.session-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.session-actions button{margin:9px 0 5px}.session-time{font-variant-numeric:tabular-nums;color:#aac0c5}code{word-break:break-all;display:block;background:#07131b;padding:12px;margin:10px 0;border-radius:8px;user-select:all}
 </style></head><body>
 <p><a href="/">← Homepage</a></p><h1>Suite Authentication</h1><p>Manage your session and approved user tokens. Token values are shown only when newly created or rotated.</p>
 <section id="login"><h2>Connect</h2><form id="loginForm">
 <label for="token">Approved NewsGo or suite token</label><input id="token" type="password" autocomplete="off" spellcheck="false" required minlength="64" maxlength="64">
 <button type="submit">Connect</button></form></section>
-<section id="account" hidden><h2>Current session</h2><p id="identity"></p><button id="logout" type="button">Disconnect</button></section>
+<section id="account" hidden><h2>Current session</h2><p id="identity"></p><div class="session-actions"><button id="renew" type="button">Renew</button><span id="remaining" class="session-time" role="timer" aria-label="Session time remaining">Session --:--:--</span><button id="logout" type="button">Disconnect</button></div></section>
 <section id="admin" hidden><h2>Approved users</h2><p class="muted">Only administrators can issue, rotate or revoke credentials. Each user's saved preferences remain separate.</p>
 <div id="users"></div><h2>Create user</h2><form id="createForm">
 <label for="username">User ID</label><input id="username" required maxlength="64" pattern="[a-zA-Z0-9_ \-]{1,64}">
@@ -30,6 +30,15 @@ button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{backgro
 const el=id=>document.getElementById(id);
 const notice=(message)=>{el('notice').textContent=message};
 const showToken=token=>{el('tokenResult').textContent=token;el('newToken').hidden=false};
+let sessionToken='',sessionExpires=0,renewPending=false;
+const updateRemaining=()=>{
+ if(el('account').hidden)return;
+ const seconds=Math.max(0,Math.ceil((sessionExpires-Date.now())/1000));
+ const pad=n=>String(n).padStart(2,'0');
+ el('remaining').textContent='Session '+pad(Math.floor(seconds/3600))+':'+pad(Math.floor((seconds%3600)/60))+':'+pad(seconds%60);
+ el('renew').disabled=renewPending||seconds===0;
+};
+setInterval(updateRemaining,1000);
 async function api(path,options={}){
  const response=await fetch(path,{credentials:'same-origin',cache:'no-store',...options});
  if(!response.ok){throw new Error('Request failed (HTTP '+response.status+').');}
@@ -41,9 +50,15 @@ async function refresh(){
   const session=await api('/api/session');
   el('login').hidden=true;el('account').hidden=false;
   el('identity').textContent=session.user+' — '+session.role;
+  // The current-session endpoint returns the opaque ID for the same
+  // Homepage session. Keep it only in memory on this page.
+  sessionToken=/^[a-f0-9]{64}$/.test(session.sessionToken)?session.sessionToken:'';
+  sessionExpires=Date.parse(session.expiresAt);
+  if(!sessionToken||!Number.isFinite(sessionExpires))throw Error('Invalid session response');
+  updateRemaining();
   el('admin').hidden=session.role!=='admin';
   if(session.role==='admin')await refreshUsers();
- }catch(_){el('login').hidden=false;el('account').hidden=true;el('admin').hidden=true;}
+ }catch(_){sessionToken='';sessionExpires=0;el('login').hidden=false;el('account').hidden=true;el('admin').hidden=true;}
 }
 async function refreshUsers(){
  const users=await api('/api/admin/users');
@@ -87,8 +102,31 @@ el('createForm').addEventListener('submit',async event=>{
   el('createForm').reset();await refreshUsers();
  }catch(e){notice(e.message);}
 });
+el('renew').addEventListener('click',async()=>{
+ if(renewPending)return;
+ if(!sessionToken||Date.now()>=sessionExpires){notice('Session expired. Sign in again.');await refresh();return;}
+ renewPending=true;updateRemaining();
+ try{
+  const session=await api('/api/session/renew',{method:'POST',headers:{Authorization:'Session '+sessionToken}});
+  // Preserve the current identity; only the expiry changes.
+  if(session.sessionToken!==sessionToken||!Number.isFinite(Date.parse(session.expiresAt)))throw Error('Invalid renewal response');
+  sessionExpires=Date.parse(session.expiresAt);
+  notice('Session renewed for 12 hours.');
+  updateRemaining();
+ }catch(e){notice('Renewal failed: '+e.message);await refresh();}
+ finally{renewPending=false;updateRemaining();}
+});
 el('logout').addEventListener('click',async()=>{
- try{await api('/api/session',{method:'DELETE'});notice('Disconnected.');el('newToken').hidden=true;el('tokenResult').textContent='';await refresh();}
+ try{
+  await api('/api/session',{method:'DELETE',headers:sessionToken?{Authorization:'Session '+sessionToken}:{}});
+  // Disconnect is the single sign-out action for the Homepage browser.
+  // Server revocation immediately invalidates all child handoff bearers.
+  try{localStorage.removeItem('mauri-home-session-v1')}catch(_){}
+  try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}
+  sessionToken='';sessionExpires=0;
+  notice('Disconnected.');el('newToken').hidden=true;el('tokenResult').textContent='';
+  await refresh();
+ }
  catch(e){notice(e.message);}
 });
 el('copyToken').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(el('tokenResult').textContent);notice('Token copied.');}catch(_){notice('Copy manually from the token above.');}});
