@@ -22,4 +22,17 @@ func TestRenewControlsOnlyInManageTokensCurrentSession(t *testing.T) {
  if strings.Contains(string(home),`renew.addEventListener`)||strings.Contains(string(home),`signedIn.append(identity,manage,remaining`){
   t.Error("renewal control was not removed from Homepage account header")
  }
+ if strings.Contains(string(home),`signOut.addEventListener`)||strings.Contains(string(home),`signOut.textContent='Sign out'`){
+  t.Error("duplicate Sign out control remains in Homepage header")
+ }
+ if !strings.Contains(string(home),`manage.hidden=false; // Every signed-in user`){
+  t.Error("Manage tokens must be available to non-admin signed-in users")
+ }
+ if !strings.Contains(page,`localStorage.removeItem('mauri-home-session-v1')`) ||
+    !strings.Contains(page,`sessionStorage.removeItem('suite-handoff-v1')`){
+  t.Error("Disconnect must clear the Homepage browser session and cached handoff")
+ }
+ if !strings.Contains(page,`Authorization:'Session '+sessionToken`){
+  t.Error("Disconnect must revoke the correct Homepage session by explicit session ID")
+ }
 }
