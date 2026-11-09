@@ -10,7 +10,7 @@ func TestRenewControlsOnlyInManageTokensCurrentSession(t *testing.T) {
  if err!=nil{t.Fatal(err)}
  page:=string(admin)
  start:=strings.Index(page,`<section id="account"`)
- end:=strings.Index(page,`</section>`,start)
+ end:=start+strings.Index(page[start:],`</section>`)
  if start<0||end<start{t.Fatal("Current session panel missing")}
  panel:=page[start:end]
  for _,element:=range []string{`id="renew"`,`id="remaining"`,`id="logout"`,`class="session-actions"`} {
