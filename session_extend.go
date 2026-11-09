@@ -102,3 +102,43 @@ func (s *sessionService) extendNewsGoSessionHandler(w http.ResponseWriter, r *ht
 		"user": user, "role": role,
 	})
 }
+
+
+// renewHomepageSessionHandler extends only an already-valid Homepage login.
+// The opaque Session header (not a cross-origin cookie or app bearer) is required.
+func (s *sessionService) renewHomepageSessionHandler(w http.ResponseWriter, r *http.Request) {
+ w.Header().Set("Cache-Control", "no-store")
+ w.Header().Set("X-Content-Type-Options", "nosniff")
+ if r.Method != http.MethodPost { w.Header().Set("Allow", "POST"); http.Error(w,"method not allowed",http.StatusMethodNotAllowed); return }
+ if !validSessionOrigin(r) { http.Error(w,"invalid origin",http.StatusForbidden); return }
+ id,ok:=strings.CutPrefix(r.Header.Get("Authorization"),"Session ")
+ if !ok || len(id)!=64 { http.Error(w,"Homepage session required",http.StatusUnauthorized); return }
+ if _,err:=hex.DecodeString(id);err!=nil { http.Error(w,"Homepage session required",http.StatusUnauthorized); return }
+ key:=sessionLookupKey(id)
+ s.mu.Lock()
+ if s.persistenceError!=nil { s.mu.Unlock();http.Error(w,"session storage unavailable",http.StatusServiceUnavailable);return }
+ parent,found:=s.sessions[key]
+ now:=s.now()
+ if !found || !now.Before(parent.Expires) {s.mu.Unlock();http.Error(w,"session invalid or expired",http.StatusUnauthorized);return}
+ // Check the approved registry before mutating durable state.
+ user,role,err:=s.store.AuthenticateDigest(parent.Digest)
+ if err!=nil {s.mu.Unlock();http.Error(w,"session invalid or revoked",http.StatusUnauthorized);return}
+ beforeSessions,beforeHandoffs:=copySessionRecords(s.sessions),copySessionRecords(s.handoffs)
+ expiry:=now.Add(sessionLifetime)
+ parent.Expires=expiry
+ s.sessions[key]=parent
+ // Only currently live child handoffs of this session inherit its extended
+ // deadline. Revoked or expired child tokens must never be revived.
+ for token,handoff:=range s.handoffs {
+  if handoff.ParentSession==key && handoff.Digest==parent.Digest && now.Before(handoff.Expires) {
+   handoff.Expires=expiry
+   s.handoffs[token]=handoff
+  }
+ }
+ if err:=s.commitLocked(beforeSessions,beforeHandoffs);err!=nil {
+  s.mu.Unlock();http.Error(w,"session storage unavailable",http.StatusServiceUnavailable);return
+ }
+ s.mu.Unlock()
+ w.Header().Set("Content-Type","application/json")
+ _=json.NewEncoder(w).Encode(map[string]string{"sessionToken":id,"expiresAt":expiry.UTC().Format(time.RFC3339),"user":user,"role":role})
+}
