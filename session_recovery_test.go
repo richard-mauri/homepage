@@ -15,14 +15,14 @@ import (
  "themauris.org/homepage/internal/suitestore"
 )
 
-func TestNewsGoRecoveryBridgeDoesNotIssueTokensOnGet(t *testing.T) {
+func TestSuiteRecoveryBridgeDoesNotIssueTokensOnGet(t *testing.T) {
  store,err:=suitestore.New(t.TempDir(),"newsgo")
  if err!=nil{t.Fatal(err)}
  svc:=newSessionService(store)
  request:=func(method string)*httptest.ResponseRecorder{
   req:=httptest.NewRequest(method,"https://home.themauris.org/launch/newsgo?next=https://evil.example",nil)
   rec:=httptest.NewRecorder()
-  svc.newsGoRecoveryHandler(rec,req)
+  svc.suiteRecoveryHandler(rec,req)
   return rec
  }
  if got:=request(http.MethodPost);got.Code!=http.StatusMethodNotAllowed{t.Fatalf("POST: %d",got.Code)}
@@ -33,20 +33,23 @@ func TestNewsGoRecoveryBridgeDoesNotIssueTokensOnGet(t *testing.T) {
     !strings.Contains(result.Header().Get("Content-Security-Policy"),"script-src 'self'"){
   t.Fatal("recovery bridge lacks security headers")
  }
- if !strings.Contains(result.Body.String(),"/static/launch-newsgo.js") ||
+ if !strings.Contains(result.Body.String(),"/static/launch-suite.js") ||
     strings.Contains(result.Body.String(),"evil.example"){
   t.Fatal("recovery bridge must load trusted script without open redirect")
  }
- script,err:=assets.ReadFile("static/launch-newsgo.js")
+ script,err:=assets.ReadFile("static/launch-suite.js")
  if err!=nil{t.Fatal(err)}
  text:=string(script)
  for _,must:=range []string{
+  "'/launch/newsgo':'https://newsgo.themauris.org/'",
+  "'/launch/stocks':'https://stocks.themauris.org/'",
+  "const suiteDestination=destinations[location.pathname]",
   "localStorage.getItem(homeLoginKey)",
   "headers=sessionID?{Authorization:'Session '+sessionID}:{}",
   "method:'POST',credentials:'same-origin'",
   "if(storedSession && response.status===401)response=await issueHandoff('')",
-  "location.replace(newsGoDestination+'#suite_mode=local')",
-  "location.replace(newsGoDestination+'#suite_token='+data.token)",
+  "location.replace(suiteDestination+'#suite_mode=local')",
+  "location.replace(suiteDestination+'#suite_token='+data.token)",
  } {
   if !strings.Contains(text,must){t.Errorf("missing recovery invariant: %q",must)}
  }
@@ -131,6 +134,6 @@ func TestNewsGoRecoveryStopsOnDurableStorageFailure(t *testing.T) {
  svc.persistenceError=os.ErrPermission
  req:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/launch/newsgo",nil)
  w:=httptest.NewRecorder()
- svc.newsGoRecoveryHandler(w,req)
+ svc.suiteRecoveryHandler(w,req)
  if w.Code!=http.StatusServiceUnavailable{t.Fatalf("storage error hidden: %d",w.Code)}
 }
