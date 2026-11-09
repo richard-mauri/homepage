@@ -111,18 +111,9 @@ function enableOptionalAuth(){
  const signedIn=document.createElement('div');signedIn.className='suite-account-auth';signedIn.hidden=true;
  const identity=document.createElement('span');
  const manage=document.createElement('a');manage.href='/suite-admin';manage.textContent='Manage tokens';manage.hidden=true;
- const renew=document.createElement('button');renew.type='button';renew.textContent='Renew';
- const remaining=document.createElement('span');remaining.setAttribute('role','timer');remaining.setAttribute('aria-label','Session time remaining');
  const signOut=document.createElement('button');signOut.type='button';signOut.textContent='Sign out';
- signedIn.append(identity,manage,remaining,renew,signOut);
- const updateRemaining=()=>{
-  if(signedIn.hidden)return;
-  const seconds=Math.max(0,Math.ceil((homeSessionExpires-Date.now())/1000));
-  remaining.textContent='Session '+String(Math.floor(seconds/3600)).padStart(2,'0')+':'+String(Math.floor((seconds%3600)/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0');
-  renew.disabled=seconds===0;
- };
- setInterval(updateRemaining,1000);
- container.append(signIn,retryAuth,signedIn);top.prepend(container);
+ signedIn.append(identity,manage,signOut);
+  container.append(signIn,retryAuth,signedIn);top.prepend(container);
  const overlay=document.createElement('div');overlay.className='suite-modal-backdrop';overlay.hidden=true;
  const dialog=document.createElement('section');dialog.className='suite-modal';dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');dialog.setAttribute('aria-labelledby','suiteDialogTitle');
  const header=document.createElement('div');header.className='suite-modal-header';
@@ -192,7 +183,7 @@ function enableOptionalAuth(){
     try{rememberHomeLogin(state.session)}catch(_){showUnavailable();return false;}
     identity.textContent=state.session.user+' ('+state.session.role+')';
     manage.hidden=state.session.role!=='admin';
-    signedIn.hidden=false;signIn.hidden=true;retryAuth.hidden=true;updateRemaining();
+    signedIn.hidden=false;signIn.hidden=true;retryAuth.hidden=true;
     traceClient('ui_signed_in','valid');
     return true;
    }
@@ -203,19 +194,6 @@ function enableOptionalAuth(){
   return refreshPending;
  };
  retryAuth.addEventListener('click',()=>{void refresh()});
- renew.addEventListener('click',async()=>{
-  if(!homeSessionToken || Date.now()>=homeSessionExpires){await refresh();return;}
-  renew.disabled=true;
-  try{
-   const response=await fetch('/api/session/renew',{method:'POST',credentials:'same-origin',cache:'no-store',headers:tracedHeaders(homeSessionHeaders())});
-   if(!response.ok)throw Error('Renewal failed (HTTP '+response.status+').');
-   rememberHomeLogin(await response.json());
-   updateRemaining();
-   await refresh();
-  }catch(error){await refresh();alert(error.message);}
-  finally{renew.disabled=false;updateRemaining();}
- });
-
  form.addEventListener('submit',async event=>{
   event.preventDefault();
   if(signInPending)return;
