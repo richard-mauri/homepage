@@ -106,6 +106,7 @@ func configureSuiteStorage(mux *http.ServeMux, root string) error {
  setSessionTraceLookup(sessions)
  mux.Handle("/api/storage/",sessions.suiteStorageHandler(store.Handler()))
  mux.Handle("/api/session",authTraceHTTP(http.HandlerFunc(sessions.handler)))
+ mux.Handle("/api/session/renew",authTraceHTTP(http.HandlerFunc(sessions.renewHomepageSessionHandler)))
  mux.Handle("/api/session/profile",authTraceHTTP(http.HandlerFunc(sessions.profileHandler)))
  mux.Handle("/api/handoff/token",authTraceHTTP(http.HandlerFunc(sessions.handoffHandler)))
  mux.Handle("/api/handoff/renew",authTraceHTTP(http.HandlerFunc(sessions.renewHandoffHandler)))
