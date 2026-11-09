@@ -55,6 +55,10 @@ func TestHomepageRenewSessionLifecycle(t *testing.T) {
  now=now.Add(4*time.Hour)
  response:=renew("POST","https://home.themauris.org","Session "+parent.SessionToken)
  if response.Code!=200{t.Fatalf("renew %d: %s",response.Code,response.Body.String())}
+ cookies:=response.Result().Cookies()
+ if len(cookies)!=1 || cookies[0].Name!=sessionCookieName || cookies[0].Value!=parent.SessionToken || cookies[0].MaxAge!=int(sessionLifetime.Seconds()) || !cookies[0].HttpOnly || !cookies[0].Secure {
+  t.Fatal("renewal did not refresh the host-only session cookie")
+ }
  var updated struct{SessionToken,ExpiresAt,User,Role string}
  if err:=json.Unmarshal(response.Body.Bytes(),&updated);err!=nil{t.Fatal(err)}
  want:=now.Add(12*time.Hour).Format(time.RFC3339)
