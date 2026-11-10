@@ -43,6 +43,7 @@ func TestSuiteRecoveryBridgeDoesNotIssueTokensOnGet(t *testing.T) {
  for _,must:=range []string{
   "'/launch/newsgo':'https://newsgo.themauris.org/'",
   "'/launch/stocks':'https://stocks.themauris.org/'",
+  "'/launch/sailing':'https://weather.themauris.org/'",
   "const suiteDestination=destinations[location.pathname]",
   "localStorage.getItem(homeLoginKey)",
   "headers=sessionID?{Authorization:'Session '+sessionID}:{}",

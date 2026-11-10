@@ -4,7 +4,8 @@
 // are supported; neither an URL query nor a referrer controls the destination.
 const destinations=Object.freeze({
  '/launch/newsgo':'https://newsgo.themauris.org/',
- '/launch/stocks':'https://stocks.themauris.org/'
+ '/launch/stocks':'https://stocks.themauris.org/',
+ '/launch/sailing':'https://weather.themauris.org/'
 });
 const suiteDestination=destinations[location.pathname];
 const homeLoginKey='mauri-home-session-v1';

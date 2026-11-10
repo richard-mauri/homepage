@@ -98,7 +98,7 @@ func main() {
 // Session and bearer-token access are supported; cross-origin app integration remains disabled.
 func configureSuiteStorage(mux *http.ServeMux, root string) error {
  if strings.TrimSpace(root)=="" { return nil }
- store,err:=suitestore.New(root,"newsgo","mauristocks")
+ store,err:=suitestore.New(root,"newsgo","mauristocks","sailing")
  if err!=nil{return err}
  sessions:=newSessionService(store)
  if sessions.persistenceError!=nil {return fmt.Errorf("Homepage durable sessions unavailable: %w",sessions.persistenceError)}
@@ -111,6 +111,7 @@ func configureSuiteStorage(mux *http.ServeMux, root string) error {
  mux.Handle("/api/handoff/token",authTraceHTTP(http.HandlerFunc(sessions.handoffHandler)))
  mux.Handle("/launch/newsgo",authTraceHTTP(http.HandlerFunc(sessions.suiteRecoveryHandler)))
  mux.Handle("/launch/stocks",authTraceHTTP(http.HandlerFunc(sessions.suiteRecoveryHandler)))
+ mux.Handle("/launch/sailing",authTraceHTTP(http.HandlerFunc(sessions.suiteRecoveryHandler)))
  mux.Handle("/api/handoff/renew",authTraceHTTP(http.HandlerFunc(sessions.renewHandoffHandler)))
  mux.Handle("/api/handoff/extend-session",authTraceHTTP(http.HandlerFunc(sessions.extendNewsGoSessionHandler)))
  mux.HandleFunc("/api/admin/users",sessions.adminHandler)
