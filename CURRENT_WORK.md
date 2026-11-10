@@ -1,27 +1,24 @@
 # Current work — Homepage
 
-## Issue #26 / draft PR #27 — SailingGo authenticated preferences (November 10, 2026)
+## Issue #24 / PR #25 — suite session recovery, reconciled with SailingGo
 
-- Authoritative merged baseline: GitHub main at `ada914b2cbb6068183e1af52de672fc27e661ffe`.
-- Branch: `feat/26-sailing-account-storage`, draft PR #27, related SailingGo issue #17 / draft PR #18.
-- Scope: register `sailing` per-user account namespace, authorize the fixed `https://weather.themauris.org` browser origin for profile/storage CORS, and issue the existing session-bound handoff on signed-in SailingGo card launch; signed-out launch uses explicit local mode. No change to login life, token durability, legacy cookies or other applications.
-- Regression tests: `sailing_storage_test.go` exercises CORS/storage authorization, namespace and card handoff. GitHub CI on latest head must be verified after this documentation update. No Mac, Safari or tunnel acceptance yet.
-- Another unrelated open draft PR #25 (`fix/24-newsgo-session-recovery`) exists; do not mix its direct-visit recovery changes into this PR. SailingGo direct-visit bridge is not included.
-- No merge, release/version, launch or tunnel changes authorized. Deploy this Homepage dependency only in coordination with SailingGo PR #18 after owner acceptance.
+- The authoritative merged baseline before this PR is `main` at `9728f7b7ca4298ce58fe0f3fe92389782bb115ce`, including merged Homepage SailingGo storage/handoff PR #27 and closed Issue #26. The previous feature head `140bcd1fa18ac47f5a384e6179e76611f2c95710` had a merge conflict against main; this branch merges the two ancestries while preserving the already-merged `sailing` namespace, weather CORS origin and signed-in Homepage card handoff.
+- Recovery scope: fixed `GET /launch/newsgo`, `/launch/stocks`, and `/launch/sailing` routes, no-store strict-CSP browser bridge, same-origin POST to existing /api/handoff/token backed by approved existing Homepage 12-hour session; child bearer returned only in URL fragment. Does not extend expired session or revive/rewrite identity.
+- Coordinated app consumers: NewsGo PR #80 (draft until merged), MauriStocks PR #12 already merged, and separate SailingGo recovery consumer still required. This Homepage PR by itself does not automatically redirect a direct SailingGo visit.
+- Root tests: session_recovery_test.go adds no-GET-credential, fixed destination allowlist, parent preservation/revocation/expiry and durable storage checks. Latest-head CI must be verified following integration; Mac/Safari/tunnel not verified by assistant.
+- Owner authorized reconcile and merge on November 10, 2026. Merge only after passing checks. Source merge/branch operations are remote; no Mac checkout, build, restart, Cloudflare modification or release has occurred.
 
-## Mac checkout, build and acceptance
+## Mac checkout and checks
 
 ```sh
 cd ~/projects/homepage
 git status --short --branch
 git fetch origin
-git checkout feat/26-sailing-account-storage
-git pull --ff-only origin feat/26-sailing-account-storage
+git switch main
+git pull --ff-only origin main
 go test -count=1 ./...
 ./devbuild.sh
 ./dist/homepage-darwin-amd64 -version
-./homego.sh
-curl -fsS http://127.0.0.1:8787/healthz
 ```
 
-Do not execute `homego.sh` until the owner approves a restart. Confirm existing local changes before checkout. Safari should verify both normal and admin identities, signed-in SailingGo handoff, signed-out browser-only mode, existing Stocks/NewsGo launches, storage 409 isolation, session expiry and sign-out revocation.
+Use `./homego.sh` and `curl -fsS http://127.0.0.1:8787/healthz` only if the owner separately authorizes a restart, then Safari test direct visits to NewsGo, Stocks and SailingGo after closing the browser, and expired/revoked/browser-only modes.
