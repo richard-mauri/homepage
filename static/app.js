@@ -51,7 +51,7 @@ function applyHandoffLinks(){
  // bearer when navigating from an authenticated Homepage session.
  for(const link of document.querySelectorAll('#cards a.app-card')){
   const url=new URL(link.href);
-  if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org')continue;
+  if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org' && url.origin!=='https://weather.themauris.org')continue;
   url.hash='';
   link.href=url.toString();
  }
@@ -73,12 +73,12 @@ async function renewHandoff(approvedToken=''){
 async function openSuiteApp(event){
  const link=event.currentTarget;
  const url=new URL(link.href);
- if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org')return;
+ if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org' && url.origin!=='https://weather.themauris.org')return;
  // Account sign-in enables optional server preferences, never basic app access.
  // Always explicitly distinguish a browser-only launch from a cached
  // account handoff on the destination application's origin.
  event.preventDefault();
- traceClient('launch_begin',url.origin==='https://stocks.themauris.org'?'stocks':'newsgo');
+ traceClient('launch_begin',url.origin==='https://stocks.themauris.org'?'stocks':url.origin==='https://weather.themauris.org'?'sailing':'newsgo');
  if(!homeSessionToken || Date.now()>=homeSessionExpires){
   traceClient('launch_local',!homeSessionToken?'none':'expired');
   url.hash='suite_mode=local';

@@ -17,3 +17,7 @@ The changed launcher and auth contracts require coordinated NewsGo and MauriStoc
 ## Authentication diagnostics
 
 Homepage's optional `-trace` flag enables server-side auth HTTP result tracing and a same-origin `POST /api/trace` receiver for the browser's navigation/auth UI decisions. `/api/config` advertises only the trace-mode boolean. Every browser event is validated against fixed event and phase allowlists and a 16-character random page correlation ID. Logs go to the standard logger, which `homego.sh` redirects to `homepage.log`. Tracing never records raw cookies, approved credentials, session IDs, handoff tokens, usernames or private preferences. Session lookup outcomes are reported as a small fixed set (missing, expired, credential revoked, valid), and trace mode is off by default.
+
+## SailingGo account preferences (Issue #26)
+
+SailingGo at `https://weather.themauris.org` is a third trusted application origin for Homepage's bearer-protected `/api/session/profile` and revisioned `/api/storage/sailing` endpoints. The signed-in SailingGo card receives the same fragment-only `#suite_token` handoff as Stocks and NewsGo; a signed-out visit receives `#suite_mode=local`. The approved credential and host-only Homepage cookie never travel to SailingGo. Each storage record is authorized by the server-verified Homepage user, not by client-supplied user IDs. Existing NewsGo and Stocks namespaces remain unchanged. This change does not add a direct-visit `/launch/sailing` bridge; initial account access requires launching from signed-in Homepage.

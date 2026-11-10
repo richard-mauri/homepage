@@ -98,7 +98,7 @@ func main() {
 // Session and bearer-token access are supported; cross-origin app integration remains disabled.
 func configureSuiteStorage(mux *http.ServeMux, root string) error {
  if strings.TrimSpace(root)=="" { return nil }
- store,err:=suitestore.New(root,"newsgo","mauristocks")
+ store,err:=suitestore.New(root,"newsgo","mauristocks","sailing")
  if err!=nil{return err}
  sessions:=newSessionService(store)
  if sessions.persistenceError!=nil {return fmt.Errorf("Homepage durable sessions unavailable: %w",sessions.persistenceError)}
