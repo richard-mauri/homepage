@@ -138,7 +138,7 @@ func validSessionOrigin(r *http.Request) bool {
 // credentials. Other origins receive no CORS permission.
 func allowedStorageOrigin(origin string) bool {
  switch origin {
- case "https://home.themauris.org", "https://stocks.themauris.org", "https://newsgo.themauris.org":
+ case "https://home.themauris.org", "https://stocks.themauris.org", "https://newsgo.themauris.org", "https://weather.themauris.org":
   return true
  default:
   return false
