@@ -72,3 +72,21 @@ Hourly report persistence is batched: the first accepted aggregate is synced imm
 On the activity branch, the existing `/suite-admin` page displays a separate **Session activity** section only for an authenticated Homepage administrator. It fetches `GET /api/admin/activity` with the current Homepage session and periodically refreshes every 30 seconds while visible. There are per-service status cards for Homepage, NewsGo, MauriStocks, SailingGo and ScraperGo, including two-, fifteen- and sixty-minute counts, anonymous/signed-in status, in-flight requests and the last accepted report. Missing/stale service observations are explicitly labeled **unknown**, and their numeric fields are hidden rather than displayed as zero. The read-only hourly pattern visualizes average two-minute observed active counts by UTC hour of day, for the last seven or thirty days. It is a mean across reported samples, not a unique-visitor count; an hour with no samples is not an hour with zero traffic. The panel contains no restart button or ability to manage services. The existing **Current session** controls remain accessible to ordinary signed-in users.
 
 For testing on a separate loopback port, a newly created, **isolated** test data directory has no approved administrator tokens, so you must explicitly provision a disposable test admin to view the panel. Never copy production credentials or reuse the running application's persistent `SUITE_DATA_DIR` just to test telemetry. Safari and Mac validation are still required; no services are deployed by this PR.
+
+### Test the admin dashboard without restarting production
+
+The isolated Safari test uses the existing `TEST_ROOT` directory created for the earlier collector smoke tests, for example `$(mktemp -d "${TMPDIR:-/tmp}/homepage-activity.XXXXXX")`. First stop **only** the server previously started on `127.0.0.1:8788` (the foreground Terminal job can be stopped with Ctrl-C; if backgrounded, inspect `jobs -l` and terminate that exact job). Do not run `homego.sh` or use production `SUITE_DATA_DIR`.
+
+```sh
+cd "$TEST_ROOT/src"
+git fetch origin
+git checkout --detach origin/issue-28-activity-collector
+go test -count=1 ./...
+go build -o "$TEST_ROOT/homepage" .
+sh scripts/prepare-activity-ui-test.sh "$TEST_ROOT/data"
+SUITE_DATA_DIR="$TEST_ROOT/data" LISTEN_ADDR=127.0.0.1:8788 "$TEST_ROOT/homepage"
+```
+
+The guarded fixture helper refuses an unexpected path or an existing registry. It prints a fresh disposable test administrator credential **once**; do not share or commit it. Open `http://127.0.0.1:8788/` in Safari and then `http://127.0.0.1:8788/suite-admin`. Use **Connect** with the disposable test token; the **Session activity** section becomes visible and the Homepage row shows actual browser activity. The other four apps correctly show **Not reporting — activity unknown**. Use Refresh activity and the 7/30-day chart controls; historic data from the previous run will remain if the same isolated directory was used. Only Homepage is being measured. On local HTTP, Safari can decline to send the normal Secure session cookie, so the `/suite-admin` page now keeps the issued Homepage `Session` ID **in memory** for read operations. This does not weaken production cookie security and does not save the credential.
+
+The disposable test account is independent of production; user-token management may be unavailable in this insecure loopback test but must never hide the read-only activity panel. The final admin page still requires Mac/Safari validation; CI checks server code and embedded UI strings, not Safari pixels or interaction.
