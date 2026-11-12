@@ -26,6 +26,9 @@ func TestActivityAdminPanelEmbeddedAndReadOnly(t *testing.T) {
   `'/api/admin/activity'`,
   `session.role!=='admin'`,
   `No restart is initiated here.`,
+  "const created=await api(",
+  "sessionToken=created.sessionToken;",
+  "const headers=sessionToken?",
  }{
   if !strings.Contains(html,fragment){t.Errorf("missing admin panel invariant: %s",fragment)}
  }
