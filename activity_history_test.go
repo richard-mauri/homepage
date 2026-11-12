@@ -16,6 +16,7 @@ func TestActivityHistoryPersistsWithoutIdentity(t *testing.T) {
  c.now=func()time.Time{return at}
  if err:=c.appendHistoryLocked("newsgo",activityReport{Active2:3,InFlight:2},at);err!=nil{t.Fatal(err)}
  if err:=c.appendHistoryLocked("newsgo",activityReport{Active2:1,InFlight:0},at.Add(time.Minute));err!=nil{t.Fatal(err)}
+ if err:=c.flushHistory();err!=nil{t.Fatal(err)}
  history,status:=c.historySnapshot()
  if status!="available" || len(history)!=1 {t.Fatalf("history status=%s buckets=%d",status,len(history))}
  h:=history[0]
