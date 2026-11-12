@@ -43,6 +43,8 @@ type activityCollector struct {
  homePresence map[string]homepagePresence
  historyPath string
  historyError string
+ historyLastSave time.Time
+ historyDirty bool
  now func() time.Time
 }
 func newActivityCollector() *activityCollector {
