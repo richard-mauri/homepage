@@ -115,6 +115,7 @@ func configureSuiteStorage(mux *http.ServeMux, root string) error {
  mux.Handle("/api/handoff/renew",authTraceHTTP(http.HandlerFunc(sessions.renewHandoffHandler)))
  mux.Handle("/api/handoff/extend-session",authTraceHTTP(http.HandlerFunc(sessions.extendNewsGoSessionHandler)))
  activity:=newActivityCollectorWithRoot(root)
+ mux.HandleFunc("/api/activity/ping",activity.homepagePresenceHandler(sessions))
  mux.HandleFunc("/api/admin/activity/ingest",activity.ingest)
  mux.HandleFunc("/api/admin/activity",activity.readAdmin(sessions))
  mux.HandleFunc("/api/admin/users",sessions.adminHandler)
