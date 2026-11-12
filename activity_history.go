@@ -86,12 +86,17 @@ func (c *activityCollector) appendHistoryLocked(service string, report activityR
  if report.Active2>h.Active2Peak {h.Active2Peak=report.Active2}
  if report.InFlight>h.InFlightPeak {h.InFlightPeak=report.InFlight}
  next[key]=h
+ old,oldDirty:=c.history,c.historyDirty
  c.history=next
  c.historyDirty=true
  // Persist the first report and every five minutes thereafter. A crash can
  // lose the latest bounded window of aggregate samples, never login state.
  if c.historyLastSave.IsZero() || now.Sub(c.historyLastSave)>=5*time.Minute {
-  return c.flushHistoryLocked(now)
+  if err:=c.flushHistoryLocked(now);err!=nil {
+   c.history=old
+   c.historyDirty=oldDirty
+   return err
+  }
  }
  return nil
 }
