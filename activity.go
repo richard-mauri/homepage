@@ -40,12 +40,13 @@ type activityCollector struct {
  seen map[string]time.Time
  secrets map[string]string
  history map[string]activityHour
+ homePresence map[string]homepagePresence
  historyPath string
  historyError string
  now func() time.Time
 }
 func newActivityCollector() *activityCollector {
- c:=&activityCollector{latest:map[string]activityEntry{},seen:map[string]time.Time{},secrets:map[string]string{},history:map[string]activityHour{},now:time.Now}
+ c:=&activityCollector{latest:map[string]activityEntry{},seen:map[string]time.Time{},secrets:map[string]string{},history:map[string]activityHour{},homePresence:map[string]homepagePresence{},now:time.Now}
  for _,name:=range activityServices {
   key:="HOMEPAGE_ACTIVITY_KEY_"+strings.ToUpper(name)
   c.secrets[name]=os.Getenv(key)
@@ -97,6 +98,7 @@ func (c *activityCollector) ingest(w http.ResponseWriter,r *http.Request){
 func (c *activityCollector) snapshot() []activityEntry {
  c.mu.Lock();defer c.mu.Unlock()
  now:=c.now()
+ if len(c.homePresence)>0 {c.updateHomepageSnapshotLocked(now)}
  out:=make([]activityEntry,0,len(activityServices))
  for _,service:=range activityServices {
   entry,ok:=c.latest[service]
