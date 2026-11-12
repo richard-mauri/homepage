@@ -86,15 +86,38 @@ func (c *activityCollector) appendHistoryLocked(service string, report activityR
  if report.Active2>h.Active2Peak {h.Active2Peak=report.Active2}
  if report.InFlight>h.InFlightPeak {h.InFlightPeak=report.InFlight}
  next[key]=h
- hours:=make([]activityHour,0,len(next))
- for _,item:=range next {hours=append(hours,item)}
+ c.history=next
+ c.historyDirty=true
+ // Persist the first report and every five minutes thereafter. A crash can
+ // lose the latest bounded window of aggregate samples, never login state.
+ if c.historyLastSave.IsZero() || now.Sub(c.historyLastSave)>=5*time.Minute {
+  return c.flushHistoryLocked(now)
+ }
+ return nil
+}
+
+// flushHistoryLocked must be called with the collector mutex held.
+func (c *activityCollector) flushHistoryLocked(now time.Time) error {
+ if !c.historyDirty {return nil}
+ hours:=make([]activityHour,0,len(c.history))
+ for _,item:=range c.history {hours=append(hours,item)}
  sort.Slice(hours,func(i,j int)bool {
   if hours[i].Hour!=hours[j].Hour{return hours[i].Hour<hours[j].Hour}
   return hours[i].Service<hours[j].Service
  })
- if err:=writeActivityHistory(c.historyPath,activityHistoryState{Version:1,Hours:hours});err!=nil {return err}
- c.history=next
+ if err:=writeActivityHistory(c.historyPath,activityHistoryState{Version:1,Hours:hours});err!=nil {
+  c.historyError=err.Error()
+  return err
+ }
+ c.historyLastSave=now
+ c.historyDirty=false
  return nil
+}
+
+func (c *activityCollector) flushHistory() error {
+ c.mu.Lock()
+ defer c.mu.Unlock()
+ return c.flushHistoryLocked(c.now())
 }
 
 func writeActivityHistory(path string,state activityHistoryState) error {
