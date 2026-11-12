@@ -41,6 +41,7 @@ type activityCollector struct {
  secrets map[string]string
  history map[string]activityHour
  homePresence map[string]homepagePresence
+ homeLastSample time.Time
  historyPath string
  historyError string
  historyLastSave time.Time
