@@ -54,6 +54,12 @@ func (c *activityCollector) homepagePresenceHandler(s *sessionService) http.Hand
   if p.Interacted && p.Visible {prior.Interaction=now}
   c.homePresence[p.ID]=prior
   c.updateHomepageSnapshotLocked(now)
+  if c.homeLastSample.IsZero() || now.Sub(c.homeLastSample)>=time.Minute {
+   if err:=c.appendHistoryLocked("homepage",c.latest["homepage"].activityReport,now);err!=nil {
+    http.Error(w,"activity history unavailable",503);return
+   }
+   c.homeLastSample=now
+  }
   w.WriteHeader(http.StatusNoContent)
  }
 }
@@ -61,7 +67,9 @@ func (c *activityCollector) homepagePresenceHandler(s *sessionService) http.Hand
 func (c *activityCollector) updateHomepageSnapshotLocked(now time.Time) {
  p:=activityReport{}
  var recent time.Time
+ var lastSeen time.Time
  for _,record:=range c.homePresence {
+  if record.Seen.After(lastSeen) {lastSeen=record.Seen}
   age:=now.Sub(record.Seen)
   if age<0 || age>time.Hour {continue}
   if age<=60*time.Minute {p.Active60++}
@@ -75,5 +83,7 @@ func (c *activityCollector) updateHomepageSnapshotLocked(now time.Time) {
   if record.Interaction.After(recent) {recent=record.Interaction}
  }
  if !recent.IsZero(){p.LastInteraction=recent.UTC().Format(time.RFC3339)}
- c.latest["homepage"]=activityEntry{activityReport:p,Service:"homepage",Status:"fresh",LastReport:now.UTC().Format(time.RFC3339)}
+ status:="stale"
+ if now.Sub(lastSeen)<=150*time.Second {status="fresh"}
+ c.latest["homepage"]=activityEntry{activityReport:p,Service:"homepage",Status:status,LastReport:lastSeen.UTC().Format(time.RFC3339)}
 }
