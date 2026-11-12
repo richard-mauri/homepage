@@ -39,10 +39,13 @@ type activityCollector struct {
  latest map[string]activityEntry
  seen map[string]time.Time
  secrets map[string]string
+ history map[string]activityHour
+ historyPath string
+ historyError string
  now func() time.Time
 }
 func newActivityCollector() *activityCollector {
- c:=&activityCollector{latest:map[string]activityEntry{},seen:map[string]time.Time{},secrets:map[string]string{},now:time.Now}
+ c:=&activityCollector{latest:map[string]activityEntry{},seen:map[string]time.Time{},secrets:map[string]string{},history:map[string]activityHour{},now:time.Now}
  for _,name:=range activityServices {
   key:="HOMEPAGE_ACTIVITY_KEY_"+strings.ToUpper(name)
   c.secrets[name]=os.Getenv(key)
@@ -86,6 +89,7 @@ func (c *activityCollector) ingest(w http.ResponseWriter,r *http.Request){
  for k,until:=range c.seen {if now.After(until){delete(c.seen,k)}}
  if len(c.seen)>10000 {http.Error(w,"collector overloaded",503);return}
  if _,exists:=c.seen[replayKey];exists {http.Error(w,"duplicate report",409);return}
+ if err:=c.appendHistoryLocked(service,p,now);err!=nil {http.Error(w,"activity history unavailable",503);return}
  c.seen[replayKey]=now.Add(3*time.Minute)
  c.latest[service]=activityEntry{activityReport:p,Service:service,Status:"fresh",LastReport:now.UTC().Format(time.RFC3339)}
  w.WriteHeader(http.StatusNoContent)
@@ -115,7 +119,8 @@ func (c *activityCollector) readAdmin(s *sessionService) http.HandlerFunc{
   if !ok {http.Error(w,"session required",401);return}
   if role!="admin" {http.Error(w,"admin required",403);return}
   w.Header().Set("Content-Type","application/json; charset=utf-8")
-  _=json.NewEncoder(w).Encode(map[string]any{"services":c.snapshot(),"advisoryOnly":true})
+  history,status:=c.historySnapshot()
+  _=json.NewEncoder(w).Encode(map[string]any{"services":c.snapshot(),"history":history,"historyStatus":status,"advisoryOnly":true})
  }
 }
 // activityStatePath is reserved for future aggregate persistence; raw presence
