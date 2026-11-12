@@ -52,3 +52,11 @@ After reproducing, inspect with `grep '\[AUTH-TRACE\]' ~/projects/homepage/homep
 ## SailingGo account preferences (coordinated candidate)
 
 The Sailing Outlook card now uses the same signed-in Homepage session-bound handoff as Stocks and NewsGo, with a separate per-user `/api/storage/sailing` namespace. It sends only the temporary bearer in the destination URL fragment; signed-out visits continue in browser-only mode. SailingGo offers explicit account Save and Load actions before automatic account updates are enabled. The Homepage and SailingGo changes require coordinated deployment and Mac/Safari acceptance; see draft PRs #27 and SailingGo #18.
+
+## Suite activity telemetry (Issue #28, draft runtime candidate)
+
+The activity collector is an **unreleased API-only candidate** on the scoped development branch. With `SUITE_DATA_DIR` enabled, Homepage exposes `POST /api/admin/activity/ingest` for server-to-server reports and admin-only `GET /api/admin/activity` for current reports and hourly aggregates. There is no activity dashboard, browser reporter, or sibling-service instrumentation yet; unreported services are shown as `unknown`, not as quiet.
+
+Each instrumented service must use its own private `HOMEPAGE_ACTIVITY_KEY_<SERVICE>` environment variable (HOMEPAGE, NEWSGO, STOCKS, SAILING, SCRAPERGO; use normal ASCII without the displayed zero-width separator). Values must contain at least 32 characters and must never be distributed to browser code or committed. A report requires the service identity, a matching server-side bearer, a timestamp within two minutes, a nonrepeated nonce, and a bounded JSON payload. Set these only after the companion service reporters have been reviewed; collection is not enabled merely by configuring keys.
+
+Aggregated hourly samples are persisted atomically under `SUITE_DATA_DIR/activity/hourly.json` with mode `0600`, retained for about 30 days. Samples indicate the number of accepted aggregate reports, not distinct hourly visitors; `active2Sum / samples` is the observed mean of each report's two-minute active count. Only reported activity is measured, and an unavailable history file marks history unavailable without modifying account sessions. Hourly history is not a substitute for the live freshness status. No automated restart is provided.
