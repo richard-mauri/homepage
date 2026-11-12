@@ -11,7 +11,7 @@ import (
 
 func TestActivityHistoryPersistsWithoutIdentity(t *testing.T) {
  root:=t.TempDir()
- at:=time.Date(2026,11,12,21,0,0,0,time.UTC)
+ at:=time.Now().UTC().Truncate(time.Hour)
  c:=newActivityCollectorWithRoot(root)
  c.now=func()time.Time{return at}
  if err:=c.appendHistoryLocked("newsgo",activityReport{Active2:3,InFlight:2},at);err!=nil{t.Fatal(err)}
@@ -37,7 +37,7 @@ func TestActivityHistoryPersistsWithoutIdentity(t *testing.T) {
 func TestActivityHistoryPrunesOldBuckets(t *testing.T) {
  root:=t.TempDir()
  c:=newActivityCollectorWithRoot(root)
- at:=time.Date(2026,11,12,21,0,0,0,time.UTC)
+ at:=time.Now().UTC().Truncate(time.Hour)
  prior:=at.AddDate(0,0,-31)
  if err:=c.appendHistoryLocked("homepage",activityReport{Active2:5},prior);err!=nil{t.Fatal(err)}
  if err:=c.appendHistoryLocked("homepage",activityReport{Active2:2},at);err!=nil{t.Fatal(err)}
