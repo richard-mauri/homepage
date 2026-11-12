@@ -19,7 +19,7 @@ func TestActivityReportValidation(t *testing.T) {
  if validActivityReport(bad){t.Fatal("negative work accepted")}
 }
 func TestActivityIngestAndReplay(t *testing.T) {
- c:=newActivityCollector()
+ c:=newActivityCollectorWithRoot(t.TempDir())
  c.secrets["newsgo"]=strings.Repeat("s",40)
  now:=time.Now().Truncate(time.Second)
  c.now=func()time.Time{return now}
