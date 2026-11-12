@@ -1,24 +1,27 @@
 # Current work — Homepage
 
-## Issue #24 / PR #25 — suite session recovery, reconciled with SailingGo
+## Issue #28 — suite activity collector (runtime candidate)
 
-- The authoritative merged baseline before this PR is `main` at `9728f7b7ca4298ce58fe0f3fe92389782bb115ce`, including merged Homepage SailingGo storage/handoff PR #27 and closed Issue #26. The previous feature head `140bcd1fa18ac47f5a384e6179e76611f2c95710` had a merge conflict against main; this branch merges the two ancestries while preserving the already-merged `sailing` namespace, weather CORS origin and signed-in Homepage card handoff.
-- Recovery scope: fixed `GET /launch/newsgo`, `/launch/stocks`, and `/launch/sailing` routes, no-store strict-CSP browser bridge, same-origin POST to existing /api/handoff/token backed by approved existing Homepage 12-hour session; child bearer returned only in URL fragment. Does not extend expired session or revive/rewrite identity.
-- Coordinated app consumers: NewsGo PR #80 (draft until merged), MauriStocks PR #12 already merged, and separate SailingGo recovery consumer still required. This Homepage PR by itself does not automatically redirect a direct SailingGo visit.
-- Root tests: session_recovery_test.go adds no-GET-credential, fixed destination allowlist, parent preservation/revocation/expiry and durable storage checks. Latest-head CI must be verified following integration; Mac/Safari/tunnel not verified by assistant.
-- Owner authorized reconcile and merge on November 10, 2026. Merge only after passing checks. Source merge/branch operations are remote; no Mac checkout, build, restart, Cloudflare modification or release has occurred.
+- Authoritative merged base: `main` commit `f3535b3166dd2a64876cef607860e102f138d598` (November 10, 2026).
+- Active development branch: `issue-28-activity-collector`; paired design-only draft PR #29 uses independent branch `issue-28-suite-activity-design`.
+- Scope: Homepage-only first collector checkpoint. `activity.go` exposes service-authenticated aggregate intake and server-verified admin read. Routes are mounted only when `SUITE_DATA_DIR` enables suite storage. Separate service keys are configured through `HOMEPAGE_ACTIVITY_KEY_HOMEPAGE`, `_NEWSGO`, `_STOCKS`, `_SAILING`, `_SCRAPERGO`. Each configured key must be at least 32 characters. Keys are local secrets and must never enter Git or browser code.
+- Presently no sibling service sends reports, so the admin API must show `unknown` for uninstrumented apps. This checkpoint has **no dashboard UI, no hourly persistence, no service-side browser activity tracking, and no restart logic**. Counts are bounded aggregate snapshots supplied by trusted service reporters, not independently verified individual sessions.
+- Regression tests in `activity_test.go` cover invalid counts, unauthorized browser and service calls, replay, fresh/stale/uninstrumented status, anonymous admin denial. GitHub CI and Mac/Safari/tunnel checks are **unverified** until separately run.
+- Preserve existing personal authentication and all app handoffs; do not modify linked services or tunnels. Never merge/release/restart without owner authorization.
+- Follow-up: add durable aggregate buckets and full cohort/operation reporting in a subsequent iteration; instrument each application in separately scoped PRs before promoting this as a useful live monitor.
 
-## Mac checkout and checks
+## Mac acceptance (only when owner authorizes runtime restart)
 
 ```sh
 cd ~/projects/homepage
-git status --short --branch
 git fetch origin
-git switch main
-git pull --ff-only origin main
+git checkout issue-28-activity-collector
+git pull --ff-only origin issue-28-activity-collector
 go test -count=1 ./...
 ./devbuild.sh
 ./dist/homepage-darwin-amd64 -version
+./homego.sh
+curl -fsS http://127.0.0.1:8787/healthz
 ```
 
-Use `./homego.sh` and `curl -fsS http://127.0.0.1:8787/healthz` only if the owner separately authorizes a restart, then Safari test direct visits to NewsGo, Stocks and SailingGo after closing the browser, and expired/revoked/browser-only modes.
+Review actual checkout diff/status and test output before starting the launcher. Safari and live-tunnel acceptance follow only after separately approved restart; a Go build does not establish browser acceptance.
