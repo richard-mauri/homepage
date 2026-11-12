@@ -79,7 +79,10 @@ async function api(path,options={}){
 }
 async function refresh(){
  try{
-  const session=await api('/api/session');
+  // Prefer the retained, same-origin Homepage session ID. Safari may not
+  // return Secure cookies over plain HTTP on loopback test ports.
+  const headers=sessionToken?{Authorization:'Session '+sessionToken}:{};
+  const session=await api('/api/session',{headers});
   el('login').hidden=true;el('account').hidden=false;
   el('identity').textContent=session.user+' — '+session.role;
   // The current-session endpoint returns the opaque ID for the same
@@ -91,7 +94,9 @@ async function refresh(){
   el('admin').hidden=session.role!=='admin';
   el('activityAdmin').hidden=session.role!=='admin';
   if(session.role==='admin'){
-   await refreshUsers();
+   // Token administration may be unavailable over local HTTP without the
+   // Secure cookie. Do not hide the monitoring panel when that happens.
+   void refreshUsers().catch(()=>{notice('Token administration unavailable in this browser session. Activity monitoring remains accessible.');});
    void refreshActivity();
   }
  }catch(_){sessionToken='';sessionExpires=0;el('login').hidden=false;el('account').hidden=true;el('admin').hidden=true;el('activityAdmin').hidden=true;}
@@ -125,7 +130,11 @@ el('loginForm').addEventListener('submit',async event=>{
  event.preventDefault();
  const token=el('token').value.trim();
  try{
-  await api('/api/session',{method:'POST',headers:{Authorization:'Bearer '+token}});
+  const created=await api('/api/session',{method:'POST',headers:{Authorization:'Bearer '+token}});
+  // Use the newly issued short-lived session ID for loopback Safari as well
+  // as HTTPS. Never retain or reuse the approved personal credential.
+  if(!/^[a-f0-9]{64}$/.test(created.sessionToken))throw Error('Invalid session response');
+  sessionToken=created.sessionToken;
   el('token').value='';notice('Session established.');await refresh();
  }catch(e){notice('Connection failed: '+e.message);}
 });
