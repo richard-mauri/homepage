@@ -230,7 +230,10 @@ function renderUserActivity(data) {
   for(const item of Array.isArray(launched[service])?launched[service]:[]){
    const previous=joined.get(item.user);
    // Never manufacture an active session from a launch acknowledgment.
-   if(!previous || Date.parse(item.lastSeen)>Date.parse(previous.lastSeen))joined.set(item.user,{...item,sessions:previous?.sessions||0});
+   if(!previous || Date.parse(item.lastSeen)>Date.parse(previous.lastSeen)){
+    const heartbeatFresh=previous&&Number.isFinite(Date.parse(previous.lastSeen))&&Date.now()-Date.parse(previous.lastSeen)<=120000;
+    joined.set(item.user,{...item,sessions:heartbeatFresh?(previous.sessions||0):0});
+   }
   }
   return [...joined.values()];
  };
