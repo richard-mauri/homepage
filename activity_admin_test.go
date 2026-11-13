@@ -84,8 +84,14 @@ func TestActivityAdminReadRequiresVerifiedRole(t *testing.T) {
  guestReq.Header.Set("Origin","https://home.themauris.org")
  guestResp:=httptest.NewRecorder();sessions.guestSessionHandler(guestResp,guestReq)
  if guestResp.Code!=http.StatusOK{t.Fatalf("guest issue status %d",guestResp.Code)}
- var guestIssued struct {User string `json:"user"`}
+ var guestIssued struct {User string `json:"user"`;SessionToken string `json:"sessionToken"`}
  if err:=json.Unmarshal(guestResp.Body.Bytes(),&guestIssued);err!=nil{t.Fatal(err)}
+ guestPing:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/activity/ping",strings.NewReader(`{"id":"0123456789abcdef0123456789abcdef","visible":true}`))
+ guestPing.Header.Set("Origin","https://home.themauris.org")
+ guestPing.Header.Set("Content-Type","application/json")
+ guestPing.Header.Set("Authorization","Session "+guestIssued.SessionToken)
+ guestSeen:=httptest.NewRecorder();collector.homepagePresenceHandler(sessions)(guestSeen,guestPing)
+ if guestSeen.Code!=http.StatusNoContent {t.Fatalf("guest heartbeat: %d %s",guestSeen.Code,guestSeen.Body.String())}
  if w:=check(privileged,"https://stocks.themauris.org");w.Code!=http.StatusForbidden{t.Fatalf("cross origin status %d",w.Code)}
  result:=check(privileged,"https://home.themauris.org")
  if result.Code!=http.StatusOK{t.Fatalf("admin status %d: %s",result.Code,result.Body.String())}
@@ -97,7 +103,7 @@ func TestActivityAdminReadRequiresVerifiedRole(t *testing.T) {
   HistoryStatus string `json:"historyStatus"`
  }
  if err:=json.Unmarshal(result.Body.Bytes(),&data);err!=nil{t.Fatal(err)}
- if len(data.GuestUsers)!=1 || data.GuestUsers[0].User!=guestIssued.User {t.Fatalf("admin guest roster missing: %+v",data.GuestUsers)}
+ if len(data.GuestUsers)!=1 || data.GuestUsers[0].User!=guestIssued.User || data.GuestUsers[0].HomeSessions!=1 || data.GuestUsers[0].HomeLastSeen=="" {t.Fatalf("admin guest roster missing: %+v",data.GuestUsers)}
  if len(data.Services)!=len(activityServices) || data.HistoryStatus!="available"{
   t.Fatalf("unexpected admin response: %+v",data)
  }
