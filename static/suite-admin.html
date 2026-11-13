@@ -22,12 +22,12 @@ button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{backgro
 .activity-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
 .activity-toolbar label{margin:0}
 .activity-toolbar select{padding:6px}
-.activity-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:12px}
+.activity-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-top:12px}
 .activity-service{background:#091b24;border:1px solid #35515a;border-radius:10px;padding:12px}
 .activity-service h3{font-size:1rem;margin:0 0 5px}
 .activity-service .activity-status{font-weight:600;font-size:.85rem}
 .activity-fresh{color:#81d6bf}.activity-stale{color:#e4bb83}.activity-unknown{color:#b8bdc8}
-.activity-stats{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:.86rem;margin-top:9px}
+.activity-stats{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 18px;font-size:.92rem;margin-top:9px}
 .activity-stats dt{color:#aac0c5}.activity-stats dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
 .activity-chart{display:grid;grid-template-columns:repeat(24,minmax(0,1fr));gap:3px;align-items:end;height:130px;margin-top:12px;border-bottom:1px solid #496771}
 .activity-hour{min-width:0;background:#427e83;min-height:2px;position:relative;border-radius:3px 3px 0 0}
@@ -52,7 +52,7 @@ button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{backgro
 
 <section id="activityAdmin" hidden aria-labelledby="activityHeading">
  <details class="suite-pane" open><summary id="activityHeading">Session activity</summary>
- <div class="activity-toolbar"><p class="muted">All five services, including anonymous visitors. Read-only observations for restart planning.</p><button type="button" id="activityRefresh">Refresh activity</button></div>
+ <div class="activity-toolbar"><p class="muted">All five services. Counts are recently observed browser/tab identifiers, not distinct users or signed-in sessions. A signed-in browser can show zero when it has not sent a recent presence report. Read-only observations for restart planning.</p><button type="button" id="activityRefresh">Refresh activity</button></div>
  <p id="activityMessage" class="activity-note" role="status" aria-live="polite">Activity has not been loaded.</p>
  <div id="activityServices" class="activity-grid" aria-label="Service activity"></div>
  <details class="suite-pane nested"><summary>Hourly activity patterns</summary>
@@ -215,12 +215,12 @@ function renderActivityServices(services) {
   state.textContent=status==='fresh'?'Reporting':status==='stale'?'Stale — activity unknown':'Not reporting — activity unknown';
   const stats=document.createElement('dl');stats.className='activity-stats';
   const live=status==='fresh';
-  activityStat(stats,'Active in 2 minutes',live?activityText(info.active2):'—');
-  activityStat(stats,'Active in 15 minutes',live?activityText(info.active15):'—');
-  activityStat(stats,'Active in 60 minutes',live?activityText(info.active60):'—');
-  activityStat(stats,'Anonymous (2 min)',live?activityText(info.anonymous):'—');
-  activityStat(stats,'Signed in (2 min)',live?activityText(info.authenticated):'—');
-  activityStat(stats,'In-flight work',live?activityText(info.inFlight):'—');
+  activityStat(stats,'Seen in last 2 min',live?activityText(info.active2):'—');
+  activityStat(stats,'Seen in last 15 min',live?activityText(info.active15):'—');
+  activityStat(stats,'Seen in last 60 min',live?activityText(info.active60):'—');
+  activityStat(stats,'Guest IDs (last 2 min)',live?activityText(info.anonymous):'—');
+  activityStat(stats,'Signed-in IDs (last 2 min)',live?activityText(info.authenticated):'—');
+  activityStat(stats,'Requests in progress',live?activityText(info.inFlight):'—');
   activityStat(stats,'Last report',activityTimestamp(info.lastReport));
   card.append(title,state,stats);parent.append(card);
  }
