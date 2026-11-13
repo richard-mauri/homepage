@@ -159,3 +159,52 @@ func TestScraperGoHasProfileOnlyOriginAccess(t *testing.T) {
  if allowedStorageOrigin(origin) {t.Fatal("ScraperGo must not gain personal account storage permission")}
  if allowedProfileOrigin("https://untrusted.example") {t.Fatal("arbitrary origin gained profile access")}
 }
+
+func TestScraperGoSilentRecoveryUsesExistingCookieWithoutNavigation(t *testing.T) {
+ root:=t.TempDir()
+ store,err:=suitestore.New(root,"newsgo")
+ if err!=nil{t.Fatal(err)}
+ approved:=strings.Repeat("a",64)
+ digest:=sha256.Sum256([]byte(approved))
+ authFile:=filepath.Join(root,"auth","approved-tokens.json")
+ if err=os.MkdirAll(filepath.Dir(authFile),0700);err!=nil{t.Fatal(err)}
+ credentials,_:=json.Marshal([]suitestore.Credential{{User:"richard",Role:"admin",Digest:hex.EncodeToString(digest[:])}})
+ if err=os.WriteFile(authFile,credentials,0600);err!=nil{t.Fatal(err)}
+ now:=time.Date(2026,11,13,8,0,0,0,time.UTC)
+ svc:=newSessionService(store)
+ svc.now=func()time.Time{return now}
+ loginReq:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/session",nil)
+ loginReq.Header.Set("Origin","https://home.themauris.org")
+ loginReq.Header.Set("Authorization","Bearer "+approved)
+ login:=httptest.NewRecorder()
+ svc.handler(login,loginReq)
+ if login.Code!=200{t.Fatalf("login: %d %s",login.Code,login.Body.String())}
+ cookie:=login.Result().Cookies()[0]
+ var parent struct {ExpiresAt string}
+ if err=json.Unmarshal(login.Body.Bytes(),&parent);err!=nil{t.Fatal(err)}
+ recover:=func(origin string,withCookie bool)*httptest.ResponseRecorder {
+  req:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/handoff/scrapergo-recover",nil)
+  req.Header.Set("Origin",origin)
+  if withCookie {req.AddCookie(cookie)}
+  w:=httptest.NewRecorder();svc.recoverScraperHandoffHandler(w,req);return w
+ }
+ if got:=recover("https://hostile.example",true).Code;got!=403{t.Fatalf("untrusted origin: %d",got)}
+ if got:=recover("https://scrapergo.themauris.org",false).Code;got!=401{t.Fatalf("no cookie: %d",got)}
+ result:=recover("https://scrapergo.themauris.org",true)
+ if result.Code!=200{t.Fatalf("recovery: %d %s",result.Code,result.Body.String())}
+ if result.Header().Get("Access-Control-Allow-Origin")!="https://scrapergo.themauris.org" ||
+  result.Header().Get("Access-Control-Allow-Credentials")!="true" ||
+  len(result.Result().Cookies())!=0 {
+  t.Fatal("recovery CORS credentials or cookie boundary incorrect")
+ }
+ var handoff struct {Token,ExpiresAt string}
+ if err=json.Unmarshal(result.Body.Bytes(),&handoff);err!=nil{t.Fatal(err)}
+ if len(handoff.Token)!=64 || handoff.ExpiresAt!=parent.ExpiresAt {t.Fatal("recovery changed parent expiration")}
+ profileReq:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/api/session/profile",nil)
+ profileReq.Header.Set("Origin","https://scrapergo.themauris.org")
+ profileReq.Header.Set("Authorization","Bearer "+handoff.Token)
+ profile:=httptest.NewRecorder();svc.profileHandler(profile,profileReq)
+ if profile.Code!=200 || !strings.Contains(profile.Body.String(),`"activitySession"`) {t.Fatalf("unusable recovered handoff: %d %s",profile.Code,profile.Body.String())}
+ now=now.Add(12*time.Hour+time.Second)
+ if got:=recover("https://scrapergo.themauris.org",true).Code;got!=401{t.Fatalf("expired parent recovered: %d",got)}
+}
