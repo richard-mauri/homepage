@@ -163,3 +163,21 @@ func TestActivityPanelLabelsObservedIdentifiersNotSessions(t *testing.T) {
   if strings.Contains(html,old) {t.Errorf("ambiguous label remains: %s",old)}
  }
 }
+
+func TestActivityServiceCardsCollapseIndependentlyAndSurviveRefresh(t *testing.T) {
+ page,err:=assets.ReadFile("static/suite-admin.html")
+ if err!=nil {t.Fatal(err)}
+ html:=string(page)
+ for _,fragment:=range []string{
+  "document.createElement('details');card.className='activity-service'",
+  "card.dataset.service=key",
+  "card.open=expanded.has(key)?expanded.get(key):key==='homepage';",
+  "document.createElement('summary')",
+  "const expanded=new Map(Array.from(parent.querySelectorAll('details[data-service]'),item=>[item.dataset.service,item.open]));",
+  "title.append(name,state);",
+  "card.append(title,stats);parent.append(card);",
+  ".activity-service summary:focus-visible",
+ } {
+  if !strings.Contains(html,fragment) {t.Errorf("missing activity disclosure invariant: %s",fragment)}
+ }
+}
