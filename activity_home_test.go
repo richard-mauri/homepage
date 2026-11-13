@@ -52,3 +52,20 @@ func TestHomepagePresenceBounds(t *testing.T){
  w=httptest.NewRecorder();c.homepagePresenceHandler(s)(w,r)
  if w.Code!=400{t.Fatalf("invalid id %d",w.Code)}
 }
+
+func TestHomepageAdminPageIncludesPresenceHeartbeat(t *testing.T) {
+ page,err:=assets.ReadFile("static/suite-admin.html")
+ if err!=nil {t.Fatal(err)}
+ html:=string(page)
+ if strings.Count(html, `src="/static/activity.js"`)!=1 {
+  t.Fatal("admin page must load the Homepage presence reporter exactly once")
+ }
+ if !strings.Contains(html,`<script src="/static/activity.js" defer></script>`) {
+  t.Fatal("admin page must load the reporter without blocking the dashboard")
+ }
+ reporter,err:=assets.ReadFile("static/activity.js")
+ if err!=nil {t.Fatal(err)}
+ if !strings.Contains(string(reporter),"/api/activity/ping") {
+  t.Fatal("presence script must target Homepage's same-origin activity route")
+ }
+}
