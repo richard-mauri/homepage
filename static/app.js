@@ -51,7 +51,7 @@ function applyHandoffLinks(){
  // bearer when navigating from an authenticated Homepage session.
  for(const link of document.querySelectorAll('#cards a.app-card')){
   const url=new URL(link.href);
-  if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org' && url.origin!=='https://weather.themauris.org')continue;
+  if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org' && url.origin!=='https://weather.themauris.org' && url.origin!=='https://scrapergo.themauris.org')continue;
   url.hash='';
   link.href=url.toString();
  }
