@@ -26,6 +26,13 @@
 - **Regression:** `TestActivityAdminPanelEmbeddedAndReadOnly` now requires the truthful empty-report text in the administrator HTML. After deploying, keep the four reporters running and verify they become Reporting on their next scheduled report; if any stay unknown beyond a couple of report intervals, inspect only that service's logs/configuration, without disclosing keys.
 - **Deployment:** no automatic restart, merge, or release. Mac must fetch/pull, test and rebuild Homepage; current live binary does not reflect these changes until separately restarted by owner.
 
+## November 12, 2026 — activity refresh button flicker
+
+- **Observation:** the admin activity view updates every 30 seconds and temporarily dimmed the `Refresh activity` button on every automated request. The existing `button:disabled { opacity: .5 }` rule caused visible flashing even when no user clicked it.
+- **Fix:** `refreshActivity(manual=false)` leaves the button's visual state unchanged during background polling. Explicit button clicks pass `true`, disabling it only for that manually initiated request. The `activityPending` guard, 30-second poll, data refresh, authentication and status behavior remain unchanged.
+- **Regression:** `TestActivityAutomaticRefreshDoesNotFlashButton` checks that the manual click invokes the manual path, the automatic interval stays on the default path, and button disabling is conditional on manual invocation.
+- **Validation:** run exact-head GitHub CI and owner Mac/Safari check after rebuilding. No automatic restart or change to external reporters/tunnels; the production binary remains unchanged until owner action.
+
 ## Mac acceptance (only when owner authorizes runtime restart)
 
 ```sh
