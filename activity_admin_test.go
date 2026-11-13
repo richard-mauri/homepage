@@ -108,3 +108,28 @@ func TestActivityAutomaticRefreshDoesNotFlashButton(t *testing.T) {
   t.Fatal("automatic refresh must not dim the manual refresh button")
  }
 }
+
+func TestSuiteAdminUsesCollapsiblePanesAndManageSuiteLink(t *testing.T) {
+ page,err:=assets.ReadFile("static/suite-admin.html")
+ if err!=nil {t.Fatal(err)}
+ html:=string(page)
+ for _,fragment:=range []string{
+  `<section id="login"><details class="suite-pane" open><summary>Connect</summary>`,
+  `<section id="account" hidden><details class="suite-pane" open><summary>Current session</summary>`,
+  `<section id="admin" hidden><details class="suite-pane"><summary>Approved users and tokens</summary>`,
+  `<details class="suite-pane nested"><summary>Create user</summary>`,
+  `<section id="activityAdmin" hidden aria-labelledby="activityHeading">`,
+  `<details class="suite-pane" open><summary id="activityHeading">Session activity</summary>`,
+  `<details class="suite-pane nested"><summary>Hourly activity patterns</summary>`,
+  `id="loginForm"`,`id="createForm"`,`id="newToken"`,`id="activityServices"`,
+  `el('admin').hidden=session.role!=='admin';`,
+  `el('activityAdmin').hidden=session.role!=='admin';`,
+ } {
+  if !strings.Contains(html,fragment) {t.Errorf("missing collapsible suite section or access control: %s",fragment)}
+ }
+ script,err:=assets.ReadFile("static/app.js")
+ if err!=nil {t.Fatal(err)}
+ if !strings.Contains(string(script),`manage.href='/suite-admin';manage.textContent='Manage Suite'`) {
+  t.Fatal("Homepage management link must read Manage Suite and keep /suite-admin target")
+ }
+}
