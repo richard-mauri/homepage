@@ -110,7 +110,7 @@ function enableOptionalAuth(){
  const retryAuth=document.createElement('button');retryAuth.type='button';retryAuth.textContent='Connection issue — Retry';retryAuth.hidden=true;
  const signedIn=document.createElement('div');signedIn.className='suite-account-auth';signedIn.hidden=true;
  const identity=document.createElement('span');
- const manage=document.createElement('a');manage.href='/suite-admin';manage.textContent='Manage tokens';manage.hidden=true;
+ const manage=document.createElement('a');manage.href='/suite-admin';manage.textContent='Manage Suite';manage.hidden=true;
  signedIn.append(identity,manage);
  container.append(signIn,retryAuth,signedIn);top.prepend(container);
  const overlay=document.createElement('div');overlay.className='suite-modal-backdrop';overlay.hidden=true;
