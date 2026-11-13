@@ -136,6 +136,8 @@ func (s *sessionService) guestProfileTags(origin,parent string)(string,string) {
 type guestRosterEntry struct {
  User string `json:"user"`
  ExpiresAt string `json:"expiresAt"`
+ HomeLastSeen string `json:"homeLastSeen,omitempty"`
+ HomeSessions int `json:"homeSessions"`
 }
 func (s *sessionService) guestRoster() []guestRosterEntry {
  s.mu.Lock()
