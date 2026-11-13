@@ -121,7 +121,7 @@ func (s *sessionService) revokeGuestSession(w http.ResponseWriter,r *http.Reques
   for id,h:=range s.guestHandoffs {if h.Parent==key {delete(s.guestHandoffs,id)}}
   s.mu.Unlock()
  }
- http.SetCookie(w,s.guestCookie("",-1))
+ if _,err:=r.Cookie(guestCookieName);err==nil {http.SetCookie(w,s.guestCookie("",-1))}
 }
 // Caller already requires a trusted profile origin and normal bearer shape.
 func (s *sessionService) guestProfileTags(origin,parent string)(string,string) {
