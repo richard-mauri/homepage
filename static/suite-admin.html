@@ -44,7 +44,7 @@ button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{backgro
 <button type="submit">Connect</button></form></details></section>
 <section id="account" hidden><details class="suite-pane" open><summary class="session-summary"><span>Current Session</span><span id="remaining" class="session-time" role="timer" aria-label="Session time remaining">Session --:--:--</span></summary><p id="identity"></p><div class="session-actions"><button id="renew" type="button">Renew</button><button id="logout" type="button">Disconnect</button></div></details></section>
 <section id="admin" hidden><details class="suite-pane"><summary>Users &amp; Access</summary><p class="muted">Only administrators can issue, rotate or revoke credentials. Each user's saved preferences remain separate. Recent per-user observations currently cover Homepage and ScraperGo; other applications will follow.</p>
-<div id="users"></div><details class="suite-pane nested"><summary>Create user</summary><form id="createForm">
+<div id="users"></div><details class="suite-pane nested" id="temporaryGuests" open><summary>Temporary guests <span id="guestCount"></span></summary><p class="muted">One-hour authenticated identities, held only in Homepage memory. Expired guests disappear automatically. Guests cannot save or restore settings.</p><div id="guestUsers"><p class="muted">Guest activity has not loaded.</p></div></details><details class="suite-pane nested"><summary>Create user</summary><form id="createForm">
 <label for="username">User ID</label><input id="username" required maxlength="64" pattern="[a-zA-Z0-9_ \-]{1,64}">
 <label for="userlabel">Description (optional)</label><input id="userlabel" maxlength="128">
 <label for="role">Role</label><select id="role"><option value="user">Regular user</option><option value="admin">Administrator</option></select>
@@ -199,16 +199,33 @@ el('dismissToken').addEventListener('click',()=>{el('tokenResult').textContent='
 let activityData=null;
 let activityPending=false;
 const activityNames={homepage:'Homepage',newsgo:'NewsGo',stocks:'MauriStocks',sailing:'SailingGo',scrapergo:'ScraperGo'};
+function renderTemporaryGuests(data) {
+ const rows=el('guestUsers');
+ const guests=Array.isArray(data.guestUsers)?data.guestUsers:[];
+ const prior=new Map(Array.from(rows.querySelectorAll('details[data-guest]'),item=>[item.dataset.guest,item.open]));
+ rows.replaceChildren();
+ el('guestCount').textContent='('+guests.length+')';
+ if(!guests.length){const empty=document.createElement('p');empty.className='muted';empty.textContent='No active temporary guest identities.';rows.append(empty);return;}
+ for(const guest of guests){
+  if(typeof guest.user!=='string'||!/^guest-[a-f0-9]+$/.test(guest.user))continue;
+  const details=document.createElement('details');details.className='user-activity';details.dataset.guest=guest.user;
+  details.open=prior.has(guest.user)?prior.get(guest.user):false;
+  const heading=document.createElement('summary');heading.textContent=guest.user+' — expires '+activityTimestamp(guest.expiresAt);
+  const lines=document.createElement('div');lines.className='user-activity-lines';
+  details.append(heading,lines);rows.append(details);
+ }
+}
 function renderUserActivity(data) {
  const home=Array.isArray(data.homeUsers)?data.homeUsers:[];
  const scraper=(Array.isArray(data.services)?data.services:[]).find(service=>service.service==='scrapergo');
  const scraperUsers=Array.isArray(scraper?.users)?scraper.users:[];
  const sources=[['Homepage',home],['ScraperGo',scraperUsers]];
- for(const details of el('users').querySelectorAll('.user-activity')) {
+ renderTemporaryGuests(data);
+ for(const details of [...el('users').querySelectorAll('.user-activity'),...el('guestUsers').querySelectorAll('.user-activity')]) {
   const target=details.querySelector('.user-activity-lines');
   target.replaceChildren();
   for(const [service,users] of sources) {
-   const match=users.find(item=>item.user===details.dataset.user);
+   const match=users.find(item=>item.user===(details.dataset.guest||details.dataset.user));
    const row=document.createElement('div');row.className='user-activity-line';
    const label=document.createElement('span');label.textContent=service;
    const value=document.createElement('strong');
