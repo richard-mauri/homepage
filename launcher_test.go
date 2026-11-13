@@ -39,7 +39,7 @@ func TestScraperGoCardUsesAuthenticatedLaunchHandler(t *testing.T) {
  if err!=nil{t.Fatal(err)}
  script:=string(code)
  start:=strings.Index(script,"async function openSuiteApp(event)")
- end:=strings.Index(script,"async function init()",start)
+ end:=start+strings.Index(script[start:],"async function init()")
  if start<0 || end<=start {t.Fatal("missing suite launch handler")}
  handler:=script[start:end]
  for _,required:=range []string{
