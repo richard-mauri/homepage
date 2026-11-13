@@ -60,6 +60,11 @@ func (c *activityCollector) homepagePresenceHandler(s *sessionService) http.Hand
     if exists && s.now().Before(record.Expires) {sessionKey,userKey=key,record.Digest}
    }
   }
+  // Guest sessions are authenticated temporary identities, but remain
+  // separate from registered users and never enter persisted user history.
+  if !authenticated {
+   if guestKey,_,ok:=s.guestSession(r);ok {sessionKey=guestKey;userKey=""}
+  }
   now:=c.now()
   c.mu.Lock()
   defer c.mu.Unlock()
@@ -96,6 +101,7 @@ func (c *activityCollector) updateHomepageSnapshotLocked(now time.Time) {
  identities:=make(map[string]homepagePresence,len(c.homePresence))
  for id,record:=range c.homePresence {
   key:="guest:"+id
+  if !record.SignedIn && record.SessionKey!="" {key="guest-session:"+record.SessionKey}
   if record.SignedIn && record.SessionKey!="" {key="session:"+record.SessionKey}
   previous,ok:=identities[key]
   if !ok || record.Seen.After(previous.Seen) {identities[key]=record}
