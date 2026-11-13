@@ -53,6 +53,10 @@ func TestGuestSessionMemoryOnlyExpiryHandoffAndStorageDenial(t *testing.T) {
  protected:=svc.storageHandler(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){passed=true;w.WriteHeader(204)}))
  blocked:=httptest.NewRecorder();protected.ServeHTTP(blocked,profileReq)
  if blocked.Code!=403 || passed {t.Fatal("guest accessed persisted user settings")}
+ cookieSettings:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/api/storage",nil)
+ cookieSettings.AddCookie(w.Result().Cookies()[0])
+ deniedCookie:=httptest.NewRecorder();protected.ServeHTTP(deniedCookie,cookieSettings)
+ if deniedCookie.Code!=403 || passed {t.Fatal("guest cookie accessed persisted settings")}
  if len(svc.sessions)!=0 || len(svc.handoffs)!=0 {t.Fatal("guest entered durable named-user maps")}
  restarted:=newSessionService(store)
  if _,_,ok:=restarted.guestSession(req);ok {t.Fatal("guest survived Homepage restart")}
