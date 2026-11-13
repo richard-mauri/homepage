@@ -8,6 +8,7 @@ import (
  "net/http"
  "strings"
  "time"
+ "sort"
 )
 
 const guestCookieName="mauri_guest_session"
@@ -128,4 +129,22 @@ func (s *sessionService) guestProfileTags(origin,parent string)(string,string) {
  sid:=sha256.Sum256([]byte("activity-session:"+origin+":"+parent))
  uid:=sha256.Sum256([]byte("activity-user:"+origin+":"+parent))
  return hex.EncodeToString(sid[:]),hex.EncodeToString(uid[:])
+}
+
+// guestRoster returns only currently valid temporary identity labels and
+// expiry times for the admin dashboard. Never expose bearer tokens.
+type guestRosterEntry struct {
+ User string `json:"user"`
+ ExpiresAt string `json:"expiresAt"`
+}
+func (s *sessionService) guestRoster() []guestRosterEntry {
+ s.mu.Lock()
+ defer s.mu.Unlock()
+ s.cleanupGuestsLocked()
+ out:=make([]guestRosterEntry,0,len(s.guests))
+ for _,guest:=range s.guests {
+  out=append(out,guestRosterEntry{User:guest.User,ExpiresAt:guest.Expires.UTC().Format(time.RFC3339)})
+ }
+ sort.Slice(out,func(i,j int)bool{return out[i].User<out[j].User})
+ return out
 }
