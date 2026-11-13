@@ -52,3 +52,63 @@ func TestAdminTokenLifecycleAndIsolation(t *testing.T) {
  if got:=request(token,http.MethodPost,`{"action":"revoke","user":"reader"}`).Code;got!=200{t.Fatalf("revoke user: %d",got)}
  if _,_,err=store.Authenticate(updated["token"]);err==nil{t.Fatal("revoked token still works")}
 }
+
+func TestAdminRevokeGuestInvalidatesOnlySelectedGuest(t *testing.T) {
+ root:=t.TempDir()
+ store,err:=suitestore.New(root,"newsgo")
+ if err!=nil{t.Fatal(err)}
+ adminToken:=strings.Repeat("a",64)
+ sum:=sha256.Sum256([]byte(adminToken))
+ authPath:=filepath.Join(root,"auth","approved-tokens.json")
+ if err:=os.MkdirAll(filepath.Dir(authPath),0700);err!=nil{t.Fatal(err)}
+ entries,_:=json.Marshal([]suitestore.Credential{{User:"owner",Role:"admin",Digest:hex.EncodeToString(sum[:])}})
+ if err:=os.WriteFile(authPath,entries,0600);err!=nil{t.Fatal(err)}
+ svc:=newSessionService(store)
+ makeGuest:=func()(string,string,string){
+  r:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/session/guest",nil)
+  r.Header.Set("Origin","https://home.themauris.org")
+  w:=httptest.NewRecorder();svc.guestSessionHandler(w,r)
+  if w.Code!=200{t.Fatalf("guest issue: %d %s",w.Code,w.Body.String())}
+  var guest struct{User,SessionToken string}
+  if err:=json.Unmarshal(w.Body.Bytes(),&guest);err!=nil{t.Fatal(err)}
+  h:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/handoff/token",nil)
+  h.Header.Set("Origin","https://home.themauris.org")
+  h.Header.Set("Authorization","Session "+guest.SessionToken)
+  out:=httptest.NewRecorder();svc.handoffHandler(out,h)
+  if out.Code!=200{t.Fatalf("guest handoff: %d",out.Code)}
+  var handoff struct{Token string}
+  if err:=json.Unmarshal(out.Body.Bytes(),&handoff);err!=nil{t.Fatal(err)}
+  return guest.User,guest.SessionToken,handoff.Token
+ }
+ userA,sessionA,childA:=makeGuest()
+ userB,sessionB,childB:=makeGuest()
+ request:=func(token,origin,body string)int{
+  r:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/admin/users",strings.NewReader(body))
+  if token!=""{r.Header.Set("Authorization","Bearer "+token)}
+  if origin!=""{r.Header.Set("Origin",origin)}
+  w:=httptest.NewRecorder();svc.adminHandler(w,r);return w.Code
+ }
+ payload:=`{"action":"revoke-guest","user":"`+userA+`"}`
+ if got:=request("","https://home.themauris.org",payload);got!=401{t.Fatalf("anonymous revoke status %d",got)}
+ if got:=request(adminToken,"https://evil.example",payload);got!=403{t.Fatalf("cross-origin revoke status %d",got)}
+ readerToken,err:=store.IssueUserToken("reader","","user",false)
+ if err!=nil{t.Fatal(err)}
+ if got:=request(readerToken,"https://home.themauris.org",payload);got!=403{t.Fatalf("regular user revoked guest: %d",got)}
+ if got:=request(adminToken,"https://home.themauris.org",payload);got!=200{t.Fatalf("admin revoke: %d",got)}
+ if got:=request(adminToken,"https://home.themauris.org",payload);got!=404{t.Fatalf("duplicate revoke: %d",got)}
+ if len(svc.guestRoster())!=1 || svc.guestRoster()[0].User!=userB{t.Fatal("revoked wrong guest")}
+ profile:=func(child string)int{
+  r:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/api/session/profile",nil)
+  r.Header.Set("Origin","https://scrapergo.themauris.org")
+  r.Header.Set("Authorization","Bearer "+child)
+  w:=httptest.NewRecorder();svc.profileHandler(w,r);return w.Code
+ }
+ if got:=profile(childA);got!=401{t.Fatalf("revoked guest handoff accepted: %d",got)}
+ if got:=profile(childB);got!=200{t.Fatalf("other guest handoff rejected: %d",got)}
+ session:=func(id string)int{
+  r:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/api/session",nil)
+  r.Header.Set("Authorization","Session "+id)
+  w:=httptest.NewRecorder();svc.handler(w,r);return w.Code
+ }
+ if session(sessionA)!=401 || session(sessionB)!=200{t.Fatal("guest parent session revocation or isolation failed")}
+}
