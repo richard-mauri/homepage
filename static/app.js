@@ -101,7 +101,7 @@ async function openSuiteApp(event){
    notice.setAttribute('role','alert');
    document.querySelector('#cards').before(notice);
   }
-  notice.textContent='Sign in on Homepage or choose Continue as Guest (1 hour) before opening a suite application.';
+  notice.textContent='Sign in on Homepage or choose Sign in as Guest before opening a suite application.';
   notice.scrollIntoView({block:'center',behavior:'smooth'});
   return;
  }
@@ -119,7 +119,7 @@ function enableOptionalAuth(){
  const top=document.querySelector('.topright');
  const container=document.createElement('div');container.id='suiteAccount';container.className='suite-account';
  const signIn=document.createElement('button');signIn.type='button';signIn.textContent='Sign in';
- const guestButton=document.createElement('button');guestButton.type='button';guestButton.textContent='Continue as Guest (1 hour)';
+ const guestButton=document.createElement('button');guestButton.type='button';guestButton.textContent='Sign in as Guest';
  const retryAuth=document.createElement('button');retryAuth.type='button';retryAuth.textContent='Connection issue — Retry';retryAuth.hidden=true;
  const signedIn=document.createElement('div');signedIn.className='suite-account-auth';signedIn.hidden=true;
  const identity=document.createElement('span');
@@ -219,7 +219,7 @@ function enableOptionalAuth(){
    rememberHomeLogin(await response.json());
    if(!await refresh())throw Error('Guest session could not be verified.');
   }catch(error){traceClient('guest_signin_error','failed');alert(error.message||'Guest access unavailable.');}
-  finally{guestButton.disabled=false;guestButton.textContent='Continue as Guest (1 hour)';}
+  finally{guestButton.disabled=false;guestButton.textContent='Sign in as Guest';}
  });
  retryAuth.addEventListener('click',()=>{void refresh()});
  form.addEventListener('submit',async event=>{
