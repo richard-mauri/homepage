@@ -26,6 +26,7 @@ func TestActivityAdminPanelEmbeddedAndReadOnly(t *testing.T) {
   `'/api/admin/activity'`,
   `session.role!=='admin'`,
   `No restart is initiated here.`,
+  `No report since Homepage started`,
   "const created=await api(",
   "sessionToken=created.sessionToken;",
   "const headers=sessionToken?",
