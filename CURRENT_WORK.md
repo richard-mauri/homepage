@@ -28,3 +28,9 @@
 - The admin-only Users & Access panel now has a separate Temporary guests disclosure. It lists unexpired, memory-only `guest-xxx` identities with expiry and per-app recent observations from Homepage and ScraperGo. It does not place them among durable named accounts or provide Rotate/Role/Revoke controls. The response contains no bearer token, session digest, or raw browser ID. Each guest disappears automatically when its hour expires or Homepage restarts.
 - The guest summary refreshes with Session activity (30-second refresh). Homepage's presence is correlated using its in-memory guest session key; ScraperGo's signed-in user reports already carry the `guest-xxx` label. No modifications to ScraperGo were needed for this display.
 - Regression tests assert admin-only visibility and guest Homepage heartbeat association; full CI and owner Safari acceptance remain required. Existing feature branch and draft PR #33; no new issue or PR.
+
+## November 13, 2026 — final session terminology
+
+- Owner approved `Current sessions (last 2 min)` and `Unique users (last 2 min)` for the session-aware Homepage/ScraperGo activity panels. The unauthenticated `Guest tabs` row is removed from these two panels because visitors at the sign-in prompt cannot work in ScraperGo. Underlying anonymous presence telemetry remains unchanged for diagnostics. Older aggregate-only sister apps retain their existing browser-ID wording.
+- The panel description explicitly says that these are authenticated sessions **observed within two minutes**, including temporary `guest-xxx` identities. A visible, idle browser page may still be counted; this is not proof that a restart is safe.
+- All changes remain in the existing draft PR #33 / Issue #32. Exact-head CI and final owner Safari acceptance are required; no merge or service restart by the assistant.
