@@ -107,7 +107,10 @@ func TestActivityAdminReadRequiresVerifiedRole(t *testing.T) {
  if len(data.Services)!=len(activityServices) || data.HistoryStatus!="available"{
   t.Fatalf("unexpected admin response: %+v",data)
  }
- for _,entry:=range data.Services {if entry.Status!="unknown"{t.Fatalf("unreported service must be unknown: %+v",entry)}}
+ for _,entry:=range data.Services {
+  if entry.Service=="homepage" {if entry.Status!="fresh" || entry.Active2!=1 {t.Fatalf("guest Homepage presence missing: %+v",entry)};continue}
+  if entry.Status!="unknown"{t.Fatalf("unreported service must be unknown: %+v",entry)}
+ }
 }
 
 func TestActivityAutomaticRefreshDoesNotFlashButton(t *testing.T) {
