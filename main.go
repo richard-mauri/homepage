@@ -125,7 +125,7 @@ func configureSuiteStorage(mux *http.ServeMux, root string) error {
   if err!=nil {http.Error(w,"Unavailable",500);return}
   w.Header().Set("Content-Type","text/html; charset=utf-8")
   w.Header().Set("Cache-Control","no-store")
-  w.Header().Set("Content-Security-Policy","default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+  w.Header().Set("Content-Security-Policy","default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
   _,_=w.Write(page)
  })
  return nil
