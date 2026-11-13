@@ -254,9 +254,10 @@ function renderActivityHistory() {
   parent.append(bar);
  }
 }
-async function refreshActivity() {
+async function refreshActivity(manual=false) {
  if(activityPending||el('activityAdmin').hidden||!sessionToken)return;
- activityPending=true;el('activityRefresh').disabled=true;
+ activityPending=true;
+ if(manual)el('activityRefresh').disabled=true;
  try {
   const data=await api('/api/admin/activity',{headers:{Authorization:'Session '+sessionToken}});
   if(el('activityAdmin').hidden)return;
@@ -271,10 +272,11 @@ async function refreshActivity() {
   renderActivityHistory();
   el('activityMessage').textContent='Activity unavailable ('+error.message+'). Service status is unknown, not idle.';
  }finally{
-  activityPending=false;el('activityRefresh').disabled=false;
+  activityPending=false;
+  if(manual)el('activityRefresh').disabled=false;
  }
 }
-el('activityRefresh').addEventListener('click',()=>{void refreshActivity();});
+el('activityRefresh').addEventListener('click',()=>{void refreshActivity(true);});
 el('activityService').addEventListener('change',renderActivityHistory);
 el('activityRange').addEventListener('change',renderActivityHistory);
 setInterval(()=>{if(!document.hidden&&!el('activityAdmin').hidden)void refreshActivity()},30000);
