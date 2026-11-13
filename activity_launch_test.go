@@ -55,5 +55,7 @@ func TestHomepageLauncherAcknowledgesVerifiedNavigation(t *testing.T) {
   if !strings.Contains(js,snippet) {t.Errorf("missing launch behavior %q",snippet)}
  }
  page,err:=assets.ReadFile("static/suite-admin.html");if err!=nil{t.Fatal(err)}
- if !strings.Contains(string(page),"data.launchUsers||{}") {t.Fatal("admin view lacks launch fallback")}
+ for _,snippet:=range []string{"data.launchUsers||{}","['MauriStocks',mergeObserved([],'stocks')]","['SailingGo',mergeObserved([],'sailing')]"} {
+  if !strings.Contains(string(page),snippet) {t.Errorf("admin view lacks launch mapping %s",snippet)}
+ }
 }
