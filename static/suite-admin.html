@@ -216,7 +216,10 @@ function renderTemporaryGuests(data) {
  }
 }
 function renderUserActivity(data) {
- const home=Array.isArray(data.homeUsers)?data.homeUsers:[];
+ const home=Array.isArray(data.homeUsers)?data.homeUsers.slice():[];
+ for(const guest of Array.isArray(data.guestUsers)?data.guestUsers:[]){
+  if(guest.homeLastSeen)home.push({user:guest.user,lastSeen:guest.homeLastSeen,sessions:guest.homeSessions||0});
+ }
  const scraper=(Array.isArray(data.services)?data.services:[]).find(service=>service.service==='scrapergo');
  const scraperUsers=Array.isArray(scraper?.users)?scraper.users:[];
  const sources=[['Homepage',home],['ScraperGo',scraperUsers]];
