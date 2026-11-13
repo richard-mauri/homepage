@@ -33,3 +33,22 @@ func TestHomepageSameTabLauncherContract(t *testing.T){
   if strings.Contains(script,forbidden){t.Errorf("same-tab optional launch contains %q",forbidden)}
  }
 }
+
+func TestScraperGoCardUsesAuthenticatedLaunchHandler(t *testing.T) {
+ code,err:=os.ReadFile("static/app.js")
+ if err!=nil{t.Fatal(err)}
+ script:=string(code)
+ start:=strings.Index(script,"async function openSuiteApp(event)")
+ end:=strings.Index(script,"async function init()",start)
+ if start<0 || end<=start {t.Fatal("missing suite launch handler")}
+ handler:=script[start:end]
+ for _,required:=range []string{
+  "url.origin!=='https://scrapergo.themauris.org'",
+  "event.preventDefault();",
+  "const issued=await renewHandoff();",
+  "url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);",
+  "url.hash='suite_mode=local';",
+ }{
+  if !strings.Contains(handler,required) {t.Errorf("ScraperGo launch handler missing %q",required)}
+ }
+}
