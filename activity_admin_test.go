@@ -90,3 +90,21 @@ func TestActivityAdminReadRequiresVerifiedRole(t *testing.T) {
  }
  for _,entry:=range data.Services {if entry.Status!="unknown"{t.Fatalf("unreported service must be unknown: %+v",entry)}}
 }
+
+func TestActivityAutomaticRefreshDoesNotFlashButton(t *testing.T) {
+ page,err:=assets.ReadFile("static/suite-admin.html")
+ if err!=nil {t.Fatal(err)}
+ html:=string(page)
+ for _,fragment:=range []string{
+  "async function refreshActivity(manual=false)",
+  "if(manual)el('activityRefresh').disabled=true;",
+  "if(manual)el('activityRefresh').disabled=false;",
+  "el('activityRefresh').addEventListener('click',()=>{void refreshActivity(true);});",
+  "setInterval(()=>{if(!document.hidden&&!el('activityAdmin').hidden)void refreshActivity()},30000);",
+ } {
+  if !strings.Contains(html,fragment) {t.Errorf("missing manual-only refresh-button behavior: %s",fragment)}
+ }
+ if strings.Contains(html,"activityPending=true;el('activityRefresh').disabled=true;") {
+  t.Fatal("automatic refresh must not dim the manual refresh button")
+ }
+}
