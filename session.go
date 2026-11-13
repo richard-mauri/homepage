@@ -275,15 +275,7 @@ func (s *sessionService) handoffHandler(w http.ResponseWriter,r *http.Request) {
  }else{
   var ok bool
   user,role,ok=s.authenticateSession(r)
-  if !ok {
-   _,guest,valid:=s.guestSession(r)
-   if !valid {http.Error(w,"session invalid",401);return}
-   id,_=strings.CutPrefix(r.Header.Get("Authorization"),"Session ")
-   if id=="" {if c,err:=r.Cookie(guestCookieName);err==nil {id=c.Value}}
-   w.Header().Set("Content-Type","application/json")
-   _=json.NewEncoder(w).Encode(map[string]any{"user":guest.User,"role":"guest","expiresAt":guest.Expires.UTC().Format(time.RFC3339),"sessionToken":id})
-   return
-  }
+  if !ok{http.Error(w,"session invalid",401);return}
   c,_:=r.Cookie(sessionCookieName)
   s.mu.Lock();source=s.sessions[sessionLookupKey(c.Value)];s.mu.Unlock()
   parentSession=sessionLookupKey(c.Value)
@@ -559,7 +551,15 @@ func (s *sessionService) handler(w http.ResponseWriter,r *http.Request) {
     s.mu.Lock();v=s.sessions[sessionLookupKey(id)];s.mu.Unlock()
    }
   }
-  if !ok{http.Error(w,"session invalid",401);return}
+  if !ok{
+   _,guest,valid:=s.guestSession(r)
+   if !valid {http.Error(w,"session invalid",401);return}
+   id,_=strings.CutPrefix(r.Header.Get("Authorization"),"Session ")
+   if id=="" {if c,err:=r.Cookie(guestCookieName);err==nil {id=c.Value}}
+   w.Header().Set("Content-Type","application/json")
+   _=json.NewEncoder(w).Encode(map[string]any{"user":guest.User,"role":"guest","expiresAt":guest.Expires.UTC().Format(time.RFC3339),"sessionToken":id})
+   return
+  }
   w.Header().Set("Content-Type","application/json")
   _=json.NewEncoder(w).Encode(map[string]any{"user":user,"role":role,"expiresAt":v.Expires.UTC().Format(time.RFC3339),"sessionToken":id})
   return
