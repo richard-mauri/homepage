@@ -9,7 +9,7 @@ p,.muted{color:#aac0c5}section{background:#10232d;border:1px solid #35515a;borde
 label{display:block;margin:12px 0 4px}input,select,button{font:inherit;border:1px solid #496771;border-radius:8px;padding:10px;background:#07131b;color:inherit;max-width:100%}
 input{width:100%;box-sizing:border-box}button{cursor:pointer;background:#194d53;margin:9px 7px 5px 0}button:disabled{opacity:.5;cursor:default}
 button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{background:#85414b}
-[hidden]{display:none!important}.message{white-space:pre-wrap;overflow-wrap:anywhere}.user{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;border-top:1px solid #35515a;padding:12px 0}.actions{display:flex;flex-wrap:wrap;align-items:center}.session-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.session-actions button{margin:9px 0 5px}.session-time{font-variant-numeric:tabular-nums;color:#aac0c5}code{word-break:break-all;display:block;background:#07131b;padding:12px;margin:10px 0;border-radius:8px;user-select:all}
+[hidden]{display:none!important}.message{white-space:pre-wrap;overflow-wrap:anywhere}.user{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:flex-start;border-top:1px solid #35515a;padding:12px 0}.user-identity{flex:1;min-width:200px}.user-activity{margin-top:8px;font-size:.9rem}.user-activity>summary{cursor:pointer;color:#7ce3d7}.user-activity-line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;padding:2px 0;color:#aac0c5}.user-activity-line strong{color:#eaf4f4;font-weight:500}.actions{display:flex;flex-wrap:wrap;align-items:center}.session-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.session-actions button{margin:9px 0 5px}.session-time{font-variant-numeric:tabular-nums;color:#aac0c5}code{word-break:break-all;display:block;background:#07131b;padding:12px;margin:10px 0;border-radius:8px;user-select:all}
 
 .session-summary{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;column-gap:16px;row-gap:4px}
 .session-summary .session-time{font-size:.85rem;font-weight:400;white-space:nowrap}
@@ -43,7 +43,7 @@ button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{backgro
 <label for="token">Approved NewsGo or suite token</label><input id="token" type="password" autocomplete="off" spellcheck="false" required minlength="64" maxlength="64">
 <button type="submit">Connect</button></form></details></section>
 <section id="account" hidden><details class="suite-pane" open><summary class="session-summary"><span>Current Session</span><span id="remaining" class="session-time" role="timer" aria-label="Session time remaining">Session --:--:--</span></summary><p id="identity"></p><div class="session-actions"><button id="renew" type="button">Renew</button><button id="logout" type="button">Disconnect</button></div></details></section>
-<section id="admin" hidden><details class="suite-pane"><summary>Users &amp; Access</summary><p class="muted">Only administrators can issue, rotate or revoke credentials. Each user's saved preferences remain separate.</p>
+<section id="admin" hidden><details class="suite-pane"><summary>Users &amp; Access</summary><p class="muted">Only administrators can issue, rotate or revoke credentials. Each user's saved preferences remain separate. Recent per-user observations currently cover Homepage and ScraperGo; other applications will follow.</p>
 <div id="users"></div><details class="suite-pane nested"><summary>Create user</summary><form id="createForm">
 <label for="username">User ID</label><input id="username" required maxlength="64" pattern="[a-zA-Z0-9_ \-]{1,64}">
 <label for="userlabel">Description (optional)</label><input id="userlabel" maxlength="128">
@@ -118,7 +118,13 @@ async function refreshUsers(){
  const list=el('users');list.replaceChildren();
  for(const u of users){
   const row=document.createElement('div');row.className='user';
-  const name=document.createElement('div');name.textContent=u.user+' ('+u.role+')'+(u.label?' — '+u.label:'');
+  const name=document.createElement('div');name.className='user-identity';
+  const identity=document.createElement('div');identity.textContent=u.user+' ('+u.role+')'+(u.label?' — '+u.label:'');
+  const details=document.createElement('details');details.className='user-activity';details.dataset.user=u.user;
+  const heading=document.createElement('summary');heading.textContent='Activity by application';
+  const activityLines=document.createElement('div');activityLines.className='user-activity-lines';
+  activityLines.textContent='Activity not loaded yet.';
+  details.append(heading,activityLines);name.append(identity,details);
   const actions=document.createElement('div');actions.className='actions';
   for(const [label,action] of [['Rotate token','rotate'],[u.role==='admin'?'Make regular user':'Make administrator','role'],['Revoke','revoke']]){
    const button=document.createElement('button');button.type='button';button.textContent=label;
@@ -137,6 +143,7 @@ async function refreshUsers(){
   }
   row.append(name,actions);list.append(row);
  }
+ if(activityData)renderUserActivity(activityData);
 }
 el('loginForm').addEventListener('submit',async event=>{
  event.preventDefault();
@@ -192,6 +199,30 @@ el('dismissToken').addEventListener('click',()=>{el('tokenResult').textContent='
 let activityData=null;
 let activityPending=false;
 const activityNames={homepage:'Homepage',newsgo:'NewsGo',stocks:'MauriStocks',sailing:'SailingGo',scrapergo:'ScraperGo'};
+function renderUserActivity(data) {
+ const home=Array.isArray(data.homeUsers)?data.homeUsers:[];
+ const scraper=(Array.isArray(data.services)?data.services:[]).find(service=>service.service==='scrapergo');
+ const scraperUsers=Array.isArray(scraper?.users)?scraper.users:[];
+ const sources=[['Homepage',home],['ScraperGo',scraperUsers]];
+ for(const details of el('users').querySelectorAll('.user-activity')) {
+  const target=details.querySelector('.user-activity-lines');
+  target.replaceChildren();
+  for(const [service,users] of sources) {
+   const match=users.find(item=>item.user===details.dataset.user);
+   const row=document.createElement('div');row.className='user-activity-line';
+   const label=document.createElement('span');label.textContent=service;
+   const value=document.createElement('strong');
+   if(match && match.lastSeen) {
+    const seen=Date.parse(match.lastSeen);
+    const when=Number.isFinite(seen)?new Date(seen).toLocaleTimeString():'time unavailable';
+    value.textContent=(match.sessions>0?match.sessions+' active session'+(match.sessions===1?'':'s'):'Last seen')+' · '+when;
+   } else {
+    value.textContent='No observation in past hour';
+   }
+   row.append(label,value);target.append(row);
+  }
+ }
+}
 function activityText(value) {
  return Number.isInteger(value)&&value>=0?String(value):'—';
 }
@@ -283,6 +314,7 @@ async function refreshActivity(manual=false) {
   if(el('activityAdmin').hidden)return;
   activityData=data;
   renderActivityServices(data.services);
+  renderUserActivity(data);
   renderActivityHistory();
   el('activityMessage').textContent='Last checked '+new Date().toLocaleTimeString()+'. Fresh reports indicate observed presence, not a safe-restart guarantee.';
  }catch(error) {
