@@ -91,13 +91,12 @@ function showSuiteLaunchGate(){
  const actions=document.createElement('div');actions.className='suite-launch-actions';
  const signIn=document.createElement('button');signIn.type='button';signIn.textContent='Sign in';
  const guest=document.createElement('button');guest.type='button';guest.textContent='Sign in as Guest';
- const dismiss=document.createElement('button');dismiss.type='button';dismiss.textContent='Not now';
  function close(){overlay.remove();}
  signIn.addEventListener('click',()=>{close();document.querySelector('#suiteSignInButton')?.click()});
  guest.addEventListener('click',()=>{close();document.querySelector('#suiteGuestSignInButton')?.click()});
- dismiss.addEventListener('click',close);
- dialog.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();close()}});
- actions.append(signIn,guest,dismiss);dialog.append(title,message,actions);overlay.append(dialog);document.body.append(overlay);
+ // This launch gate is not dismissible; either sign-in route remains on Homepage.
+ dialog.addEventListener('keydown',event=>{if(event.key==='Escape')event.preventDefault()});
+ actions.append(signIn,guest);dialog.append(title,message,actions);overlay.append(dialog);document.body.append(overlay);
  signIn.focus();
 }
 // Mint a fresh handoff at application launch instead of reusing an older
