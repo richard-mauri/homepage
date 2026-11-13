@@ -11,6 +11,12 @@ input{width:100%;box-sizing:border-box}button{cursor:pointer;background:#194d53;
 button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{background:#85414b}
 [hidden]{display:none!important}.message{white-space:pre-wrap;overflow-wrap:anywhere}.user{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;border-top:1px solid #35515a;padding:12px 0}.actions{display:flex;flex-wrap:wrap;align-items:center}.session-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.session-actions button{margin:9px 0 5px}.session-time{font-variant-numeric:tabular-nums;color:#aac0c5}code{word-break:break-all;display:block;background:#07131b;padding:12px;margin:10px 0;border-radius:8px;user-select:all}
 
+.suite-pane>summary{cursor:pointer;font-size:1.1rem;font-weight:650;line-height:1.5;list-style:revert;outline-offset:5px}
+.suite-pane>summary:hover{color:#7ce3d7}
+.suite-pane>summary:focus-visible{outline:2px solid #7ce3d7;border-radius:4px}
+.suite-pane[open]>summary{margin-bottom:12px}
+.suite-pane.nested{margin-top:18px;border-top:1px solid #35515a;padding-top:12px}
+.suite-pane.nested>summary{font-size:1rem}
 .activity-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
 .activity-toolbar label{margin:0}
 .activity-toolbar select{padding:6px}
@@ -29,24 +35,25 @@ button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{backgro
 .activity-note{font-size:.83rem;color:#aac0c5}
 </style></head><body>
 <p><a href="/">← Homepage</a></p><h1>Suite Authentication</h1><p>Manage your session and approved user tokens. Token values are shown only when newly created or rotated.</p>
-<section id="login"><h2>Connect</h2><form id="loginForm">
+<section id="login"><details class="suite-pane" open><summary>Connect</summary><form id="loginForm">
 <label for="token">Approved NewsGo or suite token</label><input id="token" type="password" autocomplete="off" spellcheck="false" required minlength="64" maxlength="64">
-<button type="submit">Connect</button></form></section>
-<section id="account" hidden><h2>Current session</h2><p id="identity"></p><div class="session-actions"><button id="renew" type="button">Renew</button><span id="remaining" class="session-time" role="timer" aria-label="Session time remaining">Session --:--:--</span><button id="logout" type="button">Disconnect</button></div></section>
-<section id="admin" hidden><h2>Approved users</h2><p class="muted">Only administrators can issue, rotate or revoke credentials. Each user's saved preferences remain separate.</p>
-<div id="users"></div><h2>Create user</h2><form id="createForm">
+<button type="submit">Connect</button></form></details></section>
+<section id="account" hidden><details class="suite-pane" open><summary>Current session</summary><p id="identity"></p><div class="session-actions"><button id="renew" type="button">Renew</button><span id="remaining" class="session-time" role="timer" aria-label="Session time remaining">Session --:--:--</span><button id="logout" type="button">Disconnect</button></div></details></section>
+<section id="admin" hidden><details class="suite-pane"><summary>Approved users and tokens</summary><p class="muted">Only administrators can issue, rotate or revoke credentials. Each user's saved preferences remain separate.</p>
+<div id="users"></div><details class="suite-pane nested"><summary>Create user</summary><form id="createForm">
 <label for="username">User ID</label><input id="username" required maxlength="64" pattern="[a-zA-Z0-9_ \-]{1,64}">
 <label for="userlabel">Description (optional)</label><input id="userlabel" maxlength="128">
 <label for="role">Role</label><select id="role"><option value="user">Regular user</option><option value="admin">Administrator</option></select>
 <button type="submit">Issue token</button></form>
 <div id="newToken" hidden><p><strong>Copy this token now; it cannot be displayed again.</strong></p><code id="tokenResult"></code><button id="copyToken" type="button">Copy token</button><button id="dismissToken" type="button">Dismiss</button></div>
-</section>
+</details></details></section>
 
 <section id="activityAdmin" hidden aria-labelledby="activityHeading">
- <div class="activity-toolbar"><div><h2 id="activityHeading">Session activity</h2><p class="muted">All five services, including anonymous visitors. Read-only observations for restart planning.</p></div><button type="button" id="activityRefresh">Refresh activity</button></div>
+ <details class="suite-pane" open><summary id="activityHeading">Session activity</summary>
+ <div class="activity-toolbar"><p class="muted">All five services, including anonymous visitors. Read-only observations for restart planning.</p><button type="button" id="activityRefresh">Refresh activity</button></div>
  <p id="activityMessage" class="activity-note" role="status" aria-live="polite">Activity has not been loaded.</p>
  <div id="activityServices" class="activity-grid" aria-label="Service activity"></div>
- <h2>Hourly activity patterns</h2>
+ <details class="suite-pane nested"><summary>Hourly activity patterns</summary>
  <div class="activity-toolbar">
   <label for="activityService">Service <select id="activityService"><option value="homepage">Homepage</option><option value="newsgo">NewsGo</option><option value="stocks">MauriStocks</option><option value="sailing">SailingGo</option><option value="scrapergo">ScraperGo</option></select></label>
   <label for="activityRange">Window <select id="activityRange"><option value="7">7 days</option><option value="30">30 days</option></select></label>
@@ -55,6 +62,7 @@ button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{backgro
  <div id="activityChart" class="activity-chart" role="img" aria-label="Average reported two-minute active browser count by UTC hour"></div>
  <div class="activity-axis"><span>00 UTC</span><span>06</span><span>12</span><span>18</span><span>23</span></div>
  <p class="activity-note">Each bar shows the mean reported two-minute visitor count for that UTC hour of day over the selected window. A missing bar means no samples, not zero visitors. This is observed browser activity, not guaranteed unique people. No restart is initiated here.</p>
+ </details></details>
 </section>
 <p id="notice" class="message" role="status" aria-live="polite"></p>
 <script>
