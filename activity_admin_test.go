@@ -148,7 +148,7 @@ func TestActivityPanelLabelsObservedIdentifiersNotSessions(t *testing.T) {
  html:=string(page)
  for _,fragment:=range []string{
   "grid-template-columns:minmax(0,1fr)",
-  "Homepage counts distinct signed-in sessions (with a separate user count) and guest tab identifiers;",
+  "Homepage and ScraperGo count verified signed-in sessions (with separate user counts) and guest tab identifiers;",
   "Presence means recently observed activity, not merely an unexpired login.",
   "Seen in last 2 min",
   "Seen in last 15 min",
@@ -157,6 +157,7 @@ func TestActivityPanelLabelsObservedIdentifiersNotSessions(t *testing.T) {
   "Signed-in IDs (last 2 min)",
   "Signed-in sessions (last 2 min)",
   "Unique signed-in users (2 min)",
+  "const sessionAware=key==='homepage'||key==='scrapergo';",
   "Requests in progress",
  } {
   if !strings.Contains(html,fragment) {t.Errorf("missing activity clarity invariant: %s",fragment)}
