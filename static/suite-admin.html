@@ -54,7 +54,7 @@ button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{backgro
 
 <section id="activityAdmin" hidden aria-labelledby="activityHeading">
  <details class="suite-pane" open><summary id="activityHeading">Session activity</summary>
- <div class="activity-toolbar"><p class="muted">All five services. Homepage and ScraperGo count verified signed-in sessions (with separate user counts) and guest tab identifiers; the other services still report browser/tab identifiers. Presence means recently observed activity, not merely an unexpired login. Read-only observations for restart planning.</p><button type="button" id="activityRefresh">Refresh activity</button></div>
+ <div class="activity-toolbar"><p class="muted">All five services. For Homepage and ScraperGo, current sessions are authenticated sessions observed in the last two minutes, including temporary guest identities. An open page may stay current while its user is idle. The other services still report browser/tab identifiers. Presence is not a safe-restart guarantee.</p><button type="button" id="activityRefresh">Refresh activity</button></div>
  <p id="activityMessage" class="activity-note" role="status" aria-live="polite">Activity has not been loaded.</p>
  <div id="activityServices" class="activity-grid" aria-label="Service activity"></div>
  <details class="suite-pane nested"><summary>Hourly activity patterns</summary>
@@ -279,9 +279,9 @@ function renderActivityServices(services) {
   activityStat(stats,'Seen in last 15 min',live?activityText(info.active15):'—');
   activityStat(stats,'Seen in last 60 min',live?activityText(info.active60):'—');
   const sessionAware=key==='homepage'||key==='scrapergo';
-  activityStat(stats,sessionAware?'Guest tabs (last 2 min)':'Guest IDs (last 2 min)',live?activityText(info.anonymous):'—');
-  activityStat(stats,sessionAware?'Signed-in sessions (last 2 min)':'Signed-in IDs (last 2 min)',live?activityText(info.authenticated):'—');
-  if(sessionAware)activityStat(stats,'Unique signed-in users (2 min)',live?activityText(info.uniqueUsers):'—');
+  if(!sessionAware)activityStat(stats,'Guest IDs (last 2 min)',live?activityText(info.anonymous):'—');
+  activityStat(stats,sessionAware?'Current sessions (last 2 min)':'Signed-in IDs (last 2 min)',live?activityText(info.authenticated):'—');
+  if(sessionAware)activityStat(stats,'Unique users (last 2 min)',live?activityText(info.uniqueUsers):'—');
   activityStat(stats,'Requests in progress',live?activityText(info.inFlight):'—');
   activityStat(stats,'Last report',activityTimestamp(info.lastReport));
   card.append(title,stats);parent.append(card);
