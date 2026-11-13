@@ -1,5 +1,7 @@
 # Current work — Homepage
 
+- **Blocked-launch feedback:** A rejected Homepage handoff now displays an accessible, theme-matched sign-in dialog with named-user, one-hour guest, and Not now actions. No scrolling-only notice and no navigation to a sister app on rejection. Owner Safari confirmation pending.
+
 - **Latest UX adjustment:** Homepage's guest control now reads `Sign in as Guest` throughout the launcher and account UI. A verified handoff remains required to navigate from Homepage; invalid sessions stay on Homepage. CI #320 passed before this note; owner Safari acceptance is pending.
 
 ## Consolidated draft PR #37 — Guest revocation and verified navigation activity
