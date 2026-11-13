@@ -84,34 +84,35 @@ async function openSuiteApp(event){
  const link=event.currentTarget;
  const url=new URL(link.href);
  if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org' && url.origin!=='https://weather.themauris.org' && url.origin!=='https://scrapergo.themauris.org')return;
- // Account sign-in enables optional server preferences, never basic app access.
- // Always explicitly distinguish a browser-only launch from a cached
- // account handoff on the destination application's origin.
  event.preventDefault();
  traceClient('launch_begin',url.origin==='https://stocks.themauris.org'?'stocks':url.origin==='https://weather.themauris.org'?'sailing':url.origin==='https://scrapergo.themauris.org'?'scrapergo':'newsgo');
- if(!homeSessionToken || Date.now()>=homeSessionExpires){
-  traceClient('launch_local',!homeSessionToken?'none':'expired');
-  url.hash='suite_mode=local';
-  location.assign(url.toString());
-  return;
- }
+ // A successful server-issued handoff is required for every Homepage launch.
+ // Do not rely on a cached expiry: the server may have revoked this session.
  const issued=await renewHandoff();
  if(issued && suiteHandoffToken && Date.now()<suiteHandoffExpires){
   await acknowledgeSuiteLaunch(url.origin==='https://newsgo.themauris.org'?'newsgo':url.origin==='https://scrapergo.themauris.org'?'scrapergo':url.origin==='https://stocks.themauris.org'?'stocks':'sailing');
   traceClient('launch_handoff','success');
   url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);
  }else{
-  traceClient('launch_local','rejected');
-  url.hash='suite_mode=local';
+  traceClient('launch_blocked','unauthenticated');
+  let notice=document.querySelector('#suiteLaunchNotice');
+  if(!notice){
+   notice=document.createElement('p');notice.id='suiteLaunchNotice';notice.className='suite-launch-notice';
+   notice.setAttribute('role','alert');
+   document.querySelector('#cards').before(notice);
+  }
+  notice.textContent='Sign in on Homepage or choose Continue as Guest (1 hour) before opening a suite application.';
+  notice.scrollIntoView({block:'center',behavior:'smooth'});
+  return;
  }
- // If handoff fails, the app still opens with browser-local preferences.
+ const notice=document.querySelector('#suiteLaunchNotice');if(notice)notice.remove();
  location.assign(url.toString());
 }
 async function init(){const root=document.querySelector('#cards');try{const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)throw Error('Configuration unavailable');const c=await r.json();authTraceActive=!!c.traceEnabled;traceClient('page_init','initial');root.replaceChildren(...c.apps.map(makeCard));applyHandoffLinks();for(const link of root.querySelectorAll('a.app-card'))link.addEventListener('click',openSuiteApp);document.querySelector('.count').textContent='/ '+String(c.apps.length).padStart(2,'0');if(c.persistenceAvailable)enableOptionalAuth()}catch(e){root.textContent='Applications are temporarily unavailable. Please refresh to try again.'}}
 function tick(){document.querySelector('#clock').textContent=new Intl.DateTimeFormat('en-US',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'America/Los_Angeles'}).format(new Date())}
 const themeKey='themauris-theme';try{if(localStorage.getItem(themeKey)==='light')document.documentElement.dataset.theme='light'}catch(_){}document.querySelector('#themeToggle').addEventListener('click',()=>{const next=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=next;try{localStorage.setItem(themeKey,next)}catch(_){}});document.querySelector('#year').textContent=new Date().getFullYear();tick();setInterval(tick,30_000);init();
 
-/* Optional account control: browser-only remains the default.
+/* A verified Homepage identity is required to launch suite applications.
    Signing in does not upload or replace application localStorage. */
 function enableOptionalAuth(){
  if(document.querySelector('#suiteAccount'))return;
@@ -131,7 +132,7 @@ function enableOptionalAuth(){
  const title=document.createElement('h2');title.id='suiteDialogTitle';title.textContent='Personal settings';
  const close=document.createElement('button');close.type='button';close.textContent='Close';close.setAttribute('aria-label','Close sign-in dialog');
  header.append(title,close);
- const description=document.createElement('p');description.textContent='Sign in with your approved personal token to use your server account. Without signing in, applications continue using browser storage. Existing local settings will not be changed.';
+ const description=document.createElement('p');description.textContent='Sign in with your approved personal token to launch suite applications and use your personal settings. Or continue as a guest for one hour. Existing local settings will not be changed.';
  const form=document.createElement('form');
  const label=document.createElement('label');label.htmlFor='suiteToken';label.textContent='Approved personal token';
  const token=document.createElement('input');token.id='suiteToken';token.type='password';token.autocomplete='off';token.spellcheck=false;token.required=true;token.minLength=64;token.maxLength=64;
