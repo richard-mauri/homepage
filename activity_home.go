@@ -124,3 +124,32 @@ func (c *activityCollector) updateHomepageSnapshotLocked(now time.Time) {
  if now.Sub(lastSeen)<=150*time.Second {status="fresh"}
  c.latest["homepage"]=activityEntry{activityReport:p,Service:"homepage",Status:status,LastReport:lastSeen.UTC().Format(time.RFC3339)}
 }
+
+ // homepageUsersSnapshot resolves server-owned, hashed credential identities
+ // only for the authenticated admin view. Raw tokens and digest keys are never
+ // returned to the browser or to activity history.
+func (c *activityCollector) homepageUsersSnapshot(s *sessionService) []activityUserSummary {
+ c.mu.Lock()
+ now:=c.now()
+ identities:=make(map[string]homepagePresence)
+ for _,record:=range c.homePresence {
+  if !record.SignedIn || record.SessionKey=="" || record.UserKey=="" {continue}
+  if age:=now.Sub(record.Seen);age<0 || age>time.Hour {continue}
+  prior,exists:=identities[record.SessionKey]
+  if !exists || record.Seen.After(prior.Seen) {identities[record.SessionKey]=record}
+ }
+ c.mu.Unlock()
+ byKey:=make(map[string]activityUserSummary)
+ for _,record:=range identities {
+  user,_,err:=s.store.AuthenticateDigest(record.UserKey)
+  if err!=nil {continue}
+  summary:=byKey[user];summary.User=user
+  timestamp:=record.Seen.UTC().Format(time.RFC3339)
+  if summary.LastSeen=="" || timestamp>summary.LastSeen {summary.LastSeen=timestamp}
+  if now.Sub(record.Seen)<=2*time.Minute {summary.Sessions++}
+  byKey[user]=summary
+ }
+ out:=make([]activityUserSummary,0,len(byKey))
+ for _,summary:=range byKey {out=append(out,summary)}
+ return out
+}
