@@ -93,8 +93,8 @@ function showSuiteLaunchGate(){
  const guest=document.createElement('button');guest.type='button';guest.textContent='Sign in as Guest';
  const dismiss=document.createElement('button');dismiss.type='button';dismiss.textContent='Not now';
  function close(){overlay.remove();}
- signIn.addEventListener('click',()=>{close();document.querySelector('#suiteAccount button')?.click()});
- guest.addEventListener('click',()=>{close();document.querySelector('#suiteAccount button:nth-child(2)')?.click()});
+ signIn.addEventListener('click',()=>{close();document.querySelector('#suiteSignInButton')?.click()});
+ guest.addEventListener('click',()=>{close();document.querySelector('#suiteGuestSignInButton')?.click()});
  dismiss.addEventListener('click',close);
  dialog.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();close()}});
  actions.append(signIn,guest,dismiss);dialog.append(title,message,actions);overlay.append(dialog);document.body.append(overlay);
@@ -132,8 +132,8 @@ function enableOptionalAuth(){
  if(document.querySelector('#suiteAccount'))return;
  const top=document.querySelector('.topright');
  const container=document.createElement('div');container.id='suiteAccount';container.className='suite-account';
- const signIn=document.createElement('button');signIn.type='button';signIn.textContent='Sign in';
- const guestButton=document.createElement('button');guestButton.type='button';guestButton.textContent='Sign in as Guest';
+ const signIn=document.createElement('button');signIn.id='suiteSignInButton';signIn.type='button';signIn.textContent='Sign in';
+ const guestButton=document.createElement('button');guestButton.id='suiteGuestSignInButton';guestButton.type='button';guestButton.textContent='Sign in as Guest';
  const retryAuth=document.createElement('button');retryAuth.type='button';retryAuth.textContent='Connection issue — Retry';retryAuth.hidden=true;
  const signedIn=document.createElement('div');signedIn.className='suite-account-auth';signedIn.hidden=true;
  const identity=document.createElement('span');
