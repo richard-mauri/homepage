@@ -69,3 +69,15 @@ func TestHomepageAdminPageIncludesPresenceHeartbeat(t *testing.T) {
   t.Fatal("presence script must target Homepage's same-origin activity route")
  }
 }
+
+func TestHomepageAdminCSPPermitsHeartbeatScript(t *testing.T) {
+ if !strings.Contains(adminPageCSP,"script-src 'self' 'unsafe-inline'") {
+  t.Fatal("administrator CSP blocks its same-origin presence script")
+ }
+ if !strings.Contains(adminPageCSP,"connect-src 'self'") {
+  t.Fatal("administrator CSP blocks its same-origin presence ping")
+ }
+ if !strings.Contains(adminPageCSP,"default-src 'none'") || !strings.Contains(adminPageCSP,"frame-ancestors 'none'") {
+  t.Fatal("administrator CSP lost restrictive baseline")
+ }
+}
