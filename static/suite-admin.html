@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer">
-<title>Suite Authentication — The Mauris</title>
+<title>Suite Management — The Mauris</title>
 <style>
 :root{font-family:system-ui,-apple-system,sans-serif;color-scheme:dark;background:#07131b;color:#eaf4f4}
 body{margin:0;padding:24px;max-width:780px;margin-inline:auto;line-height:1.5}
@@ -11,6 +11,8 @@ input{width:100%;box-sizing:border-box}button{cursor:pointer;background:#194d53;
 button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{background:#85414b}
 [hidden]{display:none!important}.message{white-space:pre-wrap;overflow-wrap:anywhere}.user{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;border-top:1px solid #35515a;padding:12px 0}.actions{display:flex;flex-wrap:wrap;align-items:center}.session-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.session-actions button{margin:9px 0 5px}.session-time{font-variant-numeric:tabular-nums;color:#aac0c5}code{word-break:break-all;display:block;background:#07131b;padding:12px;margin:10px 0;border-radius:8px;user-select:all}
 
+.session-summary{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;column-gap:16px;row-gap:4px}
+.session-summary .session-time{font-size:.85rem;font-weight:400;white-space:nowrap}
 .suite-pane>summary{cursor:pointer;font-size:1.1rem;font-weight:650;line-height:1.5;list-style:revert;outline-offset:5px}
 .suite-pane>summary:hover{color:#7ce3d7}
 .suite-pane>summary:focus-visible{outline:2px solid #7ce3d7;border-radius:4px}
@@ -34,12 +36,12 @@ button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{backgro
 .activity-axis{display:flex;justify-content:space-between;color:#aac0c5;font-size:.73rem;margin-bottom:10px}
 .activity-note{font-size:.83rem;color:#aac0c5}
 </style></head><body>
-<p><a href="/">← Homepage</a></p><h1>Suite Authentication</h1><p>Manage your session and approved user tokens. Token values are shown only when newly created or rotated.</p>
+<p><a href="/">← Homepage</a></p><h1>Suite Management</h1><p>Manage your session, user access, and activity across the application suite.</p>
 <section id="login"><details class="suite-pane" open><summary>Connect</summary><form id="loginForm">
 <label for="token">Approved NewsGo or suite token</label><input id="token" type="password" autocomplete="off" spellcheck="false" required minlength="64" maxlength="64">
 <button type="submit">Connect</button></form></details></section>
-<section id="account" hidden><details class="suite-pane" open><summary>Current session</summary><p id="identity"></p><div class="session-actions"><button id="renew" type="button">Renew</button><span id="remaining" class="session-time" role="timer" aria-label="Session time remaining">Session --:--:--</span><button id="logout" type="button">Disconnect</button></div></details></section>
-<section id="admin" hidden><details class="suite-pane"><summary>Approved users and tokens</summary><p class="muted">Only administrators can issue, rotate or revoke credentials. Each user's saved preferences remain separate.</p>
+<section id="account" hidden><details class="suite-pane" open><summary class="session-summary"><span>Current Session</span><span id="remaining" class="session-time" role="timer" aria-label="Session time remaining">Session --:--:--</span></summary><p id="identity"></p><div class="session-actions"><button id="renew" type="button">Renew</button><button id="logout" type="button">Disconnect</button></div></details></section>
+<section id="admin" hidden><details class="suite-pane"><summary>Users &amp; Access</summary><p class="muted">Only administrators can issue, rotate or revoke credentials. Each user's saved preferences remain separate.</p>
 <div id="users"></div><details class="suite-pane nested"><summary>Create user</summary><form id="createForm">
 <label for="username">User ID</label><input id="username" required maxlength="64" pattern="[a-zA-Z0-9_ \-]{1,64}">
 <label for="userlabel">Description (optional)</label><input id="userlabel" maxlength="128">
