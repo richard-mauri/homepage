@@ -25,6 +25,7 @@ type activityReport struct {
  Background int `json:"background"`
  Anonymous int `json:"anonymous"`
  Authenticated int `json:"authenticated"`
+ UniqueUsers int `json:"uniqueUsers,omitempty"`
  InFlight int `json:"inFlight"`
  LastInteraction string `json:"lastInteraction,omitempty"`
 }
@@ -57,10 +58,10 @@ func newActivityCollector() *activityCollector {
  return c
 }
 func validActivityReport(p activityReport) bool {
- nums:=[]int{p.Active2,p.Active5,p.Active15,p.Active60,p.Foreground,p.Background,p.Anonymous,p.Authenticated,p.InFlight}
+ nums:=[]int{p.Active2,p.Active5,p.Active15,p.Active60,p.Foreground,p.Background,p.Anonymous,p.Authenticated,p.UniqueUsers,p.InFlight}
  for _,n:=range nums {if n<0 || n>100000 {return false}}
  if p.Active2>p.Active5 || p.Active5>p.Active15 || p.Active15>p.Active60{return false}
- if p.Foreground>p.Active2 || p.Background>p.Active2 || p.Anonymous>p.Active2 || p.Authenticated>p.Active2{return false}
+ if p.Foreground>p.Active2 || p.Background>p.Active2 || p.Anonymous>p.Active2 || p.Authenticated>p.Active2 || p.UniqueUsers>p.Authenticated{return false}
  if len(p.LastInteraction)>0 {t,e:=time.Parse(time.RFC3339,p.LastInteraction);if e!=nil || t.After(time.Now().Add(2*time.Minute)){return false}}
  return true
 }
