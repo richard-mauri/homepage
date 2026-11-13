@@ -9,6 +9,14 @@ p,.muted{color:#aac0c5}section{background:#10232d;border:1px solid #35515a;borde
 label{display:block;margin:12px 0 4px}input,select,button{font:inherit;border:1px solid #496771;border-radius:8px;padding:10px;background:#07131b;color:inherit;max-width:100%}
 input{width:100%;box-sizing:border-box}button{cursor:pointer;background:#194d53;margin:9px 7px 5px 0}button:disabled{opacity:.5;cursor:default}
 button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{background:#85414b}
+.guest-revoke-dialog{box-sizing:border-box;width:min(92vw,460px);max-width:460px;border:1px solid #496771;border-radius:14px;background:#10232d;color:#eaf4f4;padding:22px;box-shadow:0 20px 60px #0009}
+.guest-revoke-dialog::backdrop{background:#020b10b8}
+.guest-revoke-dialog h2{margin:0 0 12px;color:#eaf4f4}
+.guest-revoke-dialog p{margin:0 0 14px;color:#aac0c5}
+.guest-revoke-dialog .actions{justify-content:flex-end;gap:8px}
+.guest-revoke-dialog button{margin:0}
+.guest-revoke-dialog button:focus-visible{outline:2px solid #7ce3d7;outline-offset:3px}
+
 [hidden]{display:none!important}.message{white-space:pre-wrap;overflow-wrap:anywhere}.user{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:flex-start;border-top:1px solid #35515a;padding:12px 0}.user-identity{flex:1;min-width:200px}.user-activity{margin-top:8px;font-size:.9rem}.user-activity>summary{cursor:pointer;color:#7ce3d7}.user-activity-line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;padding:2px 0;color:#aac0c5}.user-activity-line strong{color:#eaf4f4;font-weight:500}.actions{display:flex;flex-wrap:wrap;align-items:center}.session-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.session-actions button{margin:9px 0 5px}.session-time{font-variant-numeric:tabular-nums;color:#aac0c5}code{word-break:break-all;display:block;background:#07131b;padding:12px;margin:10px 0;border-radius:8px;user-select:all}
 
 .session-summary{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;column-gap:16px;row-gap:4px}
@@ -199,6 +207,23 @@ el('dismissToken').addEventListener('click',()=>{el('tokenResult').textContent='
 let activityData=null;
 let activityPending=false;
 const activityNames={homepage:'Homepage',newsgo:'NewsGo',stocks:'MauriStocks',sailing:'SailingGo',scrapergo:'ScraperGo'};
+function confirmGuestRevocation(user) {
+ return new Promise(resolve=>{
+  const dialog=document.createElement('dialog');dialog.className='guest-revoke-dialog';
+  dialog.setAttribute('aria-labelledby','guest-revoke-title');
+  const title=document.createElement('h2');title.id='guest-revoke-title';title.textContent='Revoke temporary guest?';
+  const description=document.createElement('p');
+  description.textContent='Revoke '+user+' now? This immediately invalidates its Homepage session and all suite app handoffs.';
+  const actions=document.createElement('div');actions.className='actions';
+  const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Cancel';
+  const confirmButton=document.createElement('button');confirmButton.type='button';confirmButton.className='danger';confirmButton.textContent='Revoke guest';
+  cancel.addEventListener('click',()=>dialog.close('cancel'));
+  confirmButton.addEventListener('click',()=>dialog.close('revoke'));
+  dialog.addEventListener('close',()=>{const approved=dialog.returnValue==='revoke';dialog.remove();resolve(approved)},{once:true});
+  actions.append(cancel,confirmButton);dialog.append(title,description,actions);document.body.append(dialog);
+  dialog.showModal();cancel.focus();
+ });
+}
 function renderTemporaryGuests(data) {
  const rows=el('guestUsers');
  const guests=Array.isArray(data.guestUsers)?data.guestUsers:[];
@@ -215,7 +240,7 @@ function renderTemporaryGuests(data) {
   const actions=document.createElement('div');actions.className='actions';
   const revoke=document.createElement('button');revoke.type='button';revoke.className='danger';revoke.textContent='Revoke guest';
   revoke.addEventListener('click',async()=>{
-   if(!confirm('Revoke '+guest.user+' now? This immediately invalidates its Homepage session and all suite app handoffs.'))return;
+   if(!await confirmGuestRevocation(guest.user))return;
    revoke.disabled=true;
    try{
     await api('/api/admin/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'revoke-guest',user:guest.user})});
