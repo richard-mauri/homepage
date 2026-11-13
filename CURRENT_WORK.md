@@ -1,12 +1,26 @@
 # Current work — Homepage
 
-## November 13, 2026 — administrator temporary guest revocation (Issue #36)
+## Consolidated draft PR #37 — Guest revocation and verified navigation activity
 
-- **Authoritative baseline:** GitHub `main` includes merged Homepage/ScraperGo temporary guest identity checkpoint (Homepage PR #33 / ScraperGo PR #133). Scoped branch `feat/36-admin-revoke-guest` is now integrated with updated `main`; it has one draft PR for this independent feature.
-- **Owner request:** The Users & Access panel shows active `guest-xxx` identities until their one-hour expiration, but administrators have no direct way to disconnect an obsolete guest.
-- **Implementation:** Added a confirmed **Revoke guest** button to each temporary guest entry. The confirmation is a custom keyboard-accessible dark/teal `<dialog>` with backdrop, Cancel, Revoke guest and Escape behavior; no browser-native white `confirm()` popup. Its POST to the existing admin-only `/api/admin/users` endpoint uses action `revoke-guest` and exact guest identity. Server authorization is independently enforced; in-memory guest session and every child handoff linked to that guest are removed under the session lock. The next app revalidation must fail. Other guests, named users and approved credentials are unaffected; no guest data is written to disk.
-- **Regression:** Tests cover anonymous/regular-user/cross-origin denial, selected guest and child-bearer revocation, independent guest survival, duplicate revoke behavior, and UI confirmation and refresh. Exact-head CI and owner Apple Silicon Safari acceptance remain required.
-- **Coordination:** Homepage PR #35, NewsGo PR #92 and ScraperGo PR #135 were owner-approved and merged; their per-user activity and heartbeat behavior is preserved in this branch. The guest-revoke PR #37 remains unmerged pending separate Safari acceptance.
-- **Owner Mac acceptance for this branch:** `cd ~/projects/homepage`; `git status -sb`; `git fetch origin`; `git checkout feat/36-admin-revoke-guest`; `git pull --ff-only origin feat/36-admin-revoke-guest`; `go test -count=1 ./...`; `./devbuild.sh`; `./dist/homepage-darwin-arm64 -version`; `./homego.sh`; `curl -fsS http://127.0.0.1:8787/healthz`. Verify in Safari that admin sees Revoke, regular users cannot, one guest is removed immediately, another stays valid, and previously open app tabs become unauthorized at their next validation. Use the ARM64 launcher; no Intel executable on the owner's Mac.
-- **Preserve:** Homepage remains the sole named/temporary guest sign-in authority; guests have exactly one-hour memory-only sessions and no server-side preference persistence. Activity is advisory presence, never a guarantee of safe restart or active interaction. Do not alter other apps, tunnels, credentials, storage or semantic version.
-- **Restrictions:** No merge, tag, release, production restart or credential changes without owner authorization; report CI and Safari separately.
+- **Authoritative baseline:** GitHub merged `main` includes Homepage PR #35 (per-user activity aliases). Draft PR #37 now combines Issue #36's admin Revoke Guest feature with Issue #39's immediate verified suite navigation activity. Redundant draft PR #40 will be closed only after the combined PR is verified. None of these changes has merged into `main`.
+- **Branch:** `feat/36-admin-revoke-guest` (draft PR #37). The working integration uses a merge commit with parents from this branch and `fix/39-launch-observations`; history preserves both lines of work.
+- **Guest revocation:** Admin-only `revoke-guest` action on existing `/api/admin/users` invalidates the memory-only guest parent and associated handoffs. Dark-themed confirmation dialog has Cancel/Revoke guest and supports Esc cancellation; guest persists until confirmed. Named users and unrelated guests are unaffected. Expired guests remain subject to memory GC.
+- **Verified navigation activity:** Homepage's launch click records bounded, memory-only Last seen for Homepage and all four destinations. Returning from any app to Homepage records a verified Homepage arrival. The Users & Access per-user view includes Homepage, NewsGo, MauriStocks, SailingGo, ScraperGo. Stocks and Sailing currently have launch Last seen only, not their own identity-aware current-session telemetry. ScraperGo companion draft PR #137 immediately reports accepted verified arrival/ping so NewsGo→ScraperGo is recognized without waiting for the next 60-second aggregate report.
+- **Semantics:** Last seen from navigation does not create a Current session. Browser heartbeat remains 60 seconds; guest token stays one hour, cannot save/restore preferences, and guest identity/activity records never become durable. No automatic redirects or token renewal. Invalid/missing/revoked identity cannot generate verified launch event.
+- **Checks:** Go CI must pass on the final combined head, then owner tests Apple Silicon Mac Safari with named and temporary guests, quick transitions, guest revoke confirmation and invalidated handoffs. CI is not Safari acceptance. Homepage Issue #38 tracks later protected-API review.
+- **Boundary:** Do not merge, tag, release, modify tunnels/credentials or restart owner's Mac processes without explicit owner authorization. No sibling repo source changes are included in Homepage PR #37.
+
+Owner Mac acceptance commands:
+
+```bash
+cd ~/projects/homepage
+git status -sb
+git fetch origin
+git checkout feat/36-admin-revoke-guest
+git pull --ff-only origin feat/36-admin-revoke-guest
+go test -count=1 ./...
+./devbuild.sh
+./dist/homepage-darwin-arm64 -version
+./homego.sh
+curl -fsS http://127.0.0.1:8787/healthz
+```

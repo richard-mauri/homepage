@@ -114,9 +114,9 @@ func TestSuiteAdminShowsNewsGoPerUserActivity(t *testing.T) {
  html:=string(page)
  for _,required:=range []string{
   "const newsUsers=Array.isArray(news?.users)?news.users:[]",
-  "['NewsGo',newsUsers]",
+  "['NewsGo',mergeObserved(newsUsers,'newsgo')]",
   "key==='homepage'||key==='newsgo'||key==='scrapergo'",
-  "Recent per-user observations cover Homepage, NewsGo and ScraperGo",
+  "Verified Homepage launches are shown for all suite apps",
  } {
   if !strings.Contains(html,required){t.Errorf("NewsGo session-aware UI missing %q",required)}
  }

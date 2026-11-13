@@ -51,7 +51,7 @@ button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{backgro
 <label for="token">Approved NewsGo or suite token</label><input id="token" type="password" autocomplete="off" spellcheck="false" required minlength="64" maxlength="64">
 <button type="submit">Connect</button></form></details></section>
 <section id="account" hidden><details class="suite-pane" open><summary class="session-summary"><span>Current Session</span><span id="remaining" class="session-time" role="timer" aria-label="Session time remaining">Session --:--:--</span></summary><p id="identity"></p><div class="session-actions"><button id="renew" type="button">Renew</button><button id="logout" type="button">Disconnect</button></div></details></section>
-<section id="admin" hidden><details class="suite-pane"><summary>Users &amp; Access</summary><p class="muted">Only administrators can issue, rotate or revoke credentials. Each user's saved preferences remain separate. Recent per-user observations cover Homepage, NewsGo and ScraperGo; other applications will follow.</p>
+<section id="admin" hidden><details class="suite-pane"><summary>Users &amp; Access</summary><p class="muted">Only administrators can issue, rotate or revoke credentials. Each user's saved preferences remain separate. Verified Homepage launches are shown for all suite apps; current sessions depend on each app's heartbeat reporting.</p>
 <div id="users"></div><details class="suite-pane nested" id="temporaryGuests" open><summary>Temporary guests <span id="guestCount"></span></summary><p class="muted">One-hour authenticated identities, held only in Homepage memory. Expired guests disappear automatically. Guests cannot save or restore settings.</p><div id="guestUsers"><p class="muted">Guest activity has not loaded.</p></div></details><details class="suite-pane nested"><summary>Create user</summary><form id="createForm">
 <label for="username">User ID</label><input id="username" required maxlength="64" pattern="[a-zA-Z0-9_ \-]{1,64}">
 <label for="userlabel">Description (optional)</label><input id="userlabel" maxlength="128">
@@ -261,7 +261,20 @@ function renderUserActivity(data) {
  const news=(Array.isArray(data.services)?data.services:[]).find(service=>service.service==='newsgo');
  const newsUsers=Array.isArray(news?.users)?news.users:[];
  const scraperUsers=Array.isArray(scraper?.users)?scraper.users:[];
- const sources=[['Homepage',home],['NewsGo',newsUsers],['ScraperGo',scraperUsers]];
+ const launched=data.launchUsers||{};
+ const mergeObserved=(reported,service)=>{
+  const joined=new Map(reported.map(item=>[item.user,item]));
+  for(const item of Array.isArray(launched[service])?launched[service]:[]){
+   const previous=joined.get(item.user);
+   // Never manufacture an active session from a launch acknowledgment.
+   if(!previous || Date.parse(item.lastSeen)>Date.parse(previous.lastSeen)){
+    const heartbeatFresh=previous&&Number.isFinite(Date.parse(previous.lastSeen))&&Date.now()-Date.parse(previous.lastSeen)<=120000;
+    joined.set(item.user,{...item,sessions:heartbeatFresh?(previous.sessions||0):0});
+   }
+  }
+  return [...joined.values()];
+ };
+ const sources=[['Homepage',mergeObserved(home,'homepage')],['NewsGo',mergeObserved(newsUsers,'newsgo')],['MauriStocks',mergeObserved([],'stocks')],['SailingGo',mergeObserved([],'sailing')],['ScraperGo',mergeObserved(scraperUsers,'scrapergo')]];
  renderTemporaryGuests(data);
  for(const details of [...el('users').querySelectorAll('.user-activity'),...el('guestUsers').querySelectorAll('.user-activity')]) {
   const target=details.querySelector('.user-activity-lines');
