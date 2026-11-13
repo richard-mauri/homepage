@@ -159,3 +159,32 @@ func (c *activityCollector) homepageUsersSnapshot(s *sessionService) []activityU
  for _,summary:=range byKey {out=append(out,summary)}
  return out
 }
+
+func (c *activityCollector) enrichGuestHomepagePresence(s *sessionService, guests []guestRosterEntry) []guestRosterEntry {
+ // Resolve only current in-memory guest session keys; no token material goes
+ // into the admin JSON response or durable activity history.
+ s.mu.Lock()
+ labels:=make(map[string]string,len(s.guests))
+ for key,record:=range s.guests {labels[key]=record.User}
+ s.mu.Unlock()
+ c.mu.Lock()
+ now:=c.now()
+ byName:=make(map[string]map[string]homepagePresence)
+ for _,entry:=range c.homePresence {
+  if entry.SignedIn || entry.SessionKey=="" {continue}
+  user,ok:=labels[entry.SessionKey]
+  if !ok || now.Sub(entry.Seen)<0 || now.Sub(entry.Seen)>time.Hour {continue}
+  if byName[user]==nil {byName[user]=make(map[string]homepagePresence)}
+  old,exists:=byName[user][entry.SessionKey]
+  if !exists || entry.Seen.After(old.Seen) {byName[user][entry.SessionKey]=entry}
+ }
+ c.mu.Unlock()
+ for i:=range guests {
+  for _,entry:=range byName[guests[i].User] {
+   timestamp:=entry.Seen.UTC().Format(time.RFC3339)
+   if timestamp>guests[i].HomeLastSeen {guests[i].HomeLastSeen=timestamp}
+   if now.Sub(entry.Seen)<=2*time.Minute {guests[i].HomeSessions++}
+  }
+ }
+ return guests
+}
