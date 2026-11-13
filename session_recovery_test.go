@@ -152,3 +152,10 @@ func TestNewsGoRecoveryStopsOnDurableStorageFailure(t *testing.T) {
  svc.suiteRecoveryHandler(w,req)
  if w.Code!=http.StatusServiceUnavailable{t.Fatalf("storage error hidden: %d",w.Code)}
 }
+
+func TestScraperGoHasProfileOnlyOriginAccess(t *testing.T) {
+ origin:="https://scrapergo.themauris.org"
+ if !allowedProfileOrigin(origin) {t.Fatal("ScraperGo cannot validate an app handoff")}
+ if allowedStorageOrigin(origin) {t.Fatal("ScraperGo must not gain personal account storage permission")}
+ if allowedProfileOrigin("https://untrusted.example") {t.Fatal("arbitrary origin gained profile access")}
+}
