@@ -78,6 +78,28 @@ async function acknowledgeSuiteLaunch(service){
   await fetch('/api/activity/launch',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{...homeSessionHeaders(),'Content-Type':'application/json'},body:JSON.stringify({service}),signal:controller.signal});
  }catch(_){}finally{clearTimeout(timeout)}
 }
+// A blocked launch stays on Homepage and explains the next step in a visible,
+// theme-matched dialog. Dismissing it never opens the destination app.
+function showSuiteLaunchGate(){
+ let overlay=document.querySelector('#suiteLaunchGate');
+ if(overlay){overlay.hidden=false;overlay.querySelector('button').focus();return;}
+ overlay=document.createElement('div');overlay.id='suiteLaunchGate';overlay.className='suite-modal-backdrop';
+ const dialog=document.createElement('section');dialog.className='suite-modal';
+ dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');dialog.setAttribute('aria-labelledby','suiteLaunchGateTitle');
+ const title=document.createElement('h2');title.id='suiteLaunchGateTitle';title.textContent='Sign in required';
+ const message=document.createElement('p');message.textContent='Before opening an application, sign in on Homepage with your personal token or sign in as a guest for one hour.';
+ const actions=document.createElement('div');actions.className='suite-launch-actions';
+ const signIn=document.createElement('button');signIn.type='button';signIn.textContent='Sign in';
+ const guest=document.createElement('button');guest.type='button';guest.textContent='Sign in as Guest';
+ const dismiss=document.createElement('button');dismiss.type='button';dismiss.textContent='Not now';
+ function close(){overlay.remove();}
+ signIn.addEventListener('click',()=>{close();document.querySelector('#suiteAccount button')?.click()});
+ guest.addEventListener('click',()=>{close();document.querySelector('#suiteAccount button:nth-child(2)')?.click()});
+ dismiss.addEventListener('click',close);
+ dialog.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();close()}});
+ actions.append(signIn,guest,dismiss);dialog.append(title,message,actions);overlay.append(dialog);document.body.append(overlay);
+ signIn.focus();
+}
 // Mint a fresh handoff at application launch instead of reusing an older
 // token created when Homepage obtained focus.
 async function openSuiteApp(event){
@@ -95,17 +117,9 @@ async function openSuiteApp(event){
   url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);
  }else{
   traceClient('launch_blocked','unauthenticated');
-  let notice=document.querySelector('#suiteLaunchNotice');
-  if(!notice){
-   notice=document.createElement('p');notice.id='suiteLaunchNotice';notice.className='suite-launch-notice';
-   notice.setAttribute('role','alert');
-   document.querySelector('#cards').before(notice);
-  }
-  notice.textContent='Sign in on Homepage or choose Sign in as Guest before opening a suite application.';
-  notice.scrollIntoView({block:'center',behavior:'smooth'});
+  showSuiteLaunchGate();
   return;
  }
- const notice=document.querySelector('#suiteLaunchNotice');if(notice)notice.remove();
  location.assign(url.toString());
 }
 async function init(){const root=document.querySelector('#cards');try{const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)throw Error('Configuration unavailable');const c=await r.json();authTraceActive=!!c.traceEnabled;traceClient('page_init','initial');root.replaceChildren(...c.apps.map(makeCard));applyHandoffLinks();for(const link of root.querySelectorAll('a.app-card'))link.addEventListener('click',openSuiteApp);document.querySelector('.count').textContent='/ '+String(c.apps.length).padStart(2,'0');if(c.persistenceAvailable)enableOptionalAuth()}catch(e){root.textContent='Applications are temporarily unavailable. Please refresh to try again.'}}
