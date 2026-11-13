@@ -43,7 +43,7 @@ button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{backgro
 <label for="token">Approved NewsGo or suite token</label><input id="token" type="password" autocomplete="off" spellcheck="false" required minlength="64" maxlength="64">
 <button type="submit">Connect</button></form></details></section>
 <section id="account" hidden><details class="suite-pane" open><summary class="session-summary"><span>Current Session</span><span id="remaining" class="session-time" role="timer" aria-label="Session time remaining">Session --:--:--</span></summary><p id="identity"></p><div class="session-actions"><button id="renew" type="button">Renew</button><button id="logout" type="button">Disconnect</button></div></details></section>
-<section id="admin" hidden><details class="suite-pane"><summary>Users &amp; Access</summary><p class="muted">Only administrators can issue, rotate or revoke credentials. Each user's saved preferences remain separate. Recent per-user observations currently cover Homepage and ScraperGo; other applications will follow.</p>
+<section id="admin" hidden><details class="suite-pane"><summary>Users &amp; Access</summary><p class="muted">Only administrators can issue, rotate or revoke credentials. Each user's saved preferences remain separate. Recent per-user observations cover Homepage, NewsGo and ScraperGo; other applications will follow.</p>
 <div id="users"></div><details class="suite-pane nested" id="temporaryGuests" open><summary>Temporary guests <span id="guestCount"></span></summary><p class="muted">One-hour authenticated identities, held only in Homepage memory. Expired guests disappear automatically. Guests cannot save or restore settings.</p><div id="guestUsers"><p class="muted">Guest activity has not loaded.</p></div></details><details class="suite-pane nested"><summary>Create user</summary><form id="createForm">
 <label for="username">User ID</label><input id="username" required maxlength="64" pattern="[a-zA-Z0-9_ \-]{1,64}">
 <label for="userlabel">Description (optional)</label><input id="userlabel" maxlength="128">
@@ -54,7 +54,7 @@ button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{backgro
 
 <section id="activityAdmin" hidden aria-labelledby="activityHeading">
  <details class="suite-pane" open><summary id="activityHeading">Session activity</summary>
- <div class="activity-toolbar"><p class="muted">All five services. For Homepage and ScraperGo, current sessions are authenticated sessions observed in the last two minutes, including temporary guest identities. An open page may stay current while its user is idle. The other services still report browser/tab identifiers. Presence is not a safe-restart guarantee.</p><button type="button" id="activityRefresh">Refresh activity</button></div>
+ <div class="activity-toolbar"><p class="muted">All five services. For Homepage, NewsGo and ScraperGo, current sessions are authenticated sessions observed in the last two minutes, including temporary guest identities. An open page may stay current while its user is idle. The other services still report browser/tab identifiers. Presence is not a safe-restart guarantee.</p><button type="button" id="activityRefresh">Refresh activity</button></div>
  <p id="activityMessage" class="activity-note" role="status" aria-live="polite">Activity has not been loaded.</p>
  <div id="activityServices" class="activity-grid" aria-label="Service activity"></div>
  <details class="suite-pane nested"><summary>Hourly activity patterns</summary>
@@ -221,8 +221,10 @@ function renderUserActivity(data) {
   if(guest.homeLastSeen)home.push({user:guest.user,lastSeen:guest.homeLastSeen,sessions:guest.homeSessions||0});
  }
  const scraper=(Array.isArray(data.services)?data.services:[]).find(service=>service.service==='scrapergo');
+ const news=(Array.isArray(data.services)?data.services:[]).find(service=>service.service==='newsgo');
+ const newsUsers=Array.isArray(news?.users)?news.users:[];
  const scraperUsers=Array.isArray(scraper?.users)?scraper.users:[];
- const sources=[['Homepage',home],['ScraperGo',scraperUsers]];
+ const sources=[['Homepage',home],['NewsGo',newsUsers],['ScraperGo',scraperUsers]];
  renderTemporaryGuests(data);
  for(const details of [...el('users').querySelectorAll('.user-activity'),...el('guestUsers').querySelectorAll('.user-activity')]) {
   const target=details.querySelector('.user-activity-lines');
@@ -235,7 +237,7 @@ function renderUserActivity(data) {
    if(match && match.lastSeen) {
     const seen=Date.parse(match.lastSeen);
     const when=Number.isFinite(seen)?new Date(seen).toLocaleTimeString():'time unavailable';
-    const fresh=Number.isFinite(seen)&&Date.now()-seen<=120000&&(service!=='ScraperGo'||scraper?.status==='fresh');
+    const fresh=Number.isFinite(seen)&&Date.now()-seen<=120000&&(service==='ScraperGo'?scraper?.status==='fresh':service==='NewsGo'?news?.status==='fresh':true);
     value.textContent=(fresh&&match.sessions>0?match.sessions+' active session'+(match.sessions===1?'':'s'):'Last seen')+' · '+when;
    } else {
     value.textContent='No observation in past hour';
@@ -278,7 +280,7 @@ function renderActivityServices(services) {
   activityStat(stats,'Seen in last 2 min',live?activityText(info.active2):'—');
   activityStat(stats,'Seen in last 15 min',live?activityText(info.active15):'—');
   activityStat(stats,'Seen in last 60 min',live?activityText(info.active60):'—');
-  const sessionAware=key==='homepage'||key==='scrapergo';
+  const sessionAware=key==='homepage'||key==='newsgo'||key==='scrapergo';
   if(!sessionAware)activityStat(stats,'Guest IDs (last 2 min)',live?activityText(info.anonymous):'—');
   activityStat(stats,sessionAware?'Current sessions (last 2 min)':'Signed-in IDs (last 2 min)',live?activityText(info.authenticated):'—');
   if(sessionAware)activityStat(stats,'Unique users (last 2 min)',live?activityText(info.uniqueUsers):'—');
