@@ -215,7 +215,8 @@ function renderUserActivity(data) {
    if(match && match.lastSeen) {
     const seen=Date.parse(match.lastSeen);
     const when=Number.isFinite(seen)?new Date(seen).toLocaleTimeString():'time unavailable';
-    value.textContent=(match.sessions>0?match.sessions+' active session'+(match.sessions===1?'':'s'):'Last seen')+' · '+when;
+    const fresh=Number.isFinite(seen)&&Date.now()-seen<=120000&&(service!=='ScraperGo'||scraper?.status==='fresh');
+    value.textContent=(fresh&&match.sessions>0?match.sessions+' active session'+(match.sessions===1?'':'s'):'Last seen')+' · '+when;
    } else {
     value.textContent='No observation in past hour';
    }
