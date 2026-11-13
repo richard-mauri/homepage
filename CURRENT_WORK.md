@@ -11,6 +11,14 @@
 - Preserve existing personal authentication and all app handoffs; do not modify linked services or tunnels. Never merge/release/restart without owner authorization.
 - Follow-up: have the owner test admin UI with the guarded disposable test credential on isolated port 8788, validate batching/failure semantics, add per-app cohort/operation reporting; instrument each application in separately scoped PRs before promoting this as a useful live monitor.
 
+## November 12, 2026 — administrator-page heartbeat fix (Homepage-only)
+
+- **Production observation:** when Safari remains on `/suite-admin`, Homepage becomes **Stale** after its last `/api/activity/ping` ages past 150 seconds, although the four other app reporters remain fresh. The main Homepage `/` embeds `static/activity.js`; the administrator page previously did not. Its 30-second dashboard data refresh is not a browser-presence heartbeat.
+- **Fix:** `static/suite-admin.html` now loads the existing same-origin `/static/activity.js` once, deferred, without changing authentication or the collector. The reporter uses the same per-tab `sessionStorage` ID when navigating within Homepage; browser requests carry only ephemeral ID and visibility data to Homepage. No keys in browser code.
+- **Regression:** `TestHomepageAdminPageIncludesPresenceHeartbeat` asserts the script is embedded once and still targets the same-origin ping route. The previous freshness threshold (150 seconds), rolling-count logic and other services are unchanged.
+- **Validation:** exact-head GitHub Actions required after this documentation commit; owner's Mac/Safari verification remains pending. Production binary Build 000045 was running before this fix; source edits do **not** update it. Do not restart Homepage, release, merge, or alter tunnels without owner authorization.
+- **Mac handoff:** before pulling, check `git status -sb`: the installed local `homego.sh` has the intentional uncommitted private activity-loader patch and must **not** be overwritten. Pull fast-forward changes if possible, run `go test -count=1 ./...` and `bash ./devbuild.sh`, verify the new `./dist/homepage-darwin-arm64 -version` stamp; only after owner approves, run `./homego.sh`, check local/public `/healthz`, and leave Safari on `/suite-admin` more than three minutes, refreshing until Homepage stays **Reporting** with at least one active tab. Confirm all four reporters continue reporting.
+
 ## Mac acceptance (only when owner authorizes runtime restart)
 
 ```sh
