@@ -9,6 +9,14 @@ p,.muted{color:#aac0c5}section{background:#10232d;border:1px solid #35515a;borde
 label{display:block;margin:12px 0 4px}input,select,button{font:inherit;border:1px solid #496771;border-radius:8px;padding:10px;background:#07131b;color:inherit;max-width:100%}
 input{width:100%;box-sizing:border-box}button{cursor:pointer;background:#194d53;margin:9px 7px 5px 0}button:disabled{opacity:.5;cursor:default}
 button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{background:#85414b}
+.guest-revoke-dialog{box-sizing:border-box;width:min(92vw,460px);max-width:460px;border:1px solid #496771;border-radius:14px;background:#10232d;color:#eaf4f4;padding:22px;box-shadow:0 20px 60px #0009}
+.guest-revoke-dialog::backdrop{background:#020b10b8}
+.guest-revoke-dialog h2{margin:0 0 12px;color:#eaf4f4}
+.guest-revoke-dialog p{margin:0 0 14px;color:#aac0c5}
+.guest-revoke-dialog .actions{justify-content:flex-end;gap:8px}
+.guest-revoke-dialog button{margin:0}
+.guest-revoke-dialog button:focus-visible{outline:2px solid #7ce3d7;outline-offset:3px}
+
 [hidden]{display:none!important}.message{white-space:pre-wrap;overflow-wrap:anywhere}.user{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:flex-start;border-top:1px solid #35515a;padding:12px 0}.user-identity{flex:1;min-width:200px}.user-activity{margin-top:8px;font-size:.9rem}.user-activity>summary{cursor:pointer;color:#7ce3d7}.user-activity-line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;padding:2px 0;color:#aac0c5}.user-activity-line strong{color:#eaf4f4;font-weight:500}.actions{display:flex;flex-wrap:wrap;align-items:center}.session-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.session-actions button{margin:9px 0 5px}.session-time{font-variant-numeric:tabular-nums;color:#aac0c5}code{word-break:break-all;display:block;background:#07131b;padding:12px;margin:10px 0;border-radius:8px;user-select:all}
 
 .session-summary{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;column-gap:16px;row-gap:4px}
@@ -43,7 +51,7 @@ button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{backgro
 <label for="token">Approved NewsGo or suite token</label><input id="token" type="password" autocomplete="off" spellcheck="false" required minlength="64" maxlength="64">
 <button type="submit">Connect</button></form></details></section>
 <section id="account" hidden><details class="suite-pane" open><summary class="session-summary"><span>Current Session</span><span id="remaining" class="session-time" role="timer" aria-label="Session time remaining">Session --:--:--</span></summary><p id="identity"></p><div class="session-actions"><button id="renew" type="button">Renew</button><button id="logout" type="button">Disconnect</button></div></details></section>
-<section id="admin" hidden><details class="suite-pane"><summary>Users &amp; Access</summary><p class="muted">Only administrators can issue, rotate or revoke credentials. Each user's saved preferences remain separate. Recent per-user observations cover Homepage, NewsGo and ScraperGo; other applications will follow.</p>
+<section id="admin" hidden><details class="suite-pane"><summary>Users &amp; Access</summary><p class="muted">Only administrators can issue, rotate or revoke credentials. Each user's saved preferences remain separate. Verified Homepage launches are shown for all suite apps; current sessions depend on each app's heartbeat reporting.</p>
 <div id="users"></div><details class="suite-pane nested" id="temporaryGuests" open><summary>Temporary guests <span id="guestCount"></span></summary><p class="muted">One-hour authenticated identities, held only in Homepage memory. Expired guests disappear automatically. Guests cannot save or restore settings.</p><div id="guestUsers"><p class="muted">Guest activity has not loaded.</p></div></details><details class="suite-pane nested"><summary>Create user</summary><form id="createForm">
 <label for="username">User ID</label><input id="username" required maxlength="64" pattern="[a-zA-Z0-9_ \-]{1,64}">
 <label for="userlabel">Description (optional)</label><input id="userlabel" maxlength="128">
@@ -199,6 +207,23 @@ el('dismissToken').addEventListener('click',()=>{el('tokenResult').textContent='
 let activityData=null;
 let activityPending=false;
 const activityNames={homepage:'Homepage',newsgo:'NewsGo',stocks:'MauriStocks',sailing:'SailingGo',scrapergo:'ScraperGo'};
+function confirmGuestRevocation(user) {
+ return new Promise(resolve=>{
+  const dialog=document.createElement('dialog');dialog.className='guest-revoke-dialog';
+  dialog.setAttribute('aria-labelledby','guest-revoke-title');
+  const title=document.createElement('h2');title.id='guest-revoke-title';title.textContent='Revoke temporary guest?';
+  const description=document.createElement('p');
+  description.textContent='Revoke '+user+' now? This immediately invalidates its Homepage session and all suite app handoffs.';
+  const actions=document.createElement('div');actions.className='actions';
+  const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Cancel';
+  const confirmButton=document.createElement('button');confirmButton.type='button';confirmButton.className='danger';confirmButton.textContent='Revoke guest';
+  cancel.addEventListener('click',()=>dialog.close('cancel'));
+  confirmButton.addEventListener('click',()=>dialog.close('revoke'));
+  dialog.addEventListener('close',()=>{const approved=dialog.returnValue==='revoke';dialog.remove();resolve(approved)},{once:true});
+  actions.append(cancel,confirmButton);dialog.append(title,description,actions);document.body.append(dialog);
+  dialog.showModal();cancel.focus();
+ });
+}
 function renderTemporaryGuests(data) {
  const rows=el('guestUsers');
  const guests=Array.isArray(data.guestUsers)?data.guestUsers:[];
@@ -212,7 +237,19 @@ function renderTemporaryGuests(data) {
   details.open=prior.has(guest.user)?prior.get(guest.user):false;
   const heading=document.createElement('summary');heading.textContent=guest.user+' — expires '+activityTimestamp(guest.expiresAt);
   const lines=document.createElement('div');lines.className='user-activity-lines';
-  details.append(heading,lines);rows.append(details);
+  const actions=document.createElement('div');actions.className='actions';
+  const revoke=document.createElement('button');revoke.type='button';revoke.className='danger';revoke.textContent='Revoke guest';
+  revoke.addEventListener('click',async()=>{
+   if(!await confirmGuestRevocation(guest.user))return;
+   revoke.disabled=true;
+   try{
+    await api('/api/admin/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'revoke-guest',user:guest.user})});
+    notice('Revoked temporary guest '+guest.user);
+    await refreshActivity(true);
+   }catch(error){notice('Unable to revoke guest: '+error.message);revoke.disabled=false;}
+  });
+  actions.append(revoke);
+  details.append(heading,lines,actions);rows.append(details);
  }
 }
 function renderUserActivity(data) {
@@ -224,7 +261,20 @@ function renderUserActivity(data) {
  const news=(Array.isArray(data.services)?data.services:[]).find(service=>service.service==='newsgo');
  const newsUsers=Array.isArray(news?.users)?news.users:[];
  const scraperUsers=Array.isArray(scraper?.users)?scraper.users:[];
- const sources=[['Homepage',home],['NewsGo',newsUsers],['ScraperGo',scraperUsers]];
+ const launched=data.launchUsers||{};
+ const mergeObserved=(reported,service)=>{
+  const joined=new Map(reported.map(item=>[item.user,item]));
+  for(const item of Array.isArray(launched[service])?launched[service]:[]){
+   const previous=joined.get(item.user);
+   // Never manufacture an active session from a launch acknowledgment.
+   if(!previous || Date.parse(item.lastSeen)>Date.parse(previous.lastSeen)){
+    const heartbeatFresh=previous&&Number.isFinite(Date.parse(previous.lastSeen))&&Date.now()-Date.parse(previous.lastSeen)<=120000;
+    joined.set(item.user,{...item,sessions:heartbeatFresh?(previous.sessions||0):0});
+   }
+  }
+  return [...joined.values()];
+ };
+ const sources=[['Homepage',mergeObserved(home,'homepage')],['NewsGo',mergeObserved(newsUsers,'newsgo')],['MauriStocks',mergeObserved([],'stocks')],['SailingGo',mergeObserved([],'sailing')],['ScraperGo',mergeObserved(scraperUsers,'scrapergo')]];
  renderTemporaryGuests(data);
  for(const details of [...el('users').querySelectorAll('.user-activity'),...el('guestUsers').querySelectorAll('.user-activity')]) {
   const target=details.querySelector('.user-activity-lines');

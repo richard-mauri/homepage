@@ -68,46 +68,71 @@ async function renewHandoff(approvedToken=''){
   applyHandoffLinks();return true;
  }catch(_){traceClient('handoff_response','network');suiteHandoffToken='';suiteHandoffExpires=0;try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}applyHandoffLinks();return false}
 }
+// A verified launch is a last-seen observation, not a live heartbeat.
+// Do not delay navigation indefinitely if optional telemetry is unavailable.
+async function acknowledgeSuiteLaunch(service){
+ if(!homeSessionToken)return;
+ const controller=new AbortController();
+ const timeout=setTimeout(()=>controller.abort(),1500);
+ try{
+  await fetch('/api/activity/launch',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{...homeSessionHeaders(),'Content-Type':'application/json'},body:JSON.stringify({service}),signal:controller.signal});
+ }catch(_){}finally{clearTimeout(timeout)}
+}
+// A blocked launch stays on Homepage and explains the next step in a visible,
+// theme-matched dialog. Dismissing it never opens the destination app.
+function showSuiteLaunchGate(){
+ let overlay=document.querySelector('#suiteLaunchGate');
+ if(overlay){overlay.hidden=false;overlay.querySelector('button').focus();return;}
+ overlay=document.createElement('div');overlay.id='suiteLaunchGate';overlay.className='suite-modal-backdrop';
+ const dialog=document.createElement('section');dialog.className='suite-modal';
+ dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');dialog.setAttribute('aria-labelledby','suiteLaunchGateTitle');
+ const title=document.createElement('h2');title.id='suiteLaunchGateTitle';title.textContent='Sign in required';
+ const message=document.createElement('p');message.textContent='Before opening an application, sign in on Homepage with your personal token or sign in as a guest for one hour.';
+ const actions=document.createElement('div');actions.className='suite-launch-actions';
+ const signIn=document.createElement('button');signIn.type='button';signIn.textContent='Sign in';
+ const guest=document.createElement('button');guest.type='button';guest.textContent='Sign in as Guest';
+ function close(){overlay.remove();}
+ signIn.addEventListener('click',()=>{close();document.querySelector('#suiteSignInButton')?.click()});
+ guest.addEventListener('click',()=>{close();document.querySelector('#suiteGuestSignInButton')?.click()});
+ // This launch gate is not dismissible; either sign-in route remains on Homepage.
+ dialog.addEventListener('keydown',event=>{if(event.key==='Escape')event.preventDefault()});
+ actions.append(signIn,guest);dialog.append(title,message,actions);overlay.append(dialog);document.body.append(overlay);
+ signIn.focus();
+}
 // Mint a fresh handoff at application launch instead of reusing an older
 // token created when Homepage obtained focus.
 async function openSuiteApp(event){
  const link=event.currentTarget;
  const url=new URL(link.href);
  if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org' && url.origin!=='https://weather.themauris.org' && url.origin!=='https://scrapergo.themauris.org')return;
- // Account sign-in enables optional server preferences, never basic app access.
- // Always explicitly distinguish a browser-only launch from a cached
- // account handoff on the destination application's origin.
  event.preventDefault();
  traceClient('launch_begin',url.origin==='https://stocks.themauris.org'?'stocks':url.origin==='https://weather.themauris.org'?'sailing':url.origin==='https://scrapergo.themauris.org'?'scrapergo':'newsgo');
- if(!homeSessionToken || Date.now()>=homeSessionExpires){
-  traceClient('launch_local',!homeSessionToken?'none':'expired');
-  url.hash='suite_mode=local';
-  location.assign(url.toString());
-  return;
- }
+ // A successful server-issued handoff is required for every Homepage launch.
+ // Do not rely on a cached expiry: the server may have revoked this session.
  const issued=await renewHandoff();
  if(issued && suiteHandoffToken && Date.now()<suiteHandoffExpires){
+  await acknowledgeSuiteLaunch(url.origin==='https://newsgo.themauris.org'?'newsgo':url.origin==='https://scrapergo.themauris.org'?'scrapergo':url.origin==='https://stocks.themauris.org'?'stocks':'sailing');
   traceClient('launch_handoff','success');
   url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);
  }else{
-  traceClient('launch_local','rejected');
-  url.hash='suite_mode=local';
+  traceClient('launch_blocked','unauthenticated');
+  showSuiteLaunchGate();
+  return;
  }
- // If handoff fails, the app still opens with browser-local preferences.
  location.assign(url.toString());
 }
 async function init(){const root=document.querySelector('#cards');try{const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)throw Error('Configuration unavailable');const c=await r.json();authTraceActive=!!c.traceEnabled;traceClient('page_init','initial');root.replaceChildren(...c.apps.map(makeCard));applyHandoffLinks();for(const link of root.querySelectorAll('a.app-card'))link.addEventListener('click',openSuiteApp);document.querySelector('.count').textContent='/ '+String(c.apps.length).padStart(2,'0');if(c.persistenceAvailable)enableOptionalAuth()}catch(e){root.textContent='Applications are temporarily unavailable. Please refresh to try again.'}}
 function tick(){document.querySelector('#clock').textContent=new Intl.DateTimeFormat('en-US',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'America/Los_Angeles'}).format(new Date())}
 const themeKey='themauris-theme';try{if(localStorage.getItem(themeKey)==='light')document.documentElement.dataset.theme='light'}catch(_){}document.querySelector('#themeToggle').addEventListener('click',()=>{const next=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=next;try{localStorage.setItem(themeKey,next)}catch(_){}});document.querySelector('#year').textContent=new Date().getFullYear();tick();setInterval(tick,30_000);init();
 
-/* Optional account control: browser-only remains the default.
+/* A verified Homepage identity is required to launch suite applications.
    Signing in does not upload or replace application localStorage. */
 function enableOptionalAuth(){
  if(document.querySelector('#suiteAccount'))return;
  const top=document.querySelector('.topright');
  const container=document.createElement('div');container.id='suiteAccount';container.className='suite-account';
- const signIn=document.createElement('button');signIn.type='button';signIn.textContent='Sign in';
- const guestButton=document.createElement('button');guestButton.type='button';guestButton.textContent='Continue as Guest (1 hour)';
+ const signIn=document.createElement('button');signIn.id='suiteSignInButton';signIn.type='button';signIn.textContent='Sign in';
+ const guestButton=document.createElement('button');guestButton.id='suiteGuestSignInButton';guestButton.type='button';guestButton.textContent='Sign in as Guest';
  const retryAuth=document.createElement('button');retryAuth.type='button';retryAuth.textContent='Connection issue — Retry';retryAuth.hidden=true;
  const signedIn=document.createElement('div');signedIn.className='suite-account-auth';signedIn.hidden=true;
  const identity=document.createElement('span');
@@ -120,7 +145,7 @@ function enableOptionalAuth(){
  const title=document.createElement('h2');title.id='suiteDialogTitle';title.textContent='Personal settings';
  const close=document.createElement('button');close.type='button';close.textContent='Close';close.setAttribute('aria-label','Close sign-in dialog');
  header.append(title,close);
- const description=document.createElement('p');description.textContent='Sign in with your approved personal token to use your server account. Without signing in, applications continue using browser storage. Existing local settings will not be changed.';
+ const description=document.createElement('p');description.textContent='Sign in with your approved personal token to launch suite applications and use your personal settings. Or continue as a guest for one hour. Existing local settings will not be changed.';
  const form=document.createElement('form');
  const label=document.createElement('label');label.htmlFor='suiteToken';label.textContent='Approved personal token';
  const token=document.createElement('input');token.id='suiteToken';token.type='password';token.autocomplete='off';token.spellcheck=false;token.required=true;token.minLength=64;token.maxLength=64;
@@ -186,6 +211,8 @@ function enableOptionalAuth(){
     if(state.session.role!=='guest'){manage.hidden=false; // Every signed-in user may manage tokens
     }
     signedIn.hidden=false;signIn.hidden=state.session.role!=='guest';guestButton.hidden=true;retryAuth.hidden=true;
+    // Returning from any suite app is also a verified Homepage arrival.
+    void acknowledgeSuiteLaunch('homepage');
     traceClient('ui_signed_in','valid');
     return true;
    }
@@ -205,7 +232,7 @@ function enableOptionalAuth(){
    rememberHomeLogin(await response.json());
    if(!await refresh())throw Error('Guest session could not be verified.');
   }catch(error){traceClient('guest_signin_error','failed');alert(error.message||'Guest access unavailable.');}
-  finally{guestButton.disabled=false;guestButton.textContent='Continue as Guest (1 hour)';}
+  finally{guestButton.disabled=false;guestButton.textContent='Sign in as Guest';}
  });
  retryAuth.addEventListener('click',()=>{void refresh()});
  form.addEventListener('submit',async event=>{

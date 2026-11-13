@@ -253,3 +253,20 @@ func TestHomepagePerUserActivityGroupsSessionsWithoutLeakingDigests(t *testing.T
   t.Fatal("raw digest was exposed in admin user summary")
  }
 }
+
+func TestTemporaryGuestRevokeControlIsExplicitAndConfirmed(t *testing.T) {
+ page,err:=assets.ReadFile("static/suite-admin.html")
+ if err!=nil{t.Fatal(err)}
+ html:=string(page)
+ for _,snippet:=range []string{
+  "revoke.textContent='Revoke guest'",
+  "action:'revoke-guest',user:guest.user",
+  "if(!await confirmGuestRevocation(guest.user))return",
+  "dialog.showModal();cancel.focus()",
+  "dialog.className='guest-revoke-dialog'",
+  ".guest-revoke-dialog::backdrop",
+  "await refreshActivity(true)",
+ }{
+  if !strings.Contains(html,snippet){t.Errorf("missing guest revoke UI contract: %q",snippet)}
+ }
+}
