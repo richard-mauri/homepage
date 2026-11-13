@@ -138,11 +138,15 @@ func validSessionOrigin(r *http.Request) bool {
 // credentials. Other origins receive no CORS permission.
 func allowedStorageOrigin(origin string) bool {
  switch origin {
- case "https://home.themauris.org", "https://stocks.themauris.org", "https://newsgo.themauris.org", "https://weather.themauris.org", "https://scrapergo.themauris.org":
+ case "https://home.themauris.org", "https://stocks.themauris.org", "https://newsgo.themauris.org", "https://weather.themauris.org":
   return true
  default:
   return false
  }
+}
+// ScraperGo can validate a parent-bound handoff without gaining account storage rights.
+func allowedProfileOrigin(origin string) bool {
+ return allowedStorageOrigin(origin) || origin=="https://scrapergo.themauris.org"
 }
 func (s *sessionService) suiteStorageHandler(next http.Handler) http.Handler {
  secured:=s.storageHandler(next)
@@ -361,7 +365,7 @@ func (s *sessionService) profileHandler(w http.ResponseWriter,r *http.Request) {
  if r.Method==http.MethodOptions {
   // An Authorization header on a cross-origin GET requires a browser
   // preflight. Reject untrusted origins, methods, or request headers.
-  if !allowedStorageOrigin(origin) || r.Header.Get("Access-Control-Request-Method")!=http.MethodGet {
+  if !allowedProfileOrigin(origin) || r.Header.Get("Access-Control-Request-Method")!=http.MethodGet {
    http.Error(w,"preflight not allowed",403);return
   }
   headers:=strings.ToLower(strings.TrimSpace(r.Header.Get("Access-Control-Request-Headers")))
@@ -376,7 +380,7 @@ func (s *sessionService) profileHandler(w http.ResponseWriter,r *http.Request) {
   w.WriteHeader(http.StatusNoContent);return
  }
  if r.Method!=http.MethodGet {w.Header().Set("Allow","GET, OPTIONS");http.Error(w,"method not allowed",405);return}
- if origin!="" && !allowedStorageOrigin(origin){http.Error(w,"origin not allowed",403);return}
+ if origin!="" && !allowedProfileOrigin(origin){http.Error(w,"origin not allowed",403);return}
  if origin!="" {w.Header().Set("Access-Control-Allow-Origin",origin);w.Header().Set("Access-Control-Allow-Credentials","true")}
  user,role,ok:=s.authenticateHandoff(r)
  // The cookie is only valid for Homepage's own same-origin page, never
