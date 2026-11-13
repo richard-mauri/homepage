@@ -24,7 +24,9 @@ button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{backgro
 .activity-toolbar select{padding:6px}
 .activity-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-top:12px}
 .activity-service{background:#091b24;border:1px solid #35515a;border-radius:10px;padding:12px}
-.activity-service h3{font-size:1rem;margin:0 0 5px}
+.activity-service summary{cursor:pointer;font-size:1rem;font-weight:700;list-style-position:inside}
+.activity-service summary:focus-visible{outline:2px solid #7ce3d7;outline-offset:4px}
+.activity-service summary .activity-status{display:inline;margin-left:12px}
 .activity-service .activity-status{font-weight:600;font-size:.85rem}
 .activity-fresh{color:#81d6bf}.activity-stale{color:#e4bb83}.activity-unknown{color:#b8bdc8}
 .activity-stats{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 18px;font-size:.92rem;margin-top:9px}
@@ -204,15 +206,21 @@ function activityStat(grid,key,value) {
  grid.append(dt,dd);
 }
 function renderActivityServices(services) {
- const parent=el('activityServices');parent.replaceChildren();
+ const parent=el('activityServices');
+ // Preserve each disclosure state through automatic and manual refreshes.
+ const expanded=new Map(Array.from(parent.querySelectorAll('details[data-service]'),item=>[item.dataset.service,item.open]));
+ parent.replaceChildren();
  const lookup=new Map(Array.isArray(services)?services.map(item=>[item.service,item]):[]);
  for(const [key,label] of Object.entries(activityNames)) {
   const info=lookup.get(key)||{service:key,status:'unknown'};
   const status=['fresh','stale','unknown'].includes(info.status)?info.status:'unknown';
-  const card=document.createElement('article');card.className='activity-service';
-  const title=document.createElement('h3');title.textContent=label;
+  const card=document.createElement('details');card.className='activity-service';card.dataset.service=key;
+  card.open=expanded.has(key)?expanded.get(key):key==='homepage';
+  const title=document.createElement('summary');
+  const name=document.createElement('span');name.textContent=label;
   const state=document.createElement('div');state.className='activity-status activity-'+status;
   state.textContent=status==='fresh'?'Reporting':status==='stale'?'Stale — activity unknown':'Not reporting — activity unknown';
+  title.append(name,state);
   const stats=document.createElement('dl');stats.className='activity-stats';
   const live=status==='fresh';
   activityStat(stats,'Seen in last 2 min',live?activityText(info.active2):'—');
@@ -222,7 +230,7 @@ function renderActivityServices(services) {
   activityStat(stats,'Signed-in IDs (last 2 min)',live?activityText(info.authenticated):'—');
   activityStat(stats,'Requests in progress',live?activityText(info.inFlight):'—');
   activityStat(stats,'Last report',activityTimestamp(info.lastReport));
-  card.append(title,state,stats);parent.append(card);
+  card.append(title,stats);parent.append(card);
  }
 }
 function renderActivityHistory() {
