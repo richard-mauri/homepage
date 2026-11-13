@@ -141,3 +141,25 @@ func TestSuiteAdminUsesCollapsiblePanesAndManageSuiteLink(t *testing.T) {
   t.Fatal("Homepage management link must read Manage Suite and keep /suite-admin target")
  }
 }
+
+func TestActivityPanelLabelsObservedIdentifiersNotSessions(t *testing.T) {
+ page,err:=assets.ReadFile("static/suite-admin.html")
+ if err!=nil {t.Fatal(err)}
+ html:=string(page)
+ for _,fragment:=range []string{
+  "grid-template-columns:minmax(0,1fr)",
+  "Counts are recently observed browser/tab identifiers, not distinct users or signed-in sessions.",
+  "A signed-in browser can show zero when it has not sent a recent presence report.",
+  "Seen in last 2 min",
+  "Seen in last 15 min",
+  "Seen in last 60 min",
+  "Guest IDs (last 2 min)",
+  "Signed-in IDs (last 2 min)",
+  "Requests in progress",
+ } {
+  if !strings.Contains(html,fragment) {t.Errorf("missing activity clarity invariant: %s",fragment)}
+ }
+ for _,old:=range []string{"Active in 2 minutes","Active in 15 minutes","Active in 60 minutes"} {
+  if strings.Contains(html,old) {t.Errorf("ambiguous label remains: %s",old)}
+ }
+}
