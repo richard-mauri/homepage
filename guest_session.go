@@ -124,6 +124,23 @@ func (s *sessionService) revokeGuestSession(w http.ResponseWriter,r *http.Reques
  }
  if _,err:=r.Cookie(guestCookieName);err==nil {http.SetCookie(w,s.guestCookie("",-1))}
 }
+// revokeGuestByName disconnects exactly one temporary identity and every
+// child handoff it issued. The guest registry is memory-only.
+func (s *sessionService) revokeGuestByName(user string) bool {
+ if !strings.HasPrefix(user,"guest-") || len(user)>64{return false}
+ s.mu.Lock()
+ defer s.mu.Unlock()
+ s.cleanupGuestsLocked()
+ for parent,guest:=range s.guests {
+  if guest.User!=user {continue}
+  delete(s.guests,parent)
+  for key,handoff:=range s.guestHandoffs {
+   if handoff.Parent==parent {delete(s.guestHandoffs,key)}
+  }
+  return true
+ }
+ return false
+}
 // Caller already requires a trusted profile origin and normal bearer shape.
 func (s *sessionService) guestProfileTags(origin,parent string)(string,string) {
  sid:=sha256.Sum256([]byte("activity-session:"+origin+":"+parent))
