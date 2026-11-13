@@ -115,9 +115,14 @@ func TestSuiteAdminUsesCollapsiblePanesAndManageSuiteLink(t *testing.T) {
  html:=string(page)
  for _,fragment:=range []string{
   `<section id="login"><details class="suite-pane" open><summary>Connect</summary>`,
-  `<section id="account" hidden><details class="suite-pane" open><summary>Current session</summary>`,
-  `<section id="admin" hidden><details class="suite-pane"><summary>Approved users and tokens</summary>`,
+  `<section id="account" hidden><details class="suite-pane" open><summary class="session-summary"><span>Current Session</span><span id="remaining" class="session-time" role="timer" aria-label="Session time remaining">`,
+  `<section id="admin" hidden><details class="suite-pane"><summary>Users &amp; Access</summary>`,
   `<details class="suite-pane nested"><summary>Create user</summary>`,
+  `<title>Suite Management — The Mauris</title>`,
+  `<h1>Suite Management</h1>`,
+  `Manage your session, user access, and activity across the application suite.`,
+  `<button id="renew" type="button">Renew</button>`,
+  `<button id="logout" type="button">Disconnect</button>`,
   `<section id="activityAdmin" hidden aria-labelledby="activityHeading">`,
   `<details class="suite-pane" open><summary id="activityHeading">Session activity</summary>`,
   `<details class="suite-pane nested"><summary>Hourly activity patterns</summary>`,
@@ -126,6 +131,9 @@ func TestSuiteAdminUsesCollapsiblePanesAndManageSuiteLink(t *testing.T) {
   `el('activityAdmin').hidden=session.role!=='admin';`,
  } {
   if !strings.Contains(html,fragment) {t.Errorf("missing collapsible suite section or access control: %s",fragment)}
+ }
+ if !strings.Contains(html,`Session --:--:--</span></summary>`) {
+  t.Fatal("session countdown must remain visible in collapsed summary")
  }
  script,err:=assets.ReadFile("static/app.js")
  if err!=nil {t.Fatal(err)}
