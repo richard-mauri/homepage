@@ -108,3 +108,36 @@ func TestActivityAutomaticRefreshDoesNotFlashButton(t *testing.T) {
   t.Fatal("automatic refresh must not dim the manual refresh button")
  }
 }
+
+func TestSuiteAdminUsesCollapsiblePanesAndManageSuiteLink(t *testing.T) {
+ page,err:=assets.ReadFile("static/suite-admin.html")
+ if err!=nil {t.Fatal(err)}
+ html:=string(page)
+ for _,fragment:=range []string{
+  `<section id="login"><details class="suite-pane" open><summary>Connect</summary>`,
+  `<section id="account" hidden><details class="suite-pane" open><summary class="session-summary"><span>Current Session</span><span id="remaining" class="session-time" role="timer" aria-label="Session time remaining">`,
+  `<section id="admin" hidden><details class="suite-pane"><summary>Users &amp; Access</summary>`,
+  `<details class="suite-pane nested"><summary>Create user</summary>`,
+  `<title>Suite Management — The Mauris</title>`,
+  `<h1>Suite Management</h1>`,
+  `Manage your session, user access, and activity across the application suite.`,
+  `<button id="renew" type="button">Renew</button>`,
+  `<button id="logout" type="button">Disconnect</button>`,
+  `<section id="activityAdmin" hidden aria-labelledby="activityHeading">`,
+  `<details class="suite-pane" open><summary id="activityHeading">Session activity</summary>`,
+  `<details class="suite-pane nested"><summary>Hourly activity patterns</summary>`,
+  `id="loginForm"`,`id="createForm"`,`id="newToken"`,`id="activityServices"`,
+  `el('admin').hidden=session.role!=='admin';`,
+  `el('activityAdmin').hidden=session.role!=='admin';`,
+ } {
+  if !strings.Contains(html,fragment) {t.Errorf("missing collapsible suite section or access control: %s",fragment)}
+ }
+ if !strings.Contains(html,`Session --:--:--</span></summary>`) {
+  t.Fatal("session countdown must remain visible in collapsed summary")
+ }
+ script,err:=assets.ReadFile("static/app.js")
+ if err!=nil {t.Fatal(err)}
+ if !strings.Contains(string(script),`manage.href='/suite-admin';manage.textContent='Manage Suite'`) {
+  t.Fatal("Homepage management link must read Manage Suite and keep /suite-admin target")
+ }
+}
