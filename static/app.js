@@ -51,7 +51,7 @@ function applyHandoffLinks(){
  // bearer when navigating from an authenticated Homepage session.
  for(const link of document.querySelectorAll('#cards a.app-card')){
   const url=new URL(link.href);
-  if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org' && url.origin!=='https://weather.themauris.org')continue;
+  if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org' && url.origin!=='https://weather.themauris.org' && url.origin!=='https://scrapergo.themauris.org')continue;
   url.hash='';
   link.href=url.toString();
  }
@@ -73,12 +73,12 @@ async function renewHandoff(approvedToken=''){
 async function openSuiteApp(event){
  const link=event.currentTarget;
  const url=new URL(link.href);
- if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org' && url.origin!=='https://weather.themauris.org')return;
+ if(url.origin!=='https://newsgo.themauris.org' && url.origin!=='https://stocks.themauris.org' && url.origin!=='https://weather.themauris.org' && url.origin!=='https://scrapergo.themauris.org')return;
  // Account sign-in enables optional server preferences, never basic app access.
  // Always explicitly distinguish a browser-only launch from a cached
  // account handoff on the destination application's origin.
  event.preventDefault();
- traceClient('launch_begin',url.origin==='https://stocks.themauris.org'?'stocks':url.origin==='https://weather.themauris.org'?'sailing':'newsgo');
+ traceClient('launch_begin',url.origin==='https://stocks.themauris.org'?'stocks':url.origin==='https://weather.themauris.org'?'sailing':url.origin==='https://scrapergo.themauris.org'?'scrapergo':'newsgo');
  if(!homeSessionToken || Date.now()>=homeSessionExpires){
   traceClient('launch_local',!homeSessionToken?'none':'expired');
   url.hash='suite_mode=local';
@@ -107,12 +107,13 @@ function enableOptionalAuth(){
  const top=document.querySelector('.topright');
  const container=document.createElement('div');container.id='suiteAccount';container.className='suite-account';
  const signIn=document.createElement('button');signIn.type='button';signIn.textContent='Sign in';
+ const guestButton=document.createElement('button');guestButton.type='button';guestButton.textContent='Continue as Guest (1 hour)';
  const retryAuth=document.createElement('button');retryAuth.type='button';retryAuth.textContent='Connection issue — Retry';retryAuth.hidden=true;
  const signedIn=document.createElement('div');signedIn.className='suite-account-auth';signedIn.hidden=true;
  const identity=document.createElement('span');
  const manage=document.createElement('a');manage.href='/suite-admin';manage.textContent='Manage Suite';manage.hidden=true;
  signedIn.append(identity,manage);
- container.append(signIn,retryAuth,signedIn);top.prepend(container);
+ container.append(signIn,guestButton,retryAuth,signedIn);top.prepend(container);
  const overlay=document.createElement('div');overlay.className='suite-modal-backdrop';overlay.hidden=true;
  const dialog=document.createElement('section');dialog.className='suite-modal';dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');dialog.setAttribute('aria-labelledby','suiteDialogTitle');
  const header=document.createElement('div');header.className='suite-modal-header';
@@ -164,12 +165,12 @@ function enableOptionalAuth(){
  }
  function showUnavailable(){
   traceClient('ui_unavailable','unavailable');
-  signedIn.hidden=true;signIn.hidden=true;retryAuth.hidden=false;
+  signedIn.hidden=true;signIn.hidden=true;guestButton.hidden=true;retryAuth.hidden=false;
  }
  function showSignedOut(){
   traceClient('ui_signed_out','invalid');
   clearHomeLogin();
-  signedIn.hidden=true;signIn.hidden=false;retryAuth.hidden=true;manage.hidden=true;
+  signedIn.hidden=true;signIn.hidden=false;guestButton.hidden=false;retryAuth.hidden=true;manage.hidden=true;
   suiteHandoffToken='';suiteHandoffExpires=0;
   try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}
   applyHandoffLinks();
@@ -181,8 +182,10 @@ function enableOptionalAuth(){
    if(state.kind==='valid'){
     try{rememberHomeLogin(state.session)}catch(_){showUnavailable();return false;}
     identity.textContent=state.session.user+' ('+state.session.role+')';
-    manage.hidden=false; // Every signed-in user can manage their session; token administration remains role-gated.
-    signedIn.hidden=false;signIn.hidden=true;retryAuth.hidden=true;
+    manage.hidden=state.session.role==='guest'; // Every signed-in user except temporary guests may manage tokens
+    if(state.session.role!=='guest'){manage.hidden=false; // Every signed-in user may manage tokens
+    }
+    signedIn.hidden=false;signIn.hidden=state.session.role!=='guest';guestButton.hidden=true;retryAuth.hidden=true;
     traceClient('ui_signed_in','valid');
     return true;
    }
@@ -192,6 +195,18 @@ function enableOptionalAuth(){
   })().finally(()=>{refreshPending=null;});
   return refreshPending;
  };
+ guestButton.addEventListener('click',async()=>{
+  if(guestButton.disabled)return;
+  guestButton.disabled=true;
+  guestButton.textContent='Creating guest session…';
+  try{
+   const response=await fetch('/api/session/guest',{method:'POST',credentials:'same-origin',cache:'no-store'});
+   if(!response.ok)throw Error('Guest access unavailable (HTTP '+response.status+').');
+   rememberHomeLogin(await response.json());
+   if(!await refresh())throw Error('Guest session could not be verified.');
+  }catch(error){traceClient('guest_signin_error','failed');alert(error.message||'Guest access unavailable.');}
+  finally{guestButton.disabled=false;guestButton.textContent='Continue as Guest (1 hour)';}
+ });
  retryAuth.addEventListener('click',()=>{void refresh()});
  form.addEventListener('submit',async event=>{
   event.preventDefault();

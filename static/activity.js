@@ -22,9 +22,15 @@
     const body=JSON.stringify({id,visible:true,interacted:pendingInteraction});
     pendingInteraction=false;
     try {
+      const headers={'Content-Type':'application/json'};
+      // Suite Management retains an ephemeral session ID in memory for
+      // loopback Safari. Use it only for same-origin presence authentication.
+      if (typeof sessionToken==='string' && /^[a-f0-9]{64}$/.test(sessionToken)) {
+        headers.Authorization='Session '+sessionToken;
+      }
       fetch('/api/activity/ping',{
         method:'POST',credentials:'same-origin',cache:'no-store',
-        headers:{'Content-Type':'application/json'},body,keepalive:true
+        headers,body,keepalive:true
       }).catch(()=>{});
     } catch (_) {}
   }

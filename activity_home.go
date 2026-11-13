@@ -13,6 +13,8 @@ type homepagePresence struct {
  Interaction time.Time
  Visible bool
  SignedIn bool
+ SessionKey string
+ UserKey string
 }
 type homepagePing struct {
  ID string `json:"id"`
@@ -38,7 +40,31 @@ func (c *activityCollector) homepagePresenceHandler(s *sessionService) http.Hand
   if dec.Decode(&extra)!=io.EOF || len(p.ID)!=32 || strings.Trim(p.ID,"0123456789abcdef")!="" {
    http.Error(w,"invalid presence identifier",400);return
   }
+  // Use the authenticated server-side session digest for telemetry identity.
+  // Raw session IDs and personal credentials never enter the presence map.
   _,_,authenticated:=s.authenticateSession(r)
+  sessionKey,userKey:="",""
+  if strings.HasPrefix(r.Header.Get("Authorization"),"Session ") {
+   // Local Safari can use the page's ephemeral Session header when its
+   // Secure cookie is unavailable on loopback HTTP.
+   record,_,_,ok:=s.homepageSession(r)
+   authenticated=ok
+   if ok {
+    raw,_:=strings.CutPrefix(r.Header.Get("Authorization"),"Session ")
+    sessionKey,userKey=sessionLookupKey(raw),record.Digest
+   }
+  }else if authenticated {
+   if cookie,err:=r.Cookie(sessionCookieName);err==nil {
+    key:=sessionLookupKey(cookie.Value)
+    s.mu.Lock();record,exists:=s.sessions[key];s.mu.Unlock()
+    if exists && s.now().Before(record.Expires) {sessionKey,userKey=key,record.Digest}
+   }
+  }
+  // Guest sessions are authenticated temporary identities, but remain
+  // separate from registered users and never enter persisted user history.
+  if !authenticated {
+   if guestKey,_,ok:=s.guestSession(r);ok {sessionKey=guestKey;userKey=""}
+  }
   now:=c.now()
   c.mu.Lock()
   defer c.mu.Unlock()
@@ -50,7 +76,9 @@ func (c *activityCollector) homepagePresenceHandler(s *sessionService) http.Hand
   if exists && now.Sub(prior.Seen)<15*time.Second {w.WriteHeader(http.StatusNoContent);return}
   prior.Seen=now
   prior.Visible=p.Visible
-  prior.SignedIn=authenticated
+  prior.SignedIn=authenticated && sessionKey!=""
+  prior.SessionKey=sessionKey
+  prior.UserKey=userKey
   if p.Interacted && p.Visible {prior.Interaction=now}
   c.homePresence[p.ID]=prior
   c.updateHomepageSnapshotLocked(now)
@@ -68,22 +96,95 @@ func (c *activityCollector) updateHomepageSnapshotLocked(now time.Time) {
  p:=activityReport{}
  var recent time.Time
  var lastSeen time.Time
- for _,record:=range c.homePresence {
+ // One identity per authenticated Homepage session, regardless of how many
+ // tabs share it. Anonymous tabs retain their separate ephemeral identities.
+ identities:=make(map[string]homepagePresence,len(c.homePresence))
+ for id,record:=range c.homePresence {
+  key:="guest:"+id
+  if !record.SignedIn && record.SessionKey!="" {key="guest-session:"+record.SessionKey}
+  if record.SignedIn && record.SessionKey!="" {key="session:"+record.SessionKey}
+  previous,ok:=identities[key]
+  if !ok || record.Seen.After(previous.Seen) {identities[key]=record}
+  if record.Interaction.After(recent) {recent=record.Interaction}
+ }
+ users:=make(map[string]bool)
+ for _,record:=range identities {
   if record.Seen.After(lastSeen) {lastSeen=record.Seen}
   age:=now.Sub(record.Seen)
   if age<0 || age>time.Hour {continue}
-  if age<=60*time.Minute {p.Active60++}
+  p.Active60++
   if age<=15*time.Minute {p.Active15++}
   if age<=5*time.Minute {p.Active5++}
   if age<=2*time.Minute {
    p.Active2++
    if record.Visible {p.Foreground++}else{p.Background++}
-   if record.SignedIn {p.Authenticated++}else{p.Anonymous++}
+   if record.SignedIn {
+    p.Authenticated++
+    if record.UserKey!="" {users[record.UserKey]=true}
+   }else{p.Anonymous++}
   }
-  if record.Interaction.After(recent) {recent=record.Interaction}
  }
+ p.UniqueUsers=len(users)
  if !recent.IsZero(){p.LastInteraction=recent.UTC().Format(time.RFC3339)}
  status:="stale"
  if now.Sub(lastSeen)<=150*time.Second {status="fresh"}
  c.latest["homepage"]=activityEntry{activityReport:p,Service:"homepage",Status:status,LastReport:lastSeen.UTC().Format(time.RFC3339)}
+}
+
+ // homepageUsersSnapshot resolves server-owned, hashed credential identities
+ // only for the authenticated admin view. Raw tokens and digest keys are never
+ // returned to the browser or to activity history.
+func (c *activityCollector) homepageUsersSnapshot(s *sessionService) []activityUserSummary {
+ c.mu.Lock()
+ now:=c.now()
+ identities:=make(map[string]homepagePresence)
+ for _,record:=range c.homePresence {
+  if !record.SignedIn || record.SessionKey=="" || record.UserKey=="" {continue}
+  if age:=now.Sub(record.Seen);age<0 || age>time.Hour {continue}
+  prior,exists:=identities[record.SessionKey]
+  if !exists || record.Seen.After(prior.Seen) {identities[record.SessionKey]=record}
+ }
+ c.mu.Unlock()
+ byKey:=make(map[string]activityUserSummary)
+ for _,record:=range identities {
+  user,_,err:=s.store.AuthenticateDigest(record.UserKey)
+  if err!=nil {continue}
+  summary:=byKey[user];summary.User=user
+  timestamp:=record.Seen.UTC().Format(time.RFC3339)
+  if summary.LastSeen=="" || timestamp>summary.LastSeen {summary.LastSeen=timestamp}
+  if now.Sub(record.Seen)<=2*time.Minute {summary.Sessions++}
+  byKey[user]=summary
+ }
+ out:=make([]activityUserSummary,0,len(byKey))
+ for _,summary:=range byKey {out=append(out,summary)}
+ return out
+}
+
+func (c *activityCollector) enrichGuestHomepagePresence(s *sessionService, guests []guestRosterEntry) []guestRosterEntry {
+ // Resolve only current in-memory guest session keys; no token material goes
+ // into the admin JSON response or durable activity history.
+ s.mu.Lock()
+ labels:=make(map[string]string,len(s.guests))
+ for key,record:=range s.guests {labels[key]=record.User}
+ s.mu.Unlock()
+ c.mu.Lock()
+ now:=c.now()
+ byName:=make(map[string]map[string]homepagePresence)
+ for _,entry:=range c.homePresence {
+  if entry.SignedIn || entry.SessionKey=="" {continue}
+  user,ok:=labels[entry.SessionKey]
+  if !ok || now.Sub(entry.Seen)<0 || now.Sub(entry.Seen)>time.Hour {continue}
+  if byName[user]==nil {byName[user]=make(map[string]homepagePresence)}
+  old,exists:=byName[user][entry.SessionKey]
+  if !exists || entry.Seen.After(old.Seen) {byName[user][entry.SessionKey]=entry}
+ }
+ c.mu.Unlock()
+ for i:=range guests {
+  for _,entry:=range byName[guests[i].User] {
+   timestamp:=entry.Seen.UTC().Format(time.RFC3339)
+   if timestamp>guests[i].HomeLastSeen {guests[i].HomeLastSeen=timestamp}
+   if now.Sub(entry.Seen)<=2*time.Minute {guests[i].HomeSessions++}
+  }
+ }
+ return guests
 }

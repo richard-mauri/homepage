@@ -34,13 +34,15 @@ type sessionService struct {
  mu sync.Mutex
  sessions map[string]sessionRecord
  handoffs map[string]sessionRecord
+ guests map[string]guestRecord
+ guestHandoffs map[string]guestHandoffRecord
  store *suitestore.Store
  now func() time.Time
  handoffLifetime time.Duration
 }
 
 func newSessionService(store *suitestore.Store) *sessionService {
- s:=&sessionService{sessions:make(map[string]sessionRecord),handoffs:make(map[string]sessionRecord),store:store,now:time.Now,handoffLifetime:defaultHandoffLifetime}
+ s:=&sessionService{sessions:make(map[string]sessionRecord),handoffs:make(map[string]sessionRecord),guests:make(map[string]guestRecord),guestHandoffs:make(map[string]guestHandoffRecord),store:store,now:time.Now,handoffLifetime:defaultHandoffLifetime}
  if store!=nil {
   s.persistencePath=store.SessionStatePath()
   s.persistenceError=s.loadDurableState()
@@ -144,6 +146,10 @@ func allowedStorageOrigin(origin string) bool {
   return false
  }
 }
+// ScraperGo can validate a parent-bound handoff without gaining account storage rights.
+func allowedProfileOrigin(origin string) bool {
+ return allowedStorageOrigin(origin) || origin=="https://scrapergo.themauris.org"
+}
 func (s *sessionService) suiteStorageHandler(next http.Handler) http.Handler {
  secured:=s.storageHandler(next)
  return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
@@ -197,6 +203,7 @@ func (s *sessionService) homepageSession(r *http.Request) (sessionRecord,string,
 // authenticateHandoff checks the parent-session-bound bearer and revalidates
 // its originating credential digest so role changes/revocations take effect.
 func (s *sessionService) authenticateHandoff(r *http.Request) (string,string,bool) {
+ if _,guest,ok:=s.guestHandoff(r);ok{return guest.User,"guest",true}
  if s.persistenceError!=nil{return "","",false}
  token,ok:=strings.CutPrefix(r.Header.Get("Authorization"),"Bearer ")
  if !ok || len(token)!=64{return "","",false}
@@ -222,6 +229,25 @@ func (s *sessionService) handoffHandler(w http.ResponseWriter,r *http.Request) {
  w.Header().Set("X-Content-Type-Options","nosniff")
  if r.Method!=http.MethodPost {w.Header().Set("Allow","POST");http.Error(w,"method not allowed",405);return}
  if !validSessionOrigin(r){http.Error(w,"invalid origin",403);return}
+ // A Homepage guest uses an in-memory child bearer; never write it to the
+ // durable named-session/handoff maps.
+ if strings.HasPrefix(r.Header.Get("Authorization"),"Session ") {
+  if parent,guest,ok:=s.guestSession(r);ok {
+   token,expires,issued:=s.mintGuestHandoff(parent)
+   if !issued {http.Error(w,"guest expired",401);return}
+   w.Header().Set("Content-Type","application/json")
+   _=json.NewEncoder(w).Encode(map[string]string{"token":token,"expiresAt":expires.UTC().Format(time.RFC3339),"user":guest.User,"role":"guest"})
+   return
+  }
+ } else if r.Header.Get("Authorization")=="" {
+  if parent,guest,ok:=s.guestSession(r);ok {
+   token,expires,issued:=s.mintGuestHandoff(parent)
+   if !issued {http.Error(w,"guest expired",401);return}
+   w.Header().Set("Content-Type","application/json")
+   _=json.NewEncoder(w).Encode(map[string]string{"token":token,"expiresAt":expires.UTC().Format(time.RFC3339),"user":guest.User,"role":"guest"})
+   return
+  }
+ }
  // When a fresh approved token is provided, it takes precedence over
  // any older Homepage cookie (which might represent a different user).
  approved,hasBearer:=strings.CutPrefix(r.Header.Get("Authorization"),"Bearer ")
@@ -332,10 +358,78 @@ func (s *sessionService) renewHandoffHandler(w http.ResponseWriter,r *http.Reque
  w.Header().Set("Content-Type","application/json")
  _=json.NewEncoder(w).Encode(map[string]string{"token":newToken,"expiresAt":expires.UTC().Format(time.RFC3339),"user":user,"role":role})
 }
+// recoverScraperHandoffHandler silently replaces a ScraperGo child bearer
+// using only the existing, unexpired, host-only Homepage cookie. It never
+// renews the parent login, accepts an approved personal token, or grants
+// ScraperGo account-storage access.
+func (s *sessionService) recoverScraperHandoffHandler(w http.ResponseWriter,r *http.Request) {
+ w.Header().Set("Cache-Control","no-store")
+ w.Header().Set("Vary","Origin")
+ origin:=r.Header.Get("Origin")
+ if origin!="https://scrapergo.themauris.org" {http.Error(w,"origin not allowed",403);return}
+ w.Header().Set("Access-Control-Allow-Origin",origin)
+ w.Header().Set("Access-Control-Allow-Credentials","true")
+ if r.Method==http.MethodOptions {
+  if r.Header.Get("Access-Control-Request-Method")!=http.MethodPost ||
+   strings.TrimSpace(r.Header.Get("Access-Control-Request-Headers"))!="" {
+   http.Error(w,"preflight not allowed",403);return
+  }
+  w.Header().Set("Access-Control-Allow-Methods","POST")
+  w.Header().Set("Access-Control-Max-Age","300")
+  w.WriteHeader(http.StatusNoContent);return
+ }
+ if r.Method!=http.MethodPost {w.Header().Set("Allow","POST, OPTIONS");http.Error(w,"method not allowed",405);return}
+ if s.persistenceError!=nil {http.Error(w,"session storage unavailable",503);return}
+ // A temporary guest can silently obtain a child bearer using its valid
+ // host-only Homepage guest cookie. No browser navigation is necessary.
+ if parent,_,ok:=s.guestSession(r);ok {
+  token,expires,issued:=s.mintGuestHandoff(parent)
+  if !issued {http.Error(w,"guest expired",401);return}
+  w.Header().Set("Content-Type","application/json")
+  _=json.NewEncoder(w).Encode(map[string]string{"token":token,"expiresAt":expires.UTC().Format(time.RFC3339)})
+  return
+ }
+ c,err:=r.Cookie(sessionCookieName)
+ if err!=nil || len(c.Value)!=64 {http.Error(w,"Homepage sign-in required",401);return}
+ key:=sessionLookupKey(c.Value)
+ s.mu.Lock()
+ parent,found:=s.sessions[key]
+ s.mu.Unlock()
+ if !found || !s.now().Before(parent.Expires) {http.Error(w,"Homepage sign-in expired",401);return}
+ if _,_,err=s.store.AuthenticateDigest(parent.Digest);err!=nil {http.Error(w,"Homepage sign-in revoked",401);return}
+ var nonce [32]byte
+ if _,err=rand.Read(nonce[:]);err!=nil {http.Error(w,"handoff unavailable",500);return}
+ token:=hex.EncodeToString(nonce[:])
+ hash:=sha256.Sum256([]byte(token))
+ expires:=s.now().Add(s.handoffLifetime)
+ s.mu.Lock()
+ if s.persistenceError!=nil {s.mu.Unlock();http.Error(w,"session storage unavailable",503);return}
+ // Recheck the parent under the write lock, including sign-out races.
+ current,valid:=s.sessions[key]
+ if !valid || !s.now().Before(current.Expires) || current.Digest!=parent.Digest {
+  s.mu.Unlock();http.Error(w,"Homepage sign-in expired",401);return
+ }
+ if current.Expires.Before(expires) {expires=current.Expires}
+ beforeSessions,beforeHandoffs:=copySessionRecords(s.sessions),copySessionRecords(s.handoffs)
+ s.handoffs[hex.EncodeToString(hash[:])]=sessionRecord{Digest:current.Digest,Expires:expires,ParentSession:key}
+ if err=s.commitLocked(beforeSessions,beforeHandoffs);err!=nil {
+  s.mu.Unlock();http.Error(w,"session storage unavailable",503);return
+ }
+ s.mu.Unlock()
+ w.Header().Set("Content-Type","application/json")
+ _=json.NewEncoder(w).Encode(map[string]string{"token":token,"expiresAt":expires.UTC().Format(time.RFC3339)})
+}
+
 // storageHandler uses server-derived identity; cookie-authenticated writes
 // require an exact same-origin Origin header to prevent cross-site mutations.
 func (s *sessionService) storageHandler(next http.Handler) http.Handler {
  return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
+  if _,guest,ok:=s.guestSession(r);ok && guest.User!="" {
+   http.Error(w,"guest settings persistence forbidden",403);return
+  }
+  if _,guest,ok:=s.guestHandoff(r);ok && guest.User!="" {
+   http.Error(w,"guest settings persistence forbidden",403);return
+  }
   if user,_,ok:=s.authenticateHandoff(r);ok {next.ServeHTTP(w,suitestore.WithIdentity(r,user));return}
   // Suite browsers must present the session-bound handoff. Homepage's login
   // cookie is not an alternative identity for cross-origin application APIs.
@@ -361,7 +455,7 @@ func (s *sessionService) profileHandler(w http.ResponseWriter,r *http.Request) {
  if r.Method==http.MethodOptions {
   // An Authorization header on a cross-origin GET requires a browser
   // preflight. Reject untrusted origins, methods, or request headers.
-  if !allowedStorageOrigin(origin) || r.Header.Get("Access-Control-Request-Method")!=http.MethodGet {
+  if !allowedProfileOrigin(origin) || r.Header.Get("Access-Control-Request-Method")!=http.MethodGet {
    http.Error(w,"preflight not allowed",403);return
   }
   headers:=strings.ToLower(strings.TrimSpace(r.Header.Get("Access-Control-Request-Headers")))
@@ -376,7 +470,7 @@ func (s *sessionService) profileHandler(w http.ResponseWriter,r *http.Request) {
   w.WriteHeader(http.StatusNoContent);return
  }
  if r.Method!=http.MethodGet {w.Header().Set("Allow","GET, OPTIONS");http.Error(w,"method not allowed",405);return}
- if origin!="" && !allowedStorageOrigin(origin){http.Error(w,"origin not allowed",403);return}
+ if origin!="" && !allowedProfileOrigin(origin){http.Error(w,"origin not allowed",403);return}
  if origin!="" {w.Header().Set("Access-Control-Allow-Origin",origin);w.Header().Set("Access-Control-Allow-Credentials","true")}
  user,role,ok:=s.authenticateHandoff(r)
  // The cookie is only valid for Homepage's own same-origin page, never
@@ -386,11 +480,30 @@ func (s *sessionService) profileHandler(w http.ResponseWriter,r *http.Request) {
  }
  if !ok {http.Error(w,"account token invalid or expired",401);return}
  w.Header().Set("Content-Type","application/json")
+ if role=="guest" {
+  parent,guest,valid:=s.guestHandoff(r)
+  if !valid {http.Error(w,"guest expired",401);return}
+  result:=map[string]string{"user":guest.User,"role":"guest","expiresAt":guest.Expires.UTC().Format(time.RFC3339)}
+  if origin=="https://scrapergo.themauris.org" {
+   result["activitySession"],result["activityUser"]=s.guestProfileTags(origin,parent)
+  }
+  _=json.NewEncoder(w).Encode(result);return
+ }
  result:=map[string]string{"user":user,"role":role}
  if bearer,exists:=strings.CutPrefix(r.Header.Get("Authorization"),"Bearer ");exists {
   sum:=sha256.Sum256([]byte(bearer))
   s.mu.Lock();record,found:=s.handoffs[hex.EncodeToString(sum[:])];s.mu.Unlock()
-  if found && s.now().Before(record.Expires){result["expiresAt"]=record.Expires.UTC().Format(time.RFC3339)}
+  if found && s.now().Before(record.Expires){
+   result["expiresAt"]=record.Expires.UTC().Format(time.RFC3339)
+   if origin=="https://scrapergo.themauris.org" && record.ParentSession!="" {
+    // Privacy-preserving, origin-scoped identifiers; never expose parent
+    // session ID, approved credential digest or bearer in activity metrics.
+    sessionTag:=sha256.Sum256([]byte("activity-session:"+origin+":"+record.ParentSession))
+    userTag:=sha256.Sum256([]byte("activity-user:"+origin+":"+record.Digest))
+    result["activitySession"]=hex.EncodeToString(sessionTag[:])
+    result["activityUser"]=hex.EncodeToString(userTag[:])
+   }
+  }
  }
  _=json.NewEncoder(w).Encode(result)
 }
@@ -419,6 +532,7 @@ func (s *sessionService) handler(w http.ResponseWriter,r *http.Request) {
    s.mu.Unlock();http.Error(w,"session storage unavailable",503);return
   }
   s.mu.Unlock()
+  s.revokeGuestSession(w,r)
   http.SetCookie(w,s.cookie(r,id,int(sessionLifetime.Seconds())))
   clearLegacyDomainCookie(w,r)
   w.Header().Set("Content-Type","application/json")
@@ -440,13 +554,22 @@ func (s *sessionService) handler(w http.ResponseWriter,r *http.Request) {
     s.mu.Lock();v=s.sessions[sessionLookupKey(id)];s.mu.Unlock()
    }
   }
-  if !ok{http.Error(w,"session invalid",401);return}
+  if !ok{
+   _,guest,valid:=s.guestSession(r)
+   if !valid {http.Error(w,"session invalid",401);return}
+   id,_=strings.CutPrefix(r.Header.Get("Authorization"),"Session ")
+   if id=="" {if c,err:=r.Cookie(guestCookieName);err==nil {id=c.Value}}
+   w.Header().Set("Content-Type","application/json")
+   _=json.NewEncoder(w).Encode(map[string]any{"user":guest.User,"role":"guest","expiresAt":guest.Expires.UTC().Format(time.RFC3339),"sessionToken":id})
+   return
+  }
   w.Header().Set("Content-Type","application/json")
   _=json.NewEncoder(w).Encode(map[string]any{"user":user,"role":role,"expiresAt":v.Expires.UTC().Format(time.RFC3339),"sessionToken":id})
   return
  }
  if r.Method==http.MethodDelete && r.URL.Path=="/api/session" {
   if !validSessionOrigin(r){http.Error(w,"invalid origin",403);return}
+  s.revokeGuestSession(w,r)
   // Revoke handoffs belonging to the signed-out Homepage login, not
   // handoffs belonging to independent sessions on other devices.
   revoked:=make(map[string]bool)

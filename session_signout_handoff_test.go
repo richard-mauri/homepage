@@ -53,6 +53,7 @@ func TestSignOutRevokesAppHandoffsButNotOtherSessions(t *testing.T) {
  // Two apps from the same Homepage login; a separate device stays independent.
  newsToken:=issue(sessionA)
  oldStocksToken:=issue(sessionA)
+ scraperToken:=issue(sessionA)
  otherDeviceToken:=issue(sessionB)
  profile:=func(token,origin string)int{
   req:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/api/session/profile",nil)
@@ -62,6 +63,7 @@ func TestSignOutRevokesAppHandoffsButNotOtherSessions(t *testing.T) {
  }
  if profile(newsToken,"https://newsgo.themauris.org")!=200 ||
   profile(oldStocksToken,"https://stocks.themauris.org")!=200 ||
+  profile(scraperToken,"https://scrapergo.themauris.org")!=200 ||
   profile(otherDeviceToken,"https://newsgo.themauris.org")!=200 {
   t.Fatal("a valid handoff was rejected before logout")
  }
@@ -80,6 +82,7 @@ func TestSignOutRevokesAppHandoffsButNotOtherSessions(t *testing.T) {
  if out.Code!=204 {t.Fatalf("logout: %d %s",out.Code,out.Body.String())}
  for _,tc:=range []struct{token,origin string}{
   {newsToken,"https://newsgo.themauris.org"},
+  {scraperToken,"https://scrapergo.themauris.org"},
   {oldStocksToken,"https://stocks.themauris.org"},
   {rotated.Token,"https://stocks.themauris.org"},
  }{

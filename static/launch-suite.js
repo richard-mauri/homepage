@@ -5,7 +5,8 @@
 const destinations=Object.freeze({
  '/launch/newsgo':'https://newsgo.themauris.org/',
  '/launch/stocks':'https://stocks.themauris.org/',
- '/launch/sailing':'https://weather.themauris.org/'
+ '/launch/sailing':'https://weather.themauris.org/',
+ '/launch/scrapergo':'https://scrapergo.themauris.org/'
 });
 const suiteDestination=destinations[location.pathname];
 const homeLoginKey='mauri-home-session-v1';

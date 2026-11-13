@@ -9,7 +9,7 @@ p,.muted{color:#aac0c5}section{background:#10232d;border:1px solid #35515a;borde
 label{display:block;margin:12px 0 4px}input,select,button{font:inherit;border:1px solid #496771;border-radius:8px;padding:10px;background:#07131b;color:inherit;max-width:100%}
 input{width:100%;box-sizing:border-box}button{cursor:pointer;background:#194d53;margin:9px 7px 5px 0}button:disabled{opacity:.5;cursor:default}
 button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{background:#85414b}
-[hidden]{display:none!important}.message{white-space:pre-wrap;overflow-wrap:anywhere}.user{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;border-top:1px solid #35515a;padding:12px 0}.actions{display:flex;flex-wrap:wrap;align-items:center}.session-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.session-actions button{margin:9px 0 5px}.session-time{font-variant-numeric:tabular-nums;color:#aac0c5}code{word-break:break-all;display:block;background:#07131b;padding:12px;margin:10px 0;border-radius:8px;user-select:all}
+[hidden]{display:none!important}.message{white-space:pre-wrap;overflow-wrap:anywhere}.user{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:flex-start;border-top:1px solid #35515a;padding:12px 0}.user-identity{flex:1;min-width:200px}.user-activity{margin-top:8px;font-size:.9rem}.user-activity>summary{cursor:pointer;color:#7ce3d7}.user-activity-line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;padding:2px 0;color:#aac0c5}.user-activity-line strong{color:#eaf4f4;font-weight:500}.actions{display:flex;flex-wrap:wrap;align-items:center}.session-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.session-actions button{margin:9px 0 5px}.session-time{font-variant-numeric:tabular-nums;color:#aac0c5}code{word-break:break-all;display:block;background:#07131b;padding:12px;margin:10px 0;border-radius:8px;user-select:all}
 
 .session-summary{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;column-gap:16px;row-gap:4px}
 .session-summary .session-time{font-size:.85rem;font-weight:400;white-space:nowrap}
@@ -22,12 +22,14 @@ button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{backgro
 .activity-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
 .activity-toolbar label{margin:0}
 .activity-toolbar select{padding:6px}
-.activity-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:12px}
+.activity-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-top:12px}
 .activity-service{background:#091b24;border:1px solid #35515a;border-radius:10px;padding:12px}
-.activity-service h3{font-size:1rem;margin:0 0 5px}
+.activity-service summary{cursor:pointer;font-size:1rem;font-weight:700;list-style-position:inside}
+.activity-service summary:focus-visible{outline:2px solid #7ce3d7;outline-offset:4px}
+.activity-service summary .activity-status{display:inline;margin-left:12px}
 .activity-service .activity-status{font-weight:600;font-size:.85rem}
 .activity-fresh{color:#81d6bf}.activity-stale{color:#e4bb83}.activity-unknown{color:#b8bdc8}
-.activity-stats{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:.86rem;margin-top:9px}
+.activity-stats{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 18px;font-size:.92rem;margin-top:9px}
 .activity-stats dt{color:#aac0c5}.activity-stats dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
 .activity-chart{display:grid;grid-template-columns:repeat(24,minmax(0,1fr));gap:3px;align-items:end;height:130px;margin-top:12px;border-bottom:1px solid #496771}
 .activity-hour{min-width:0;background:#427e83;min-height:2px;position:relative;border-radius:3px 3px 0 0}
@@ -41,8 +43,8 @@ button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{backgro
 <label for="token">Approved NewsGo or suite token</label><input id="token" type="password" autocomplete="off" spellcheck="false" required minlength="64" maxlength="64">
 <button type="submit">Connect</button></form></details></section>
 <section id="account" hidden><details class="suite-pane" open><summary class="session-summary"><span>Current Session</span><span id="remaining" class="session-time" role="timer" aria-label="Session time remaining">Session --:--:--</span></summary><p id="identity"></p><div class="session-actions"><button id="renew" type="button">Renew</button><button id="logout" type="button">Disconnect</button></div></details></section>
-<section id="admin" hidden><details class="suite-pane"><summary>Users &amp; Access</summary><p class="muted">Only administrators can issue, rotate or revoke credentials. Each user's saved preferences remain separate.</p>
-<div id="users"></div><details class="suite-pane nested"><summary>Create user</summary><form id="createForm">
+<section id="admin" hidden><details class="suite-pane"><summary>Users &amp; Access</summary><p class="muted">Only administrators can issue, rotate or revoke credentials. Each user's saved preferences remain separate. Recent per-user observations currently cover Homepage and ScraperGo; other applications will follow.</p>
+<div id="users"></div><details class="suite-pane nested" id="temporaryGuests" open><summary>Temporary guests <span id="guestCount"></span></summary><p class="muted">One-hour authenticated identities, held only in Homepage memory. Expired guests disappear automatically. Guests cannot save or restore settings.</p><div id="guestUsers"><p class="muted">Guest activity has not loaded.</p></div></details><details class="suite-pane nested"><summary>Create user</summary><form id="createForm">
 <label for="username">User ID</label><input id="username" required maxlength="64" pattern="[a-zA-Z0-9_ \-]{1,64}">
 <label for="userlabel">Description (optional)</label><input id="userlabel" maxlength="128">
 <label for="role">Role</label><select id="role"><option value="user">Regular user</option><option value="admin">Administrator</option></select>
@@ -52,7 +54,7 @@ button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{backgro
 
 <section id="activityAdmin" hidden aria-labelledby="activityHeading">
  <details class="suite-pane" open><summary id="activityHeading">Session activity</summary>
- <div class="activity-toolbar"><p class="muted">All five services, including anonymous visitors. Read-only observations for restart planning.</p><button type="button" id="activityRefresh">Refresh activity</button></div>
+ <div class="activity-toolbar"><p class="muted">All five services. For Homepage and ScraperGo, current sessions are authenticated sessions observed in the last two minutes, including temporary guest identities. An open page may stay current while its user is idle. The other services still report browser/tab identifiers. Presence is not a safe-restart guarantee.</p><button type="button" id="activityRefresh">Refresh activity</button></div>
  <p id="activityMessage" class="activity-note" role="status" aria-live="polite">Activity has not been loaded.</p>
  <div id="activityServices" class="activity-grid" aria-label="Service activity"></div>
  <details class="suite-pane nested"><summary>Hourly activity patterns</summary>
@@ -116,7 +118,13 @@ async function refreshUsers(){
  const list=el('users');list.replaceChildren();
  for(const u of users){
   const row=document.createElement('div');row.className='user';
-  const name=document.createElement('div');name.textContent=u.user+' ('+u.role+')'+(u.label?' — '+u.label:'');
+  const name=document.createElement('div');name.className='user-identity';
+  const identity=document.createElement('div');identity.textContent=u.user+' ('+u.role+')'+(u.label?' — '+u.label:'');
+  const details=document.createElement('details');details.className='user-activity';details.dataset.user=u.user;
+  const heading=document.createElement('summary');heading.textContent='Activity by application';
+  const activityLines=document.createElement('div');activityLines.className='user-activity-lines';
+  activityLines.textContent='Activity not loaded yet.';
+  details.append(heading,activityLines);name.append(identity,details);
   const actions=document.createElement('div');actions.className='actions';
   for(const [label,action] of [['Rotate token','rotate'],[u.role==='admin'?'Make regular user':'Make administrator','role'],['Revoke','revoke']]){
    const button=document.createElement('button');button.type='button';button.textContent=label;
@@ -135,6 +143,7 @@ async function refreshUsers(){
   }
   row.append(name,actions);list.append(row);
  }
+ if(activityData)renderUserActivity(activityData);
 }
 el('loginForm').addEventListener('submit',async event=>{
  event.preventDefault();
@@ -190,6 +199,51 @@ el('dismissToken').addEventListener('click',()=>{el('tokenResult').textContent='
 let activityData=null;
 let activityPending=false;
 const activityNames={homepage:'Homepage',newsgo:'NewsGo',stocks:'MauriStocks',sailing:'SailingGo',scrapergo:'ScraperGo'};
+function renderTemporaryGuests(data) {
+ const rows=el('guestUsers');
+ const guests=Array.isArray(data.guestUsers)?data.guestUsers:[];
+ const prior=new Map(Array.from(rows.querySelectorAll('details[data-guest]'),item=>[item.dataset.guest,item.open]));
+ rows.replaceChildren();
+ el('guestCount').textContent='('+guests.length+')';
+ if(!guests.length){const empty=document.createElement('p');empty.className='muted';empty.textContent='No active temporary guest identities.';rows.append(empty);return;}
+ for(const guest of guests){
+  if(typeof guest.user!=='string'||!/^guest-[a-f0-9]+$/.test(guest.user))continue;
+  const details=document.createElement('details');details.className='user-activity';details.dataset.guest=guest.user;
+  details.open=prior.has(guest.user)?prior.get(guest.user):false;
+  const heading=document.createElement('summary');heading.textContent=guest.user+' — expires '+activityTimestamp(guest.expiresAt);
+  const lines=document.createElement('div');lines.className='user-activity-lines';
+  details.append(heading,lines);rows.append(details);
+ }
+}
+function renderUserActivity(data) {
+ const home=Array.isArray(data.homeUsers)?data.homeUsers.slice():[];
+ for(const guest of Array.isArray(data.guestUsers)?data.guestUsers:[]){
+  if(guest.homeLastSeen)home.push({user:guest.user,lastSeen:guest.homeLastSeen,sessions:guest.homeSessions||0});
+ }
+ const scraper=(Array.isArray(data.services)?data.services:[]).find(service=>service.service==='scrapergo');
+ const scraperUsers=Array.isArray(scraper?.users)?scraper.users:[];
+ const sources=[['Homepage',home],['ScraperGo',scraperUsers]];
+ renderTemporaryGuests(data);
+ for(const details of [...el('users').querySelectorAll('.user-activity'),...el('guestUsers').querySelectorAll('.user-activity')]) {
+  const target=details.querySelector('.user-activity-lines');
+  target.replaceChildren();
+  for(const [service,users] of sources) {
+   const match=users.find(item=>item.user===(details.dataset.guest||details.dataset.user));
+   const row=document.createElement('div');row.className='user-activity-line';
+   const label=document.createElement('span');label.textContent=service;
+   const value=document.createElement('strong');
+   if(match && match.lastSeen) {
+    const seen=Date.parse(match.lastSeen);
+    const when=Number.isFinite(seen)?new Date(seen).toLocaleTimeString():'time unavailable';
+    const fresh=Number.isFinite(seen)&&Date.now()-seen<=120000&&(service!=='ScraperGo'||scraper?.status==='fresh');
+    value.textContent=(fresh&&match.sessions>0?match.sessions+' active session'+(match.sessions===1?'':'s'):'Last seen')+' · '+when;
+   } else {
+    value.textContent='No observation in past hour';
+   }
+   row.append(label,value);target.append(row);
+  }
+ }
+}
 function activityText(value) {
  return Number.isInteger(value)&&value>=0?String(value):'—';
 }
@@ -204,25 +258,33 @@ function activityStat(grid,key,value) {
  grid.append(dt,dd);
 }
 function renderActivityServices(services) {
- const parent=el('activityServices');parent.replaceChildren();
+ const parent=el('activityServices');
+ // Preserve each disclosure state through automatic and manual refreshes.
+ const expanded=new Map(Array.from(parent.querySelectorAll('details[data-service]'),item=>[item.dataset.service,item.open]));
+ parent.replaceChildren();
  const lookup=new Map(Array.isArray(services)?services.map(item=>[item.service,item]):[]);
  for(const [key,label] of Object.entries(activityNames)) {
   const info=lookup.get(key)||{service:key,status:'unknown'};
   const status=['fresh','stale','unknown'].includes(info.status)?info.status:'unknown';
-  const card=document.createElement('article');card.className='activity-service';
-  const title=document.createElement('h3');title.textContent=label;
+  const card=document.createElement('details');card.className='activity-service';card.dataset.service=key;
+  card.open=expanded.has(key)?expanded.get(key):key==='homepage';
+  const title=document.createElement('summary');
+  const name=document.createElement('span');name.textContent=label;
   const state=document.createElement('div');state.className='activity-status activity-'+status;
   state.textContent=status==='fresh'?'Reporting':status==='stale'?'Stale — activity unknown':'Not reporting — activity unknown';
+  title.append(name,state);
   const stats=document.createElement('dl');stats.className='activity-stats';
   const live=status==='fresh';
-  activityStat(stats,'Active in 2 minutes',live?activityText(info.active2):'—');
-  activityStat(stats,'Active in 15 minutes',live?activityText(info.active15):'—');
-  activityStat(stats,'Active in 60 minutes',live?activityText(info.active60):'—');
-  activityStat(stats,'Anonymous (2 min)',live?activityText(info.anonymous):'—');
-  activityStat(stats,'Signed in (2 min)',live?activityText(info.authenticated):'—');
-  activityStat(stats,'In-flight work',live?activityText(info.inFlight):'—');
+  activityStat(stats,'Seen in last 2 min',live?activityText(info.active2):'—');
+  activityStat(stats,'Seen in last 15 min',live?activityText(info.active15):'—');
+  activityStat(stats,'Seen in last 60 min',live?activityText(info.active60):'—');
+  const sessionAware=key==='homepage'||key==='scrapergo';
+  if(!sessionAware)activityStat(stats,'Guest IDs (last 2 min)',live?activityText(info.anonymous):'—');
+  activityStat(stats,sessionAware?'Current sessions (last 2 min)':'Signed-in IDs (last 2 min)',live?activityText(info.authenticated):'—');
+  if(sessionAware)activityStat(stats,'Unique users (last 2 min)',live?activityText(info.uniqueUsers):'—');
+  activityStat(stats,'Requests in progress',live?activityText(info.inFlight):'—');
   activityStat(stats,'Last report',activityTimestamp(info.lastReport));
-  card.append(title,state,stats);parent.append(card);
+  card.append(title,stats);parent.append(card);
  }
 }
 function renderActivityHistory() {
@@ -273,6 +335,7 @@ async function refreshActivity(manual=false) {
   if(el('activityAdmin').hidden)return;
   activityData=data;
   renderActivityServices(data.services);
+  renderUserActivity(data);
   renderActivityHistory();
   el('activityMessage').textContent='Last checked '+new Date().toLocaleTimeString()+'. Fresh reports indicate observed presence, not a safe-restart guarantee.';
  }catch(error) {
