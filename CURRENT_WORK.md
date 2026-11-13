@@ -1,5 +1,7 @@
 # Current work — Homepage
 
+- **Latest UX adjustment:** Homepage's guest control now reads `Sign in as Guest` throughout the launcher and account UI. A verified handoff remains required to navigate from Homepage; invalid sessions stay on Homepage. CI #320 passed before this note; owner Safari acceptance is pending.
+
 ## Consolidated draft PR #37 — Guest revocation and verified navigation activity
 
 - **Authoritative baseline:** GitHub merged `main` includes Homepage PR #35 (per-user activity aliases). Draft PR #37 now combines Issue #36's admin Revoke Guest feature with Issue #39's immediate verified suite navigation activity. Redundant draft PR #40 will be closed only after the combined PR is verified. None of these changes has merged into `main`.
