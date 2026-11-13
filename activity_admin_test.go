@@ -24,6 +24,10 @@ func TestActivityAdminPanelEmbeddedAndReadOnly(t *testing.T) {
   `id="activityServices"`,
   `id="activityHistoryMessage"`,
   `id="activityRange"`,
+  `id="temporaryGuests"`,
+  `id="guestUsers"`,
+  `function renderTemporaryGuests(data)`,
+  `Guests cannot save or restore settings`,
   `'/api/admin/activity'`,
   `session.role!=='admin'`,
   `No restart is initiated here.`,
@@ -76,16 +80,24 @@ func TestActivityAdminReadRequiresVerifiedRole(t *testing.T) {
  ordinary:=login(userToken)
  if w:=check(ordinary,"");w.Code!=http.StatusForbidden{t.Fatalf("ordinary user status %d",w.Code)}
  privileged:=login(adminToken)
+ guestReq:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/session/guest",nil)
+ guestReq.Header.Set("Origin","https://home.themauris.org")
+ guestResp:=httptest.NewRecorder();sessions.guestSessionHandler(guestResp,guestReq)
+ if guestResp.Code!=http.StatusOK{t.Fatalf("guest issue status %d",guestResp.Code)}
+ var guestIssued struct {User string `json:"user"`}
+ if err:=json.Unmarshal(guestResp.Body.Bytes(),&guestIssued);err!=nil{t.Fatal(err)}
  if w:=check(privileged,"https://stocks.themauris.org");w.Code!=http.StatusForbidden{t.Fatalf("cross origin status %d",w.Code)}
  result:=check(privileged,"https://home.themauris.org")
  if result.Code!=http.StatusOK{t.Fatalf("admin status %d: %s",result.Code,result.Body.String())}
  if result.Header().Get("Cache-Control")!="no-store"{t.Fatal("activity metrics must be uncacheable")}
  var data struct {
   Services []activityEntry `json:"services"`
+  GuestUsers []guestRosterEntry `json:"guestUsers"`
   History []activityHour `json:"history"`
   HistoryStatus string `json:"historyStatus"`
  }
  if err:=json.Unmarshal(result.Body.Bytes(),&data);err!=nil{t.Fatal(err)}
+ if len(data.GuestUsers)!=1 || data.GuestUsers[0].User!=guestIssued.User {t.Fatalf("admin guest roster missing: %+v",data.GuestUsers)}
  if len(data.Services)!=len(activityServices) || data.HistoryStatus!="available"{
   t.Fatalf("unexpected admin response: %+v",data)
  }
