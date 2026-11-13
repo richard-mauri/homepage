@@ -44,7 +44,16 @@ func (c *activityCollector) homepagePresenceHandler(s *sessionService) http.Hand
   // Raw session IDs and personal credentials never enter the presence map.
   _,_,authenticated:=s.authenticateSession(r)
   sessionKey,userKey:="",""
-  if authenticated {
+  if strings.HasPrefix(r.Header.Get("Authorization"),"Session ") {
+   // Local Safari can use the page's ephemeral Session header when its
+   // Secure cookie is unavailable on loopback HTTP.
+   record,_,_,ok:=s.homepageSession(r)
+   authenticated=ok
+   if ok {
+    raw,_:=strings.CutPrefix(r.Header.Get("Authorization"),"Session ")
+    sessionKey,userKey=sessionLookupKey(raw),record.Digest
+   }
+  }else if authenticated {
    if cookie,err:=r.Cookie(sessionCookieName);err==nil {
     key:=sessionLookupKey(cookie.Value)
     s.mu.Lock();record,exists:=s.sessions[key];s.mu.Unlock()
