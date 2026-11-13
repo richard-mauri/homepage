@@ -34,13 +34,15 @@ type sessionService struct {
  mu sync.Mutex
  sessions map[string]sessionRecord
  handoffs map[string]sessionRecord
+ guests map[string]guestRecord
+ guestHandoffs map[string]guestHandoffRecord
  store *suitestore.Store
  now func() time.Time
  handoffLifetime time.Duration
 }
 
 func newSessionService(store *suitestore.Store) *sessionService {
- s:=&sessionService{sessions:make(map[string]sessionRecord),handoffs:make(map[string]sessionRecord),store:store,now:time.Now,handoffLifetime:defaultHandoffLifetime}
+ s:=&sessionService{sessions:make(map[string]sessionRecord),handoffs:make(map[string]sessionRecord),guests:make(map[string]guestRecord),guestHandoffs:make(map[string]guestHandoffRecord),store:store,now:time.Now,handoffLifetime:defaultHandoffLifetime}
  if store!=nil {
   s.persistencePath=store.SessionStatePath()
   s.persistenceError=s.loadDurableState()
@@ -201,6 +203,7 @@ func (s *sessionService) homepageSession(r *http.Request) (sessionRecord,string,
 // authenticateHandoff checks the parent-session-bound bearer and revalidates
 // its originating credential digest so role changes/revocations take effect.
 func (s *sessionService) authenticateHandoff(r *http.Request) (string,string,bool) {
+ if _,guest,ok:=s.guestHandoff(r);ok{return guest.User,"guest",true}
  if s.persistenceError!=nil{return "","",false}
  token,ok:=strings.CutPrefix(r.Header.Get("Authorization"),"Bearer ")
  if !ok || len(token)!=64{return "","",false}
@@ -226,6 +229,25 @@ func (s *sessionService) handoffHandler(w http.ResponseWriter,r *http.Request) {
  w.Header().Set("X-Content-Type-Options","nosniff")
  if r.Method!=http.MethodPost {w.Header().Set("Allow","POST");http.Error(w,"method not allowed",405);return}
  if !validSessionOrigin(r){http.Error(w,"invalid origin",403);return}
+ // A Homepage guest uses an in-memory child bearer; never write it to the
+ // durable named-session/handoff maps.
+ if strings.HasPrefix(r.Header.Get("Authorization"),"Session ") {
+  if parent,guest,ok:=s.guestSession(r);ok {
+   token,expires,issued:=s.mintGuestHandoff(parent)
+   if !issued {http.Error(w,"guest expired",401);return}
+   w.Header().Set("Content-Type","application/json")
+   _=json.NewEncoder(w).Encode(map[string]string{"token":token,"expiresAt":expires.UTC().Format(time.RFC3339),"user":guest.User,"role":"guest"})
+   return
+  }
+ } else if r.Header.Get("Authorization")=="" {
+  if parent,guest,ok:=s.guestSession(r);ok {
+   token,expires,issued:=s.mintGuestHandoff(parent)
+   if !issued {http.Error(w,"guest expired",401);return}
+   w.Header().Set("Content-Type","application/json")
+   _=json.NewEncoder(w).Encode(map[string]string{"token":token,"expiresAt":expires.UTC().Format(time.RFC3339),"user":guest.User,"role":"guest"})
+   return
+  }
+ }
  // When a fresh approved token is provided, it takes precedence over
  // any older Homepage cookie (which might represent a different user).
  approved,hasBearer:=strings.CutPrefix(r.Header.Get("Authorization"),"Bearer ")
@@ -253,7 +275,15 @@ func (s *sessionService) handoffHandler(w http.ResponseWriter,r *http.Request) {
  }else{
   var ok bool
   user,role,ok=s.authenticateSession(r)
-  if !ok{http.Error(w,"session invalid",401);return}
+  if !ok {
+   _,guest,valid:=s.guestSession(r)
+   if !valid {http.Error(w,"session invalid",401);return}
+   id,_=strings.CutPrefix(r.Header.Get("Authorization"),"Session ")
+   if id=="" {if c,err:=r.Cookie(guestCookieName);err==nil {id=c.Value}}
+   w.Header().Set("Content-Type","application/json")
+   _=json.NewEncoder(w).Encode(map[string]any{"user":guest.User,"role":"guest","expiresAt":guest.Expires.UTC().Format(time.RFC3339),"sessionToken":id})
+   return
+  }
   c,_:=r.Cookie(sessionCookieName)
   s.mu.Lock();source=s.sessions[sessionLookupKey(c.Value)];s.mu.Unlock()
   parentSession=sessionLookupKey(c.Value)
@@ -358,6 +388,15 @@ func (s *sessionService) recoverScraperHandoffHandler(w http.ResponseWriter,r *h
  }
  if r.Method!=http.MethodPost {w.Header().Set("Allow","POST, OPTIONS");http.Error(w,"method not allowed",405);return}
  if s.persistenceError!=nil {http.Error(w,"session storage unavailable",503);return}
+ // A temporary guest can silently obtain a child bearer using its valid
+ // host-only Homepage guest cookie. No browser navigation is necessary.
+ if parent,_,ok:=s.guestSession(r);ok {
+  token,expires,issued:=s.mintGuestHandoff(parent)
+  if !issued {http.Error(w,"guest expired",401);return}
+  w.Header().Set("Content-Type","application/json")
+  _=json.NewEncoder(w).Encode(map[string]string{"token":token,"expiresAt":expires.UTC().Format(time.RFC3339)})
+  return
+ }
  c,err:=r.Cookie(sessionCookieName)
  if err!=nil || len(c.Value)!=64 {http.Error(w,"Homepage sign-in required",401);return}
  key:=sessionLookupKey(c.Value)
@@ -393,6 +432,9 @@ func (s *sessionService) recoverScraperHandoffHandler(w http.ResponseWriter,r *h
 // require an exact same-origin Origin header to prevent cross-site mutations.
 func (s *sessionService) storageHandler(next http.Handler) http.Handler {
  return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
+  if _,guest,ok:=s.guestHandoff(r);ok && guest.User!="" {
+   http.Error(w,"guest settings persistence forbidden",403);return
+  }
   if user,_,ok:=s.authenticateHandoff(r);ok {next.ServeHTTP(w,suitestore.WithIdentity(r,user));return}
   // Suite browsers must present the session-bound handoff. Homepage's login
   // cookie is not an alternative identity for cross-origin application APIs.
@@ -443,6 +485,15 @@ func (s *sessionService) profileHandler(w http.ResponseWriter,r *http.Request) {
  }
  if !ok {http.Error(w,"account token invalid or expired",401);return}
  w.Header().Set("Content-Type","application/json")
+ if role=="guest" {
+  parent,guest,valid:=s.guestHandoff(r)
+  if !valid {http.Error(w,"guest expired",401);return}
+  result:=map[string]string{"user":guest.User,"role":"guest","expiresAt":guest.Expires.UTC().Format(time.RFC3339)}
+  if origin=="https://scrapergo.themauris.org" {
+   result["activitySession"],result["activityUser"]=s.guestProfileTags(origin,parent)
+  }
+  _=json.NewEncoder(w).Encode(result);return
+ }
  result:=map[string]string{"user":user,"role":role}
  if bearer,exists:=strings.CutPrefix(r.Header.Get("Authorization"),"Bearer ");exists {
   sum:=sha256.Sum256([]byte(bearer))
@@ -486,6 +537,7 @@ func (s *sessionService) handler(w http.ResponseWriter,r *http.Request) {
    s.mu.Unlock();http.Error(w,"session storage unavailable",503);return
   }
   s.mu.Unlock()
+  s.revokeGuestSession(w,r)
   http.SetCookie(w,s.cookie(r,id,int(sessionLifetime.Seconds())))
   clearLegacyDomainCookie(w,r)
   w.Header().Set("Content-Type","application/json")
@@ -514,6 +566,7 @@ func (s *sessionService) handler(w http.ResponseWriter,r *http.Request) {
  }
  if r.Method==http.MethodDelete && r.URL.Path=="/api/session" {
   if !validSessionOrigin(r){http.Error(w,"invalid origin",403);return}
+  s.revokeGuestSession(w,r)
   // Revoke handoffs belonging to the signed-out Homepage login, not
   // handoffs belonging to independent sessions on other devices.
   revoked:=make(map[string]bool)
