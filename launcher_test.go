@@ -20,7 +20,7 @@ func TestHomepageSameTabLauncherContract(t *testing.T){
   "suiteLaunchGateTitle",
   "signIn.addEventListener('click'",
   "guest.addEventListener('click'",
-  "notice.textContent='Sign in on Homepage or choose Sign in as Guest",
+  "message.textContent='Before opening an application, sign in on Homepage",
   "location.assign(url.toString());",
   "url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);",
  }{
@@ -56,5 +56,5 @@ func TestScraperGoCardUsesAuthenticatedLaunchHandler(t *testing.T) {
   if !strings.Contains(handler,required) {t.Errorf("ScraperGo launch handler missing %q",required)}
  }
  if strings.Contains(handler,"suite_mode=local") {t.Fatal("unauthenticated launch must stay on Homepage")}
- if !strings.Contains(handler,"  return;\n }\n const notice") {t.Fatal("failed handoff must return before navigation")}
+ if !strings.Contains(handler,"  showSuiteLaunchGate();\n  return;\n }\n location.assign") {t.Fatal("failed handoff must return before navigation")}
 }
