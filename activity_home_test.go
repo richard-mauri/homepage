@@ -81,3 +81,29 @@ func TestHomepageAdminCSPPermitsHeartbeatScript(t *testing.T) {
   t.Fatal("administrator CSP lost restrictive baseline")
  }
 }
+
+func TestHomepageSessionDedupAndUniqueUsers(t *testing.T) {
+ c:=newActivityCollectorWithRoot(t.TempDir())
+ now:=time.Now().UTC().Truncate(time.Second)
+ c.now=func()time.Time{return now}
+ user:="same-approved-token-digest"
+ c.homePresence=map[string]homepagePresence{
+  "tab-computer-one":{Seen:now,Visible:true,SignedIn:true,SessionKey:"session-one",UserKey:user},
+  "another-tab-on-one":{Seen:now,Visible:true,SignedIn:true,SessionKey:"session-one",UserKey:user},
+  "tab-computer-two":{Seen:now,Visible:true,SignedIn:true,SessionKey:"session-two",UserKey:user},
+  "guest-tab":{Seen:now,Visible:true},
+ }
+ var got activityEntry
+ for _,entry:=range c.snapshot(){if entry.Service=="homepage"{got=entry}}
+ if got.Active2!=3 || got.Active15!=3 || got.Active60!=3 ||
+  got.Authenticated!=2 || got.UniqueUsers!=1 || got.Anonymous!=1 {
+  t.Fatalf("two computers, one user and one guest should count as 2 sessions, 1 user, 1 guest: %+v",got)
+ }
+ // Presence windows expire without ending or extending server login state.
+ now=now.Add(3*time.Minute)
+ for _,entry:=range c.snapshot(){if entry.Service=="homepage"{
+  if entry.Active2!=0 || entry.Authenticated!=0 || entry.UniqueUsers!=0 {
+   t.Fatalf("old observations should leave two-minute window: %+v",entry)
+  }
+ }}
+}
