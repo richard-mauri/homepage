@@ -35,5 +35,5 @@ func TestSailingHomepageLauncherUsesSessionHandoff(t *testing.T) {
  source := string(js)
  if !strings.Contains(source, "url.origin!=='https://weather.themauris.org'") { t.Fatal("SailingGo must use authenticated launch path") }
  if !strings.Contains(source, "url.hash='suite_token='") { t.Fatal("expected fragment-only handoff") }
- if !strings.Contains(source, "url.hash='suite_mode=local'") { t.Fatal("expected signed-out browser-only launch") }
+ if strings.Contains(source, "url.hash='suite_mode=local'") { t.Fatal("signed-out launcher must not navigate") }
 }
