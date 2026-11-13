@@ -20,6 +20,8 @@ func TestHomepageSameTabLauncherContract(t *testing.T){
   "suiteLaunchGateTitle",
   "signIn.addEventListener('click'",
   "guest.addEventListener('click'",
+  "actions.append(signIn,guest);",
+  "if(event.key==='Escape')event.preventDefault()",
   "message.textContent='Before opening an application, sign in on Homepage",
   "location.assign(url.toString());",
   "url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);",
@@ -33,6 +35,8 @@ func TestHomepageSameTabLauncherContract(t *testing.T){
   "appTabHandles",
   "url.hash='suite_mode=local';",
   "scrollIntoView({block:'center',behavior:'smooth'})",
+  "textContent='Not now'",
+  "actions.append(signIn,guest,dismiss)",
  }{
   if strings.Contains(script,forbidden){t.Errorf("same-tab optional launch contains %q",forbidden)}
  }
