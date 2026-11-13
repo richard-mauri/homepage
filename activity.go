@@ -144,7 +144,7 @@ func (c *activityCollector) readAdmin(s *sessionService) http.HandlerFunc{
   if role!="admin" {http.Error(w,"admin required",403);return}
   w.Header().Set("Content-Type","application/json; charset=utf-8")
   history,status:=c.historySnapshot()
-  _=json.NewEncoder(w).Encode(map[string]any{"services":c.snapshot(),"homeUsers":c.homepageUsersSnapshot(s),"guestUsers":s.guestRoster(),"history":history,"historyStatus":status,"advisoryOnly":true})
+  _=json.NewEncoder(w).Encode(map[string]any{"services":c.snapshot(),"homeUsers":c.homepageUsersSnapshot(s),"guestUsers":c.enrichGuestHomepagePresence(s,s.guestRoster()),"history":history,"historyStatus":status,"advisoryOnly":true})
  }
 }
 // activityStatePath is reserved for future aggregate persistence; raw presence
