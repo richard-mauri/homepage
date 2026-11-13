@@ -170,21 +170,21 @@ func TestActivityPanelLabelsObservedIdentifiersNotSessions(t *testing.T) {
  html:=string(page)
  for _,fragment:=range []string{
   "grid-template-columns:minmax(0,1fr)",
-  "Homepage and ScraperGo count verified signed-in sessions (with separate user counts) and guest tab identifiers;",
-  "Presence means recently observed activity, not merely an unexpired login.",
+  "For Homepage and ScraperGo, current sessions are authenticated sessions observed in the last two minutes, including temporary guest identities.",
+  "An open page may stay current while its user is idle.",
   "Seen in last 2 min",
   "Seen in last 15 min",
   "Seen in last 60 min",
   "Guest IDs (last 2 min)",
   "Signed-in IDs (last 2 min)",
-  "Signed-in sessions (last 2 min)",
-  "Unique signed-in users (2 min)",
+  "Current sessions (last 2 min)",
+  "Unique users (last 2 min)",
   "const sessionAware=key==='homepage'||key==='scrapergo';",
   "Requests in progress",
  } {
   if !strings.Contains(html,fragment) {t.Errorf("missing activity clarity invariant: %s",fragment)}
  }
- for _,old:=range []string{"Active in 2 minutes","Active in 15 minutes","Active in 60 minutes"} {
+ for _,old:=range []string{"Active in 2 minutes","Active in 15 minutes","Active in 60 minutes","Guest tabs (last 2 min)"} {
   if strings.Contains(html,old) {t.Errorf("ambiguous label remains: %s",old)}
  }
 }
