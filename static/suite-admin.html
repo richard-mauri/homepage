@@ -184,7 +184,7 @@ function activityText(value) {
  return Number.isInteger(value)&&value>=0?String(value):'—';
 }
 function activityTimestamp(value) {
- if (!value)return 'Never reported';
+ if (!value)return 'No report since Homepage started';
  const n=Date.parse(value);
  return Number.isFinite(n)?new Date(n).toLocaleString():'Unavailable';
 }
