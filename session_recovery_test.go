@@ -115,6 +115,19 @@ func TestNewsGoRecoveryUsesExistingDurableHomepageLogin(t *testing.T) {
  profileReq.Header.Set("Authorization","Bearer "+child.Token)
  profile:=httptest.NewRecorder();svc.profileHandler(profile,profileReq)
  if profile.Code!=200{t.Fatalf("handoff lost on restart: %d",profile.Code)}
+ // ScraperGo receives only stable, origin-scoped telemetry aliases for a
+ // validated parent-bound handoff. Its normal app access stays public.
+ scraperReq:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/api/session/profile",nil)
+ scraperReq.Header.Set("Origin","https://scrapergo.themauris.org")
+ scraperReq.Header.Set("Authorization","Bearer "+child.Token)
+ scraper:=httptest.NewRecorder();svc.profileHandler(scraper,scraperReq)
+ if scraper.Code!=200 {t.Fatalf("ScraperGo profile status %d",scraper.Code)}
+ var scraperProfile map[string]string
+ if err:=json.Unmarshal(scraper.Body.Bytes(),&scraperProfile);err!=nil{t.Fatal(err)}
+ if len(scraperProfile["activitySession"])!=64 || len(scraperProfile["activityUser"])!=64 ||
+  scraperProfile["activitySession"]==parent.SessionToken || scraperProfile["activityUser"]==approved {
+  t.Fatal("ScraperGo did not receive safe pseudonymous activity tags")
+ }
  sessionReq:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/api/session",nil)
  sessionReq.Header.Set("Authorization","Session "+parent.SessionToken)
  current:=httptest.NewRecorder();svc.handler(current,sessionReq)
