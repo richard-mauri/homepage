@@ -46,3 +46,6 @@
  .theme-toggle{flex:none}
 }
 .suite-launch-notice{padding:16px 20px;margin:0 0 22px;background:var(--surface);border:1px solid var(--accent);border-radius:12px;color:var(--text);font-size:14px;line-height:1.6}
+
+.suite-launch-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+.suite-launch-actions button{flex:1 1 auto;min-width:115px}
