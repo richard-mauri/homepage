@@ -390,7 +390,17 @@ func (s *sessionService) profileHandler(w http.ResponseWriter,r *http.Request) {
  if bearer,exists:=strings.CutPrefix(r.Header.Get("Authorization"),"Bearer ");exists {
   sum:=sha256.Sum256([]byte(bearer))
   s.mu.Lock();record,found:=s.handoffs[hex.EncodeToString(sum[:])];s.mu.Unlock()
-  if found && s.now().Before(record.Expires){result["expiresAt"]=record.Expires.UTC().Format(time.RFC3339)}
+  if found && s.now().Before(record.Expires){
+   result["expiresAt"]=record.Expires.UTC().Format(time.RFC3339)
+   if origin=="https://scrapergo.themauris.org" && record.ParentSession!="" {
+    // Privacy-preserving, origin-scoped identifiers; never expose parent
+    // session ID, approved credential digest or bearer in activity metrics.
+    sessionTag:=sha256.Sum256([]byte("activity-session:"+origin+":"+record.ParentSession))
+    userTag:=sha256.Sum256([]byte("activity-user:"+origin+":"+record.Digest))
+    result["activitySession"]=hex.EncodeToString(sessionTag[:])
+    result["activityUser"]=hex.EncodeToString(userTag[:])
+   }
+  }
  }
  _=json.NewEncoder(w).Encode(result)
 }
