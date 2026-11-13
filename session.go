@@ -336,6 +336,59 @@ func (s *sessionService) renewHandoffHandler(w http.ResponseWriter,r *http.Reque
  w.Header().Set("Content-Type","application/json")
  _=json.NewEncoder(w).Encode(map[string]string{"token":newToken,"expiresAt":expires.UTC().Format(time.RFC3339),"user":user,"role":role})
 }
+// recoverScraperHandoffHandler silently replaces a ScraperGo child bearer
+// using only the existing, unexpired, host-only Homepage cookie. It never
+// renews the parent login, accepts an approved personal token, or grants
+// ScraperGo account-storage access.
+func (s *sessionService) recoverScraperHandoffHandler(w http.ResponseWriter,r *http.Request) {
+ w.Header().Set("Cache-Control","no-store")
+ w.Header().Set("Vary","Origin")
+ origin:=r.Header.Get("Origin")
+ if origin!="https://scrapergo.themauris.org" {http.Error(w,"origin not allowed",403);return}
+ w.Header().Set("Access-Control-Allow-Origin",origin)
+ w.Header().Set("Access-Control-Allow-Credentials","true")
+ if r.Method==http.MethodOptions {
+  if r.Header.Get("Access-Control-Request-Method")!=http.MethodPost ||
+   strings.TrimSpace(r.Header.Get("Access-Control-Request-Headers"))!="" {
+   http.Error(w,"preflight not allowed",403);return
+  }
+  w.Header().Set("Access-Control-Allow-Methods","POST")
+  w.Header().Set("Access-Control-Max-Age","300")
+  w.WriteHeader(http.StatusNoContent);return
+ }
+ if r.Method!=http.MethodPost {w.Header().Set("Allow","POST, OPTIONS");http.Error(w,"method not allowed",405);return}
+ if s.persistenceError!=nil {http.Error(w,"session storage unavailable",503);return}
+ c,err:=r.Cookie(sessionCookieName)
+ if err!=nil || len(c.Value)!=64 {http.Error(w,"Homepage sign-in required",401);return}
+ key:=sessionLookupKey(c.Value)
+ s.mu.Lock()
+ parent,found:=s.sessions[key]
+ s.mu.Unlock()
+ if !found || !s.now().Before(parent.Expires) {http.Error(w,"Homepage sign-in expired",401);return}
+ if _,_,err=s.store.AuthenticateDigest(parent.Digest);err!=nil {http.Error(w,"Homepage sign-in revoked",401);return}
+ var nonce [32]byte
+ if _,err=rand.Read(nonce[:]);err!=nil {http.Error(w,"handoff unavailable",500);return}
+ token:=hex.EncodeToString(nonce[:])
+ hash:=sha256.Sum256([]byte(token))
+ expires:=s.now().Add(s.handoffLifetime)
+ s.mu.Lock()
+ if s.persistenceError!=nil {s.mu.Unlock();http.Error(w,"session storage unavailable",503);return}
+ // Recheck the parent under the write lock, including sign-out races.
+ current,valid:=s.sessions[key]
+ if !valid || !s.now().Before(current.Expires) || current.Digest!=parent.Digest {
+  s.mu.Unlock();http.Error(w,"Homepage sign-in expired",401);return
+ }
+ if current.Expires.Before(expires) {expires=current.Expires}
+ beforeSessions,beforeHandoffs:=copySessionRecords(s.sessions),copySessionRecords(s.handoffs)
+ s.handoffs[hex.EncodeToString(hash[:])]=sessionRecord{Digest:current.Digest,Expires:expires,ParentSession:key}
+ if err=s.commitLocked(beforeSessions,beforeHandoffs);err!=nil {
+  s.mu.Unlock();http.Error(w,"session storage unavailable",503);return
+ }
+ s.mu.Unlock()
+ w.Header().Set("Content-Type","application/json")
+ _=json.NewEncoder(w).Encode(map[string]string{"token":token,"expiresAt":expires.UTC().Format(time.RFC3339)})
+}
+
 // storageHandler uses server-derived identity; cookie-authenticated writes
 // require an exact same-origin Origin header to prevent cross-site mutations.
 func (s *sessionService) storageHandler(next http.Handler) http.Handler {
