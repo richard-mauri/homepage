@@ -182,7 +182,9 @@ function enableOptionalAuth(){
    if(state.kind==='valid'){
     try{rememberHomeLogin(state.session)}catch(_){showUnavailable();return false;}
     identity.textContent=state.session.user+' ('+state.session.role+')';
-    manage.hidden=state.session.role==='guest';
+    manage.hidden=state.session.role==='guest'; // Every signed-in user except temporary guests may manage tokens
+    if(state.session.role!=='guest'){manage.hidden=false; // Every signed-in user may manage tokens
+    }
     signedIn.hidden=false;signIn.hidden=state.session.role!=='guest';guestButton.hidden=true;retryAuth.hidden=true;
     traceClient('ui_signed_in','valid');
     return true;
