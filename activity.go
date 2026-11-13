@@ -48,6 +48,7 @@ type activityCollector struct {
  secrets map[string]string
  history map[string]activityHour
  homePresence map[string]homepagePresence
+ launches map[string]launchObservation
  homeLastSample time.Time
  historyPath string
  historyError string
@@ -56,7 +57,7 @@ type activityCollector struct {
  now func() time.Time
 }
 func newActivityCollector() *activityCollector {
- c:=&activityCollector{latest:map[string]activityEntry{},seen:map[string]time.Time{},secrets:map[string]string{},history:map[string]activityHour{},homePresence:map[string]homepagePresence{},now:time.Now}
+ c:=&activityCollector{latest:map[string]activityEntry{},seen:map[string]time.Time{},secrets:map[string]string{},history:map[string]activityHour{},homePresence:map[string]homepagePresence{},launches:map[string]launchObservation{},now:time.Now}
  for _,name:=range activityServices {
   key:="HOMEPAGE_ACTIVITY_KEY_"+strings.ToUpper(name)
   c.secrets[name]=os.Getenv(key)
@@ -144,7 +145,7 @@ func (c *activityCollector) readAdmin(s *sessionService) http.HandlerFunc{
   if role!="admin" {http.Error(w,"admin required",403);return}
   w.Header().Set("Content-Type","application/json; charset=utf-8")
   history,status:=c.historySnapshot()
-  _=json.NewEncoder(w).Encode(map[string]any{"services":c.snapshot(),"homeUsers":c.homepageUsersSnapshot(s),"guestUsers":c.enrichGuestHomepagePresence(s,s.guestRoster()),"history":history,"historyStatus":status,"advisoryOnly":true})
+  _=json.NewEncoder(w).Encode(map[string]any{"services":c.snapshot(),"homeUsers":c.homepageUsersSnapshot(s),"guestUsers":c.enrichGuestHomepagePresence(s,s.guestRoster()),"launchUsers":c.launchUsersSnapshot(s),"history":history,"historyStatus":status,"advisoryOnly":true})
  }
 }
 // activityStatePath is reserved for future aggregate persistence; raw presence

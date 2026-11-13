@@ -224,7 +224,17 @@ function renderUserActivity(data) {
  const news=(Array.isArray(data.services)?data.services:[]).find(service=>service.service==='newsgo');
  const newsUsers=Array.isArray(news?.users)?news.users:[];
  const scraperUsers=Array.isArray(scraper?.users)?scraper.users:[];
- const sources=[['Homepage',home],['NewsGo',newsUsers],['ScraperGo',scraperUsers]];
+ const launched=data.launchUsers||{};
+ const mergeObserved=(reported,service)=>{
+  const joined=new Map(reported.map(item=>[item.user,item]));
+  for(const item of Array.isArray(launched[service])?launched[service]:[]){
+   const previous=joined.get(item.user);
+   // Never manufacture an active session from a launch acknowledgment.
+   if(!previous || Date.parse(item.lastSeen)>Date.parse(previous.lastSeen))joined.set(item.user,{...item,sessions:previous?.sessions||0});
+  }
+  return [...joined.values()];
+ };
+ const sources=[['Homepage',mergeObserved(home,'homepage')],['NewsGo',mergeObserved(newsUsers,'newsgo')],['ScraperGo',mergeObserved(scraperUsers,'scrapergo')]];
  renderTemporaryGuests(data);
  for(const details of [...el('users').querySelectorAll('.user-activity'),...el('guestUsers').querySelectorAll('.user-activity')]) {
   const target=details.querySelector('.user-activity-lines');

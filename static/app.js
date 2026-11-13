@@ -68,6 +68,16 @@ async function renewHandoff(approvedToken=''){
   applyHandoffLinks();return true;
  }catch(_){traceClient('handoff_response','network');suiteHandoffToken='';suiteHandoffExpires=0;try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}applyHandoffLinks();return false}
 }
+// A verified launch is a last-seen observation, not a live heartbeat.
+// Do not delay navigation indefinitely if optional telemetry is unavailable.
+async function acknowledgeSuiteLaunch(service){
+ if(!homeSessionToken)return;
+ const controller=new AbortController();
+ const timeout=setTimeout(()=>controller.abort(),1500);
+ try{
+  await fetch('/api/activity/launch',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{...homeSessionHeaders(),'Content-Type':'application/json'},body:JSON.stringify({service}),signal:controller.signal});
+ }catch(_){}finally{clearTimeout(timeout)}
+}
 // Mint a fresh handoff at application launch instead of reusing an older
 // token created when Homepage obtained focus.
 async function openSuiteApp(event){
@@ -87,6 +97,7 @@ async function openSuiteApp(event){
  }
  const issued=await renewHandoff();
  if(issued && suiteHandoffToken && Date.now()<suiteHandoffExpires){
+  await acknowledgeSuiteLaunch(url.origin==='https://newsgo.themauris.org'?'newsgo':url.origin==='https://scrapergo.themauris.org'?'scrapergo':url.origin==='https://stocks.themauris.org'?'stocks':'sailing');
   traceClient('launch_handoff','success');
   url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);
  }else{

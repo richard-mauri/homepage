@@ -1,12 +1,27 @@
 # Current work — Homepage
 
-## November 13, 2026 — NewsGo activity alias compatibility (Issue #34)
+## Issue #39 — Immediate verified suite launch observations
 
-- **Authoritative baseline:** `main` contains merged Homepage PR #33 and ScraperGo PR #133 companion work. This scoped follow-up is `fix/34-newsgo-activity-aliases`, targeting `main` as a separate draft PR. NewsGo companion [Issue #91](https://github.com/richard-mauri/newsgo/issues/91) / [draft PR #92](https://github.com/richard-mauri/newsgo/pull/92) remains unmerged.
-- **Change:** Homepage's verified `/api/session/profile` now provides the existing privacy-preserving `activitySession` and `activityUser` identifiers to the explicitly trusted NewsGo origin as well as ScraperGo. Named and one-hour temporary `guest-xxx` handoffs receive different identifiers per origin. No raw parent session, personal credential, or child bearer enters telemetry. Unrelated origins do not receive activity aliases.
-- **Reporting integration:** The collector now accepts bounded per-user activity summaries from NewsGo as well as ScraperGo; the Users & Access roster and session-aware activity panels display NewsGo. Other applications remain aggregate-only. The former collector restriction otherwise returned HTTP 400 to NewsGo reports that included signed-in users.
-- **Regression:** Expanded named-session and guest-session profile tests for NewsGo tags, ScraperGo isolation and other-origin denial. Added NewsGo ingest acceptance/rejection and Users & Access rendering checks. Exact-head GitHub CI and owner Safari testing must still be confirmed.
-- **Preserved:** Homepage owns sign-in, guest issuance, one-hour memory-only guest sessions and expiry cleanup; no server-side guest preference persistence, and neither guest nor named session lifetime is extended by activity. Existing Mac launchers, tunnels, app destinations, service configuration and other apps remain untouched.
-- **Integration gate:** NewsGo PR #92's reporter requires these aliases for accurate session deduplication. Both PRs must remain unmerged until tests and owner-side integration acceptance. Verify fresh, expired and revoked named/guest handoffs, origin separation and no automatic UI navigation.
-- **Owner Mac acceptance for this branch:** `cd ~/projects/homepage`; `git status -sb`; `git fetch origin`; `git checkout fix/34-newsgo-activity-aliases`; `git pull --ff-only origin fix/34-newsgo-activity-aliases`; `go test -count=1 ./...`; `./devbuild.sh`; `./dist/homepage-darwin-arm64 -version`; `./homego.sh`; `curl -fsS http://127.0.0.1:8787/healthz`. Restart only after explicit owner approval and then validate local and Cloudflare Safari with NewsGo companion. Never run the `amd64` binary on the owner's ARM64 Mac.
-- **Restrictions:** No merge, tag, release, semantic-version bump, credentials/tunnel changes or service restarts before explicit owner authorization.
+- **Baseline:** GitHub `main`, including merged Homepage PR #35 (NewsGo/ScraperGo user activity aliases). Homepage PR #37 (admin guest revocation) is a separate unmerged draft and is not included here. NewsGo PR #94 and ScraperGo PR #137 are separate draft popup UX corrections.
+- **Branch:** `fix/39-launch-observations` from `main`; one focused draft PR for Issue #39.
+- **Owner's reproduced problem:** A guest can sign into Homepage and immediately launch NewsGo, yet the administrator sees “No observation in past hour” for both because a tab's next heartbeat/report has not arrived.
+- **Change:** A successful verified Homepage suite launch sends a bounded, same-origin `POST /api/activity/launch` acknowledgment before navigation. Homepage authenticates the parent session and records separate, ephemeral last-seen entries for Homepage and the selected destination. Admin Users & Access overlays these observations with per-app heartbeat reports without fabricating active sessions. Missing, expired or revoked identity is rejected, and telemetry failure never blocks launch.
+- **Security/data:** No raw tokens persisted in activity history; guest observations stay in memory and disappear when the guest is revoked or expires. No token renewal, navigation redirect, change to guest one-hour lifetime or 60-second heartbeat.
+- **Validation:** Go tests cover guest verification, origin/service/missing-identity rejection, revocation, expiry, no fabricated session, source integration. Exact PR head CI and owner Apple Silicon Safari acceptance are required. Linux CI does not establish live Safari behavior.
+- **Owner Safari acceptance:** Sign in as a one-hour guest, immediately click NewsGo, and inspect Users & Access from an admin session. Homepage and NewsGo should show recent **Last seen** observations even if no heartbeat has arrived; **Current sessions** remains heartbeat-derived. Check ScraperGo launch and revoked guest rejection. No automatic redirects.
+- **Boundary:** No merge, release, tag, tunnel/credential change or service restart without owner authorization. Broader protected-API audit remains Homepage Issue #38.
+
+Mac checkout/test/build/launch sequence for owner acceptance:
+
+```bash
+cd ~/projects/homepage
+git status -sb
+git fetch origin
+git checkout fix/39-launch-observations
+git pull --ff-only origin fix/39-launch-observations
+go test -count=1 ./...
+./devbuild.sh
+./dist/homepage-darwin-arm64 -version
+./homego.sh
+curl -fsS http://127.0.0.1:8787/healthz
+```
