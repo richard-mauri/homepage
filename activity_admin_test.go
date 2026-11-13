@@ -10,6 +10,7 @@ import (
  "path/filepath"
  "strings"
  "testing"
+ "time"
 
  "themauris.org/homepage/internal/suitestore"
 )
@@ -182,5 +183,52 @@ func TestActivityServiceCardsCollapseIndependentlyAndSurviveRefresh(t *testing.T
   ".activity-service summary:focus-visible",
  } {
   if !strings.Contains(html,fragment) {t.Errorf("missing activity disclosure invariant: %s",fragment)}
+ }
+}
+
+func TestAdminUserActivityIsScopedAndValidated(t *testing.T) {
+ now:=time.Now().UTC().Format(time.RFC3339)
+ base:=activityReport{Active2:1,Active5:1,Active15:1,Active60:1,Authenticated:1,UniqueUsers:1,
+  Users:[]activityUserSummary{{User:"richard",Sessions:1,LastSeen:now}}}
+ if !validActivityReport(base){t.Fatal("valid verified per-user aggregate rejected")}
+ invalid:=base
+ invalid.Users=[]activityUserSummary{{User:"richard",Sessions:2,LastSeen:now}}
+ if validActivityReport(invalid){t.Fatal("over-counted per-user sessions accepted")}
+ invalid.Users=[]activityUserSummary{{User:"richard",Sessions:1,LastSeen:now},{User:"richard",Sessions:0,LastSeen:now}}
+ if validActivityReport(invalid){t.Fatal("duplicate user aggregate accepted")}
+ html,err:=assets.ReadFile("static/suite-admin.html")
+ if err!=nil{t.Fatal(err)}
+ for _,required:=range []string{"Activity by application","function renderUserActivity(data)","data.homeUsers","scraper?.users","renderUserActivity(data);"} {
+  if !strings.Contains(string(html),required){t.Errorf("missing user activity UI: %s",required)}
+ }
+}
+
+func TestHomepagePerUserActivityGroupsSessionsWithoutLeakingDigests(t *testing.T) {
+ root:=t.TempDir()
+ store,err:=suitestore.New(root,"newsgo")
+ if err!=nil{t.Fatal(err)}
+ approved:=strings.Repeat("a",64)
+ digest:=sha256.Sum256([]byte(approved))
+ digestKey:=hex.EncodeToString(digest[:])
+ authFile:=filepath.Join(root,"auth","approved-tokens.json")
+ if err=os.MkdirAll(filepath.Dir(authFile),0700);err!=nil{t.Fatal(err)}
+ credentials,_:=json.Marshal([]suitestore.Credential{{User:"richard",Role:"admin",Digest:digestKey}})
+ if err=os.WriteFile(authFile,credentials,0600);err!=nil{t.Fatal(err)}
+ service:=newSessionService(store)
+ collector:=newActivityCollector()
+ now:=time.Now().UTC().Truncate(time.Second)
+ collector.now=func()time.Time{return now}
+ collector.homePresence=map[string]homepagePresence{
+  "tab1":{Seen:now,SignedIn:true,SessionKey:"one",UserKey:digestKey},
+  "tab2":{Seen:now,SignedIn:true,SessionKey:"one",UserKey:digestKey},
+  "tab3":{Seen:now,SignedIn:true,SessionKey:"two",UserKey:digestKey},
+  "guest":{Seen:now},
+ }
+ users:=collector.homepageUsersSnapshot(service)
+ if len(users)!=1 || users[0].User!="richard" || users[0].Sessions!=2 || users[0].LastSeen=="" {
+  t.Fatalf("incorrect per-user session attribution: %+v",users)
+ }
+ if data,_:=json.Marshal(users);strings.Contains(string(data),digestKey) {
+  t.Fatal("raw digest was exposed in admin user summary")
  }
 }
