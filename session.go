@@ -424,6 +424,9 @@ func (s *sessionService) recoverScraperHandoffHandler(w http.ResponseWriter,r *h
 // require an exact same-origin Origin header to prevent cross-site mutations.
 func (s *sessionService) storageHandler(next http.Handler) http.Handler {
  return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
+  if _,guest,ok:=s.guestSession(r);ok && guest.User!="" {
+   http.Error(w,"guest settings persistence forbidden",403);return
+  }
   if _,guest,ok:=s.guestHandoff(r);ok && guest.User!="" {
    http.Error(w,"guest settings persistence forbidden",403);return
   }
