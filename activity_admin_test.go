@@ -1,0 +1,110 @@
+package main
+
+import (
+ "crypto/sha256"
+ "encoding/hex"
+ "encoding/json"
+ "net/http"
+ "net/http/httptest"
+ "os"
+ "path/filepath"
+ "strings"
+ "testing"
+
+ "themauris.org/homepage/internal/suitestore"
+)
+
+func TestActivityAdminPanelEmbeddedAndReadOnly(t *testing.T) {
+ page,err:=assets.ReadFile("static/suite-admin.html")
+ if err!=nil{t.Fatal(err)}
+ html:=string(page)
+ for _,fragment:=range []string{
+  `id="activityAdmin" hidden`,
+  `id="activityServices"`,
+  `id="activityHistoryMessage"`,
+  `id="activityRange"`,
+  `'/api/admin/activity'`,
+  `session.role!=='admin'`,
+  `No restart is initiated here.`,
+  `No report since Homepage started`,
+  "const created=await api(",
+  "sessionToken=created.sessionToken;",
+  "const headers=sessionToken?",
+ }{
+  if !strings.Contains(html,fragment){t.Errorf("missing admin panel invariant: %s",fragment)}
+ }
+ if strings.Contains(html,`/api/admin/activity/restart`) {t.Fatal("dashboard must not provide restart action")}
+}
+
+func TestActivityAdminReadRequiresVerifiedRole(t *testing.T) {
+ root:=t.TempDir()
+ store,err:=suitestore.New(root,"newsgo")
+ if err!=nil{t.Fatal(err)}
+ adminToken:=strings.Repeat("a",64)
+ userToken:=strings.Repeat("b",64)
+ records:=[]suitestore.Credential{}
+ for _,candidate:=range []struct{value,user,role string}{{adminToken,"owner","admin"},{userToken,"reader","user"}}{
+  hash:=sha256.Sum256([]byte(candidate.value))
+  records=append(records,suitestore.Credential{User:candidate.user,Role:candidate.role,Digest:hex.EncodeToString(hash[:])})
+ }
+ authDir:=filepath.Join(root,"auth")
+ if err:=os.MkdirAll(authDir,0700);err!=nil{t.Fatal(err)}
+ contents,err:=json.Marshal(records)
+ if err!=nil{t.Fatal(err)}
+ if err:=os.WriteFile(filepath.Join(authDir,"approved-tokens.json"),contents,0600);err!=nil{t.Fatal(err)}
+ sessions:=newSessionService(store)
+ collector:=newActivityCollectorWithRoot(root)
+ login:=func(approved string)*http.Cookie {
+  r:=httptest.NewRequest(http.MethodPost,"https://home.themauris.org/api/session",nil)
+  r.Header.Set("Origin","https://home.themauris.org")
+  r.Header.Set("Authorization","Bearer "+approved)
+  w:=httptest.NewRecorder()
+  sessions.handler(w,r)
+  if w.Code!=http.StatusOK{t.Fatalf("login status %d",w.Code)}
+  return w.Result().Cookies()[0]
+ }
+ check:=func(cookie *http.Cookie,origin string) *httptest.ResponseRecorder {
+  r:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/api/admin/activity",nil)
+  if cookie!=nil{r.AddCookie(cookie)}
+  if origin!=""{r.Header.Set("Origin",origin)}
+  w:=httptest.NewRecorder()
+  collector.readAdmin(sessions)(w,r)
+  return w
+ }
+ if w:=check(nil,"");w.Code!=http.StatusUnauthorized{t.Fatalf("anonymous status %d",w.Code)}
+ ordinary:=login(userToken)
+ if w:=check(ordinary,"");w.Code!=http.StatusForbidden{t.Fatalf("ordinary user status %d",w.Code)}
+ privileged:=login(adminToken)
+ if w:=check(privileged,"https://stocks.themauris.org");w.Code!=http.StatusForbidden{t.Fatalf("cross origin status %d",w.Code)}
+ result:=check(privileged,"https://home.themauris.org")
+ if result.Code!=http.StatusOK{t.Fatalf("admin status %d: %s",result.Code,result.Body.String())}
+ if result.Header().Get("Cache-Control")!="no-store"{t.Fatal("activity metrics must be uncacheable")}
+ var data struct {
+  Services []activityEntry `json:"services"`
+  History []activityHour `json:"history"`
+  HistoryStatus string `json:"historyStatus"`
+ }
+ if err:=json.Unmarshal(result.Body.Bytes(),&data);err!=nil{t.Fatal(err)}
+ if len(data.Services)!=len(activityServices) || data.HistoryStatus!="available"{
+  t.Fatalf("unexpected admin response: %+v",data)
+ }
+ for _,entry:=range data.Services {if entry.Status!="unknown"{t.Fatalf("unreported service must be unknown: %+v",entry)}}
+}
+
+func TestActivityAutomaticRefreshDoesNotFlashButton(t *testing.T) {
+ page,err:=assets.ReadFile("static/suite-admin.html")
+ if err!=nil {t.Fatal(err)}
+ html:=string(page)
+ for _,fragment:=range []string{
+  "async function refreshActivity(manual=false)",
+  "if(manual)el('activityRefresh').disabled=true;",
+  "if(manual)el('activityRefresh').disabled=false;",
+  "el('activityRefresh').addEventListener('click',()=>{void refreshActivity(true);});",
+  "setInterval(()=>{if(!document.hidden&&!el('activityAdmin').hidden)void refreshActivity()},30000);",
+ } {
+  if !strings.Contains(html,fragment) {t.Errorf("missing manual-only refresh-button behavior: %s",fragment)}
+ }
+ if strings.Contains(html,"activityPending=true;el('activityRefresh').disabled=true;") {
+  t.Fatal("automatic refresh must not dim the manual refresh button")
+ }
+}

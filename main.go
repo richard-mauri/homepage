@@ -19,6 +19,9 @@ import (
 var appVersion = "0.1.0"
 var appBuild = "Build 000000"
 
+// Admin page uses inline dashboard code plus the same-origin activity reporter.
+const adminPageCSP = "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+
 //go:embed static/*
 var assets embed.FS
 
@@ -114,6 +117,10 @@ func configureSuiteStorage(mux *http.ServeMux, root string) error {
  mux.Handle("/launch/sailing",authTraceHTTP(http.HandlerFunc(sessions.suiteRecoveryHandler)))
  mux.Handle("/api/handoff/renew",authTraceHTTP(http.HandlerFunc(sessions.renewHandoffHandler)))
  mux.Handle("/api/handoff/extend-session",authTraceHTTP(http.HandlerFunc(sessions.extendNewsGoSessionHandler)))
+ activity:=newActivityCollectorWithRoot(root)
+ mux.HandleFunc("/api/activity/ping",activity.homepagePresenceHandler(sessions))
+ mux.HandleFunc("/api/admin/activity/ingest",activity.ingest)
+ mux.HandleFunc("/api/admin/activity",activity.readAdmin(sessions))
  mux.HandleFunc("/api/admin/users",sessions.adminHandler)
  mux.HandleFunc("/suite-admin",func(w http.ResponseWriter,r *http.Request){
   if r.URL.Path!="/suite-admin" || r.Method!=http.MethodGet {http.NotFound(w,r);return}
@@ -121,7 +128,7 @@ func configureSuiteStorage(mux *http.ServeMux, root string) error {
   if err!=nil {http.Error(w,"Unavailable",500);return}
   w.Header().Set("Content-Type","text/html; charset=utf-8")
   w.Header().Set("Cache-Control","no-store")
-  w.Header().Set("Content-Security-Policy","default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+  w.Header().Set("Content-Security-Policy",adminPageCSP)
   _,_=w.Write(page)
  })
  return nil

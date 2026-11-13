@@ -10,6 +10,23 @@ label{display:block;margin:12px 0 4px}input,select,button{font:inherit;border:1p
 input{width:100%;box-sizing:border-box}button{cursor:pointer;background:#194d53;margin:9px 7px 5px 0}button:disabled{opacity:.5;cursor:default}
 button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{background:#85414b}
 [hidden]{display:none!important}.message{white-space:pre-wrap;overflow-wrap:anywhere}.user{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;border-top:1px solid #35515a;padding:12px 0}.actions{display:flex;flex-wrap:wrap;align-items:center}.session-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.session-actions button{margin:9px 0 5px}.session-time{font-variant-numeric:tabular-nums;color:#aac0c5}code{word-break:break-all;display:block;background:#07131b;padding:12px;margin:10px 0;border-radius:8px;user-select:all}
+
+.activity-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.activity-toolbar label{margin:0}
+.activity-toolbar select{padding:6px}
+.activity-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:12px}
+.activity-service{background:#091b24;border:1px solid #35515a;border-radius:10px;padding:12px}
+.activity-service h3{font-size:1rem;margin:0 0 5px}
+.activity-service .activity-status{font-weight:600;font-size:.85rem}
+.activity-fresh{color:#81d6bf}.activity-stale{color:#e4bb83}.activity-unknown{color:#b8bdc8}
+.activity-stats{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:.86rem;margin-top:9px}
+.activity-stats dt{color:#aac0c5}.activity-stats dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+.activity-chart{display:grid;grid-template-columns:repeat(24,minmax(0,1fr));gap:3px;align-items:end;height:130px;margin-top:12px;border-bottom:1px solid #496771}
+.activity-hour{min-width:0;background:#427e83;min-height:2px;position:relative;border-radius:3px 3px 0 0}
+.activity-hour:hover,.activity-hour:focus{background:#7ce3d7;outline:1px solid #b2f0e9}
+.activity-hour.empty{background:#29404a}
+.activity-axis{display:flex;justify-content:space-between;color:#aac0c5;font-size:.73rem;margin-bottom:10px}
+.activity-note{font-size:.83rem;color:#aac0c5}
 </style></head><body>
 <p><a href="/">← Homepage</a></p><h1>Suite Authentication</h1><p>Manage your session and approved user tokens. Token values are shown only when newly created or rotated.</p>
 <section id="login"><h2>Connect</h2><form id="loginForm">
@@ -23,6 +40,21 @@ button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{backgro
 <label for="role">Role</label><select id="role"><option value="user">Regular user</option><option value="admin">Administrator</option></select>
 <button type="submit">Issue token</button></form>
 <div id="newToken" hidden><p><strong>Copy this token now; it cannot be displayed again.</strong></p><code id="tokenResult"></code><button id="copyToken" type="button">Copy token</button><button id="dismissToken" type="button">Dismiss</button></div>
+</section>
+
+<section id="activityAdmin" hidden aria-labelledby="activityHeading">
+ <div class="activity-toolbar"><div><h2 id="activityHeading">Session activity</h2><p class="muted">All five services, including anonymous visitors. Read-only observations for restart planning.</p></div><button type="button" id="activityRefresh">Refresh activity</button></div>
+ <p id="activityMessage" class="activity-note" role="status" aria-live="polite">Activity has not been loaded.</p>
+ <div id="activityServices" class="activity-grid" aria-label="Service activity"></div>
+ <h2>Hourly activity patterns</h2>
+ <div class="activity-toolbar">
+  <label for="activityService">Service <select id="activityService"><option value="homepage">Homepage</option><option value="newsgo">NewsGo</option><option value="stocks">MauriStocks</option><option value="sailing">SailingGo</option><option value="scrapergo">ScraperGo</option></select></label>
+  <label for="activityRange">Window <select id="activityRange"><option value="7">7 days</option><option value="30">30 days</option></select></label>
+ </div>
+ <p id="activityHistoryMessage" class="activity-note"></p>
+ <div id="activityChart" class="activity-chart" role="img" aria-label="Average reported two-minute active browser count by UTC hour"></div>
+ <div class="activity-axis"><span>00 UTC</span><span>06</span><span>12</span><span>18</span><span>23</span></div>
+ <p class="activity-note">Each bar shows the mean reported two-minute visitor count for that UTC hour of day over the selected window. A missing bar means no samples, not zero visitors. This is observed browser activity, not guaranteed unique people. No restart is initiated here.</p>
 </section>
 <p id="notice" class="message" role="status" aria-live="polite"></p>
 <script>
@@ -47,7 +79,10 @@ async function api(path,options={}){
 }
 async function refresh(){
  try{
-  const session=await api('/api/session');
+  // Prefer the retained, same-origin Homepage session ID. Safari may not
+  // return Secure cookies over plain HTTP on loopback test ports.
+  const headers=sessionToken?{Authorization:'Session '+sessionToken}:{};
+  const session=await api('/api/session',{headers});
   el('login').hidden=true;el('account').hidden=false;
   el('identity').textContent=session.user+' — '+session.role;
   // The current-session endpoint returns the opaque ID for the same
@@ -57,8 +92,14 @@ async function refresh(){
   if(!sessionToken||!Number.isFinite(sessionExpires))throw Error('Invalid session response');
   updateRemaining();
   el('admin').hidden=session.role!=='admin';
-  if(session.role==='admin')await refreshUsers();
- }catch(_){sessionToken='';sessionExpires=0;el('login').hidden=false;el('account').hidden=true;el('admin').hidden=true;}
+  el('activityAdmin').hidden=session.role!=='admin';
+  if(session.role==='admin'){
+   // Token administration may be unavailable over local HTTP without the
+   // Secure cookie. Do not hide the monitoring panel when that happens.
+   void refreshUsers().catch(()=>{notice('Token administration unavailable in this browser session. Activity monitoring remains accessible.');});
+   void refreshActivity();
+  }
+ }catch(_){sessionToken='';sessionExpires=0;el('login').hidden=false;el('account').hidden=true;el('admin').hidden=true;el('activityAdmin').hidden=true;}
 }
 async function refreshUsers(){
  const users=await api('/api/admin/users');
@@ -89,7 +130,11 @@ el('loginForm').addEventListener('submit',async event=>{
  event.preventDefault();
  const token=el('token').value.trim();
  try{
-  await api('/api/session',{method:'POST',headers:{Authorization:'Bearer '+token}});
+  const created=await api('/api/session',{method:'POST',headers:{Authorization:'Bearer '+token}});
+  // Use the newly issued short-lived session ID for loopback Safari as well
+  // as HTTPS. Never retain or reuse the approved personal credential.
+  if(!/^[a-f0-9]{64}$/.test(created.sessionToken))throw Error('Invalid session response');
+  sessionToken=created.sessionToken;
   el('token').value='';notice('Session established.');await refresh();
  }catch(e){notice('Connection failed: '+e.message);}
 });
@@ -131,5 +176,110 @@ el('logout').addEventListener('click',async()=>{
 });
 el('copyToken').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(el('tokenResult').textContent);notice('Token copied.');}catch(_){notice('Copy manually from the token above.');}});
 el('dismissToken').addEventListener('click',()=>{el('tokenResult').textContent='';el('newToken').hidden=true;});
+
+let activityData=null;
+let activityPending=false;
+const activityNames={homepage:'Homepage',newsgo:'NewsGo',stocks:'MauriStocks',sailing:'SailingGo',scrapergo:'ScraperGo'};
+function activityText(value) {
+ return Number.isInteger(value)&&value>=0?String(value):'—';
+}
+function activityTimestamp(value) {
+ if (!value)return 'No report since Homepage started';
+ const n=Date.parse(value);
+ return Number.isFinite(n)?new Date(n).toLocaleString():'Unavailable';
+}
+function activityStat(grid,key,value) {
+ const dt=document.createElement('dt');dt.textContent=key;
+ const dd=document.createElement('dd');dd.textContent=value;
+ grid.append(dt,dd);
+}
+function renderActivityServices(services) {
+ const parent=el('activityServices');parent.replaceChildren();
+ const lookup=new Map(Array.isArray(services)?services.map(item=>[item.service,item]):[]);
+ for(const [key,label] of Object.entries(activityNames)) {
+  const info=lookup.get(key)||{service:key,status:'unknown'};
+  const status=['fresh','stale','unknown'].includes(info.status)?info.status:'unknown';
+  const card=document.createElement('article');card.className='activity-service';
+  const title=document.createElement('h3');title.textContent=label;
+  const state=document.createElement('div');state.className='activity-status activity-'+status;
+  state.textContent=status==='fresh'?'Reporting':status==='stale'?'Stale — activity unknown':'Not reporting — activity unknown';
+  const stats=document.createElement('dl');stats.className='activity-stats';
+  const live=status==='fresh';
+  activityStat(stats,'Active in 2 minutes',live?activityText(info.active2):'—');
+  activityStat(stats,'Active in 15 minutes',live?activityText(info.active15):'—');
+  activityStat(stats,'Active in 60 minutes',live?activityText(info.active60):'—');
+  activityStat(stats,'Anonymous (2 min)',live?activityText(info.anonymous):'—');
+  activityStat(stats,'Signed in (2 min)',live?activityText(info.authenticated):'—');
+  activityStat(stats,'In-flight work',live?activityText(info.inFlight):'—');
+  activityStat(stats,'Last report',activityTimestamp(info.lastReport));
+  card.append(title,state,stats);parent.append(card);
+ }
+}
+function renderActivityHistory() {
+ const parent=el('activityChart');parent.replaceChildren();
+ const note=el('activityHistoryMessage');
+ if (!activityData || activityData.historyStatus!=='available') {
+  note.textContent='Hourly history unavailable. Missing monitoring data cannot be interpreted as an idle service.';
+  return;
+ }
+ const service=el('activityService').value;
+ const days=Number(el('activityRange').value);
+ const now=Date.now();
+ const cutoff=now-days*86400000;
+ const hourSums=Array.from({length:24},()=>({sum:0,samples:0}));
+ for(const record of (Array.isArray(activityData.history)?activityData.history:[])) {
+  if(record.service!==service)continue;
+  const stamp=Date.parse(record.hour);
+  if(!Number.isFinite(stamp)||stamp<cutoff||stamp>now)continue;
+  const h=new Date(stamp).getUTCHours();
+  if(!Number.isFinite(record.samples)||record.samples<=0||!Number.isFinite(record.active2Sum))continue;
+  hourSums[h].sum+=record.active2Sum;
+  hourSums[h].samples+=record.samples;
+ }
+ const means=hourSums.map(h=>h.samples?h.sum/h.samples:null);
+ const max=Math.max(1,...means.filter(x=>x!==null));
+ const hasData=means.some(x=>x!==null);
+ note.textContent=hasData?
+  'UTC hourly pattern for '+activityNames[service]+' over the last '+days+' days. Blank hours have no observations.':
+  'No recorded hourly samples for '+activityNames[service]+' in the selected period.';
+ for(let h=0;h<24;h++) {
+  const bar=document.createElement('div');
+  const value=means[h];
+  const hour=String(h).padStart(2,'0')+':00 UTC';
+  bar.className='activity-hour'+(value===null?' empty':'');
+  bar.style.height=value===null?'2px':Math.max(2,100*value/max)+'%';
+  bar.tabIndex=0;
+  bar.title=hour+': '+(value===null?'No reports':value.toFixed(2)+' average active browsers from '+hourSums[h].samples+' reports');
+  bar.setAttribute('aria-label',bar.title);
+  parent.append(bar);
+ }
+}
+async function refreshActivity(manual=false) {
+ if(activityPending||el('activityAdmin').hidden||!sessionToken)return;
+ activityPending=true;
+ if(manual)el('activityRefresh').disabled=true;
+ try {
+  const data=await api('/api/admin/activity',{headers:{Authorization:'Session '+sessionToken}});
+  if(el('activityAdmin').hidden)return;
+  activityData=data;
+  renderActivityServices(data.services);
+  renderActivityHistory();
+  el('activityMessage').textContent='Last checked '+new Date().toLocaleTimeString()+'. Fresh reports indicate observed presence, not a safe-restart guarantee.';
+ }catch(error) {
+  activityData=null;
+  el('activityServices').replaceChildren();
+  renderActivityServices([]);
+  renderActivityHistory();
+  el('activityMessage').textContent='Activity unavailable ('+error.message+'). Service status is unknown, not idle.';
+ }finally{
+  activityPending=false;
+  if(manual)el('activityRefresh').disabled=false;
+ }
+}
+el('activityRefresh').addEventListener('click',()=>{void refreshActivity(true);});
+el('activityService').addEventListener('change',renderActivityHistory);
+el('activityRange').addEventListener('change',renderActivityHistory);
+setInterval(()=>{if(!document.hidden&&!el('activityAdmin').hidden)void refreshActivity()},30000);
+
 refresh();
-</script></body></html>
+</script><script src="/static/activity.js" defer></script></body></html>
