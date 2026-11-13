@@ -128,6 +128,25 @@ func TestNewsGoRecoveryUsesExistingDurableHomepageLogin(t *testing.T) {
   scraperProfile["activitySession"]==parent.SessionToken || scraperProfile["activityUser"]==approved {
   t.Fatal("ScraperGo did not receive safe pseudonymous activity tags")
  }
+ newsTagsReq:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/api/session/profile",nil)
+ newsTagsReq.Header.Set("Origin","https://newsgo.themauris.org")
+ newsTagsReq.Header.Set("Authorization","Bearer "+child.Token)
+ newsTags:=httptest.NewRecorder();svc.profileHandler(newsTags,newsTagsReq)
+ if newsTags.Code!=200{t.Fatalf("NewsGo profile status %d",newsTags.Code)}
+ var newsProfile map[string]string
+ if err:=json.Unmarshal(newsTags.Body.Bytes(),&newsProfile);err!=nil{t.Fatal(err)}
+ for _,key:=range []string{"activitySession","activityUser"}{
+  if len(newsProfile[key])!=64 || newsProfile[key]==scraperProfile[key]{
+   t.Fatalf("NewsGo %s must be safe and distinct from ScraperGo",key)
+  }
+ }
+ otherReq:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/api/session/profile",nil)
+ otherReq.Header.Set("Origin","https://stocks.themauris.org")
+ otherReq.Header.Set("Authorization","Bearer "+child.Token)
+ other:=httptest.NewRecorder();svc.profileHandler(other,otherReq)
+ if other.Code!=200 || strings.Contains(other.Body.String(),`"activitySession"`) || strings.Contains(other.Body.String(),`"activityUser"`){
+  t.Fatal("unrelated origin received activity aliases")
+ }
  sessionReq:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/api/session",nil)
  sessionReq.Header.Set("Authorization","Session "+parent.SessionToken)
  current:=httptest.NewRecorder();svc.handler(current,sessionReq)
