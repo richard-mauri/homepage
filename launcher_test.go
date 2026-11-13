@@ -16,7 +16,7 @@ func TestHomepageSameTabLauncherContract(t *testing.T){
   "a.href=app.url",
   "const issued=await renewHandoff();",
   "traceClient('launch_blocked','unauthenticated');",
-  "notice.textContent='Sign in on Homepage or choose Continue as Guest (1 hour)",
+  "notice.textContent='Sign in on Homepage or choose Sign in as Guest",
   "location.assign(url.toString());",
   "url.hash='suite_token='+encodeURIComponent(suiteHandoffToken);",
  }{
