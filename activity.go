@@ -16,6 +16,11 @@ import (
 
 var activityServices = []string{"homepage","newsgo","stocks","sailing","scrapergo"}
 
+type activityUserSummary struct {
+ User string `json:"user"`
+ Sessions int `json:"sessions"`
+ LastSeen string `json:"lastSeen"`
+}
 type activityReport struct {
  Active2 int `json:"active2"`
  Active5 int `json:"active5"`
@@ -26,6 +31,7 @@ type activityReport struct {
  Anonymous int `json:"anonymous"`
  Authenticated int `json:"authenticated"`
  UniqueUsers int `json:"uniqueUsers,omitempty"`
+ Users []activityUserSummary `json:"users,omitempty"`
  InFlight int `json:"inFlight"`
  LastInteraction string `json:"lastInteraction,omitempty"`
 }
@@ -62,6 +68,18 @@ func validActivityReport(p activityReport) bool {
  for _,n:=range nums {if n<0 || n>100000 {return false}}
  if p.Active2>p.Active5 || p.Active5>p.Active15 || p.Active15>p.Active60{return false}
  if p.Foreground>p.Active2 || p.Background>p.Active2 || p.Anonymous>p.Active2 || p.Authenticated>p.Active2 || p.UniqueUsers>p.Authenticated{return false}
+ if len(p.Users)>20{return false}
+ seenUsers:=make(map[string]bool,len(p.Users))
+ userSessions:=0
+ for _,u:=range p.Users {
+  if len(u.User)==0 || len(u.User)>64 || strings.TrimSpace(u.User)!=u.User ||
+   strings.ContainsAny(u.User,"\r\n\t") || seenUsers[u.User] || u.Sessions<0 || u.Sessions>p.Authenticated {return false}
+  seenUsers[u.User]=true
+  userSessions+=u.Sessions
+  last,err:=time.Parse(time.RFC3339,u.LastSeen)
+  if err!=nil || last.After(time.Now().Add(2*time.Minute)) || time.Since(last)>time.Hour+2*time.Minute {return false}
+ }
+ if userSessions>p.Authenticated{return false}
  if len(p.LastInteraction)>0 {t,e:=time.Parse(time.RFC3339,p.LastInteraction);if e!=nil || t.After(time.Now().Add(2*time.Minute)){return false}}
  return true
 }
@@ -87,7 +105,7 @@ func (c *activityCollector) ingest(w http.ResponseWriter,r *http.Request){
  var p activityReport
  if err=dec.Decode(&p);err!=nil {http.Error(w,"invalid report",400);return}
  var extra any
- if dec.Decode(&extra)!=io.EOF || !validActivityReport(p){http.Error(w,"invalid report",400);return}
+ if dec.Decode(&extra)!=io.EOF || !validActivityReport(p) || (service!="scrapergo" && len(p.Users)>0) {http.Error(w,"invalid report",400);return}
  replayKey:=service+":"+nonce
  c.mu.Lock()
  defer c.mu.Unlock()
@@ -126,7 +144,7 @@ func (c *activityCollector) readAdmin(s *sessionService) http.HandlerFunc{
   if role!="admin" {http.Error(w,"admin required",403);return}
   w.Header().Set("Content-Type","application/json; charset=utf-8")
   history,status:=c.historySnapshot()
-  _=json.NewEncoder(w).Encode(map[string]any{"services":c.snapshot(),"history":history,"historyStatus":status,"advisoryOnly":true})
+  _=json.NewEncoder(w).Encode(map[string]any{"services":c.snapshot(),"homeUsers":c.homepageUsersSnapshot(s),"history":history,"historyStatus":status,"advisoryOnly":true})
  }
 }
 // activityStatePath is reserved for future aggregate persistence; raw presence
