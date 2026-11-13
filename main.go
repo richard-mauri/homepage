@@ -112,6 +112,7 @@ func configureSuiteStorage(mux *http.ServeMux, root string) error {
  mux.Handle("/api/session/renew",authTraceHTTP(http.HandlerFunc(sessions.renewHomepageSessionHandler)))
  mux.Handle("/api/session/profile",authTraceHTTP(http.HandlerFunc(sessions.profileHandler)))
  mux.Handle("/api/handoff/token",authTraceHTTP(http.HandlerFunc(sessions.handoffHandler)))
+ mux.Handle("/api/handoff/scrapergo-recover",authTraceHTTP(http.HandlerFunc(sessions.recoverScraperHandoffHandler)))
  mux.Handle("/launch/newsgo",authTraceHTTP(http.HandlerFunc(sessions.suiteRecoveryHandler)))
  mux.Handle("/launch/stocks",authTraceHTTP(http.HandlerFunc(sessions.suiteRecoveryHandler)))
  mux.Handle("/launch/sailing",authTraceHTTP(http.HandlerFunc(sessions.suiteRecoveryHandler)))
