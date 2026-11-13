@@ -30,7 +30,7 @@ func (c *activityCollector) launchHandler(s *sessionService) http.HandlerFunc {
   if decoder.Decode(&request)!=nil {http.Error(w,"invalid launch",400);return}
   var trailing any
   if decoder.Decode(&trailing)!=io.EOF {http.Error(w,"invalid launch",400);return}
-  switch request.Service {case "newsgo","scrapergo","stocks","sailing":default:http.Error(w,"unknown service",400);return}
+  switch request.Service {case "homepage","newsgo","scrapergo","stocks","sailing":default:http.Error(w,"unknown service",400);return}
 
   observation:=launchObservation{Service:request.Service}
   identityKey:=""

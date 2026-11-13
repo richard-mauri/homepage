@@ -197,6 +197,8 @@ function enableOptionalAuth(){
     if(state.session.role!=='guest'){manage.hidden=false; // Every signed-in user may manage tokens
     }
     signedIn.hidden=false;signIn.hidden=state.session.role!=='guest';guestButton.hidden=true;retryAuth.hidden=true;
+    // Returning from any suite app is also a verified Homepage arrival.
+    void acknowledgeSuiteLaunch('homepage');
     traceClient('ui_signed_in','valid');
     return true;
    }

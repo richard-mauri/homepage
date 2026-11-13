@@ -28,6 +28,7 @@ func TestVerifiedGuestLaunchAcknowledgment(t *testing.T) {
  if code:=request("other","https://home.themauris.org",token);code!=400 {t.Fatalf("unknown service %d",code)}
  if code:=request("newsgo","https://home.themauris.org","");code!=401 {t.Fatalf("missing identity %d",code)}
  if code:=request("newsgo","https://home.themauris.org",token);code!=204 {t.Fatalf("guest launch %d",code)}
+ if code:=request("homepage","https://home.themauris.org",token);code!=204 {t.Fatalf("Homepage arrival %d",code)}
  launches:=c.launchUsersSnapshot(s)
  for _,service:=range []string{"homepage","newsgo"} {
   entries:=launches[service]
@@ -50,7 +51,7 @@ func TestVerifiedGuestLaunchAcknowledgment(t *testing.T) {
 func TestHomepageLauncherAcknowledgesVerifiedNavigation(t *testing.T) {
  script,err:=assets.ReadFile("static/app.js");if err!=nil{t.Fatal(err)}
  js:=string(script)
- for _,snippet:=range []string{"'/api/activity/launch'","await acknowledgeSuiteLaunch(","signal:controller.signal","url.hash='suite_token='"} {
+ for _,snippet:=range []string{"'/api/activity/launch'","await acknowledgeSuiteLaunch(","acknowledgeSuiteLaunch('homepage')","signal:controller.signal","url.hash='suite_token='"} {
   if !strings.Contains(js,snippet) {t.Errorf("missing launch behavior %q",snippet)}
  }
  page,err:=assets.ReadFile("static/suite-admin.html");if err!=nil{t.Fatal(err)}
