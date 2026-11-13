@@ -212,7 +212,19 @@ function renderTemporaryGuests(data) {
   details.open=prior.has(guest.user)?prior.get(guest.user):false;
   const heading=document.createElement('summary');heading.textContent=guest.user+' — expires '+activityTimestamp(guest.expiresAt);
   const lines=document.createElement('div');lines.className='user-activity-lines';
-  details.append(heading,lines);rows.append(details);
+  const actions=document.createElement('div');actions.className='actions';
+  const revoke=document.createElement('button');revoke.type='button';revoke.className='danger';revoke.textContent='Revoke guest';
+  revoke.addEventListener('click',async()=>{
+   if(!confirm('Revoke '+guest.user+' now? This immediately invalidates its Homepage session and all suite app handoffs.'))return;
+   revoke.disabled=true;
+   try{
+    await api('/api/admin/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'revoke-guest',user:guest.user})});
+    notice('Revoked temporary guest '+guest.user);
+    await refreshActivity(true);
+   }catch(error){notice('Unable to revoke guest: '+error.message);revoke.disabled=false;}
+  });
+  actions.append(revoke);
+  details.append(heading,lines,actions);rows.append(details);
  }
 }
 function renderUserActivity(data) {
