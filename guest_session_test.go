@@ -49,6 +49,19 @@ func TestGuestSessionMemoryOnlyExpiryHandoffAndStorageDenial(t *testing.T) {
  profile:=httptest.NewRecorder();svc.profileHandler(profile,profileReq)
  if profile.Code!=200 || !strings.Contains(profile.Body.String(),`"role":"guest"`) ||
   !strings.Contains(profile.Body.String(),`"activitySession"`) {t.Fatalf("guest profile: %d %s",profile.Code,profile.Body.String())}
+ // NewsGo receives its own opaque tags for the same temporary guest.
+ newsReq:=httptest.NewRequest(http.MethodGet,"https://home.themauris.org/api/session/profile",nil)
+ newsReq.Header.Set("Origin","https://newsgo.themauris.org")
+ newsReq.Header.Set("Authorization","Bearer "+child.Token)
+ news:=httptest.NewRecorder();svc.profileHandler(news,newsReq)
+ if news.Code!=200{t.Fatalf("NewsGo guest profile: %d %s",news.Code,news.Body.String())}
+ var scraperTags,newsTags map[string]string
+ if err:=json.Unmarshal(profile.Body.Bytes(),&scraperTags);err!=nil{t.Fatal(err)}
+ if err:=json.Unmarshal(news.Body.Bytes(),&newsTags);err!=nil{t.Fatal(err)}
+ for _,key:=range []string{"activitySession","activityUser"}{
+  if len(newsTags[key])!=64 || newsTags[key]==scraperTags[key]{t.Fatalf("NewsGo guest %s alias missing or not origin scoped",key)}
+ }
+ if newsTags["user"]!=issued.User || newsTags["role"]!="guest"{t.Fatal("NewsGo guest identity changed")}
  passed:=false
  protected:=svc.storageHandler(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){passed=true;w.WriteHeader(204)}))
  blocked:=httptest.NewRecorder();protected.ServeHTTP(blocked,profileReq)

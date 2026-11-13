@@ -148,7 +148,7 @@ func allowedStorageOrigin(origin string) bool {
 }
 // ScraperGo can validate a parent-bound handoff without gaining account storage rights.
 func allowedProfileOrigin(origin string) bool {
- return allowedStorageOrigin(origin) || origin=="https://scrapergo.themauris.org"
+ return allowedStorageOrigin(origin) || activityAliasOrigin(origin)
 }
 func (s *sessionService) suiteStorageHandler(next http.Handler) http.Handler {
  secured:=s.storageHandler(next)
@@ -448,6 +448,10 @@ func (s *sessionService) storageHandler(next http.Handler) http.Handler {
 }
 // profileHandler provides a read-only authenticated identity to trusted suite apps.
 // It never creates or revokes sessions and does not expose token material.
+func activityAliasOrigin(origin string) bool {
+ return origin=="https://scrapergo.themauris.org" || origin=="https://newsgo.themauris.org"
+}
+
 func (s *sessionService) profileHandler(w http.ResponseWriter,r *http.Request) {
  w.Header().Set("Cache-Control","no-store")
  w.Header().Set("Vary","Origin")
@@ -484,7 +488,7 @@ func (s *sessionService) profileHandler(w http.ResponseWriter,r *http.Request) {
   parent,guest,valid:=s.guestHandoff(r)
   if !valid {http.Error(w,"guest expired",401);return}
   result:=map[string]string{"user":guest.User,"role":"guest","expiresAt":guest.Expires.UTC().Format(time.RFC3339)}
-  if origin=="https://scrapergo.themauris.org" {
+  if activityAliasOrigin(origin) {
    result["activitySession"],result["activityUser"]=s.guestProfileTags(origin,parent)
   }
   _=json.NewEncoder(w).Encode(result);return
@@ -495,7 +499,7 @@ func (s *sessionService) profileHandler(w http.ResponseWriter,r *http.Request) {
   s.mu.Lock();record,found:=s.handoffs[hex.EncodeToString(sum[:])];s.mu.Unlock()
   if found && s.now().Before(record.Expires){
    result["expiresAt"]=record.Expires.UTC().Format(time.RFC3339)
-   if origin=="https://scrapergo.themauris.org" && record.ParentSession!="" {
+   if activityAliasOrigin(origin) && record.ParentSession!="" {
     // Privacy-preserving, origin-scoped identifiers; never expose parent
     // session ID, approved credential digest or bearer in activity metrics.
     sessionTag:=sha256.Sum256([]byte("activity-session:"+origin+":"+record.ParentSession))

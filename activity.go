@@ -105,7 +105,7 @@ func (c *activityCollector) ingest(w http.ResponseWriter,r *http.Request){
  var p activityReport
  if err=dec.Decode(&p);err!=nil {http.Error(w,"invalid report",400);return}
  var extra any
- if dec.Decode(&extra)!=io.EOF || !validActivityReport(p) || (service!="scrapergo" && len(p.Users)>0) {http.Error(w,"invalid report",400);return}
+ if dec.Decode(&extra)!=io.EOF || !validActivityReport(p) || (service!="scrapergo" && service!="newsgo" && len(p.Users)>0) {http.Error(w,"invalid report",400);return}
  replayKey:=service+":"+nonce
  c.mu.Lock()
  defer c.mu.Unlock()
