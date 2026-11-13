@@ -105,10 +105,12 @@ func configureSuiteStorage(mux *http.ServeMux, root string) error {
  if err!=nil{return err}
  sessions:=newSessionService(store)
  if sessions.persistenceError!=nil {return fmt.Errorf("Homepage durable sessions unavailable: %w",sessions.persistenceError)}
+ go sessions.runGuestGC()
  log.Printf("Homepage account and app handoff lifetime: %s",sessionLifetime)
  setSessionTraceLookup(sessions)
  mux.Handle("/api/storage/",sessions.suiteStorageHandler(store.Handler()))
  mux.Handle("/api/session",authTraceHTTP(http.HandlerFunc(sessions.handler)))
+ mux.Handle("/api/session/guest",authTraceHTTP(http.HandlerFunc(sessions.guestSessionHandler)))
  mux.Handle("/api/session/renew",authTraceHTTP(http.HandlerFunc(sessions.renewHomepageSessionHandler)))
  mux.Handle("/api/session/profile",authTraceHTTP(http.HandlerFunc(sessions.profileHandler)))
  mux.Handle("/api/handoff/token",authTraceHTTP(http.HandlerFunc(sessions.handoffHandler)))
