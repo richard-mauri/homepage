@@ -54,7 +54,7 @@ button:hover{background:#28646b}.danger{background:#672e35}.danger:hover{backgro
 
 <section id="activityAdmin" hidden aria-labelledby="activityHeading">
  <details class="suite-pane" open><summary id="activityHeading">Session activity</summary>
- <div class="activity-toolbar"><p class="muted">All five services. Counts are recently observed browser/tab identifiers, not distinct users or signed-in sessions. A signed-in browser can show zero when it has not sent a recent presence report. Read-only observations for restart planning.</p><button type="button" id="activityRefresh">Refresh activity</button></div>
+ <div class="activity-toolbar"><p class="muted">All five services. Homepage counts distinct signed-in sessions (with a separate user count) and guest tab identifiers; other services still report browser/tab identifiers. Presence means recently observed activity, not merely an unexpired login. Read-only observations for restart planning.</p><button type="button" id="activityRefresh">Refresh activity</button></div>
  <p id="activityMessage" class="activity-note" role="status" aria-live="polite">Activity has not been loaded.</p>
  <div id="activityServices" class="activity-grid" aria-label="Service activity"></div>
  <details class="suite-pane nested"><summary>Hourly activity patterns</summary>
@@ -226,8 +226,9 @@ function renderActivityServices(services) {
   activityStat(stats,'Seen in last 2 min',live?activityText(info.active2):'—');
   activityStat(stats,'Seen in last 15 min',live?activityText(info.active15):'—');
   activityStat(stats,'Seen in last 60 min',live?activityText(info.active60):'—');
-  activityStat(stats,'Guest IDs (last 2 min)',live?activityText(info.anonymous):'—');
-  activityStat(stats,'Signed-in IDs (last 2 min)',live?activityText(info.authenticated):'—');
+  activityStat(stats,key==='homepage'?'Guest tabs (last 2 min)':'Guest IDs (last 2 min)',live?activityText(info.anonymous):'—');
+  activityStat(stats,key==='homepage'?'Signed-in sessions (last 2 min)':'Signed-in IDs (last 2 min)',live?activityText(info.authenticated):'—');
+  if(key==='homepage')activityStat(stats,'Unique signed-in users (2 min)',live?activityText(info.uniqueUsers):'—');
   activityStat(stats,'Requests in progress',live?activityText(info.inFlight):'—');
   activityStat(stats,'Last report',activityTimestamp(info.lastReport));
   card.append(title,stats);parent.append(card);
