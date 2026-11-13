@@ -54,6 +54,9 @@ func (s *sessionService) adminHandler(w http.ResponseWriter,r *http.Request){
  case "role":
   if err:=s.store.SetUserRole(input.User,input.Role);err!=nil{http.Error(w,safeAdminError(err),400);return}
   _=json.NewEncoder(w).Encode(map[string]string{"status":"ok"})
+ case "revoke-guest":
+  if !s.revokeGuestByName(input.User){http.Error(w,"temporary guest not found",404);return}
+  _=json.NewEncoder(w).Encode(map[string]string{"status":"ok"})
  case "revoke":
   if err:=s.store.RevokeUser(input.User);err!=nil{http.Error(w,safeAdminError(err),400);return}
   _=json.NewEncoder(w).Encode(map[string]string{"status":"ok"})
