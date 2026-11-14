@@ -37,6 +37,14 @@ func TestSuiteRecoveryBridgeDoesNotIssueTokensOnGet(t *testing.T) {
     strings.Contains(result.Body.String(),"evil.example"){
   t.Fatal("recovery bridge must load trusted script without open redirect")
  }
+ if !strings.Contains(result.Body.String(),`href="/static/launch-suite.css"`) {
+  t.Fatal("recovery page must use same-origin stylesheet to prevent white flash")
+ }
+ css,err:=assets.ReadFile("static/launch-suite.css")
+ if err!=nil {t.Fatal(err)}
+ for _,want:=range []string{"#07131b","background:var(--bg)",":root[data-theme=light]","color-scheme:dark"} {
+  if !strings.Contains(string(css),want) {t.Errorf("recovery CSS missing %q",want)}
+ }
  script,err:=assets.ReadFile("static/launch-suite.js")
  if err!=nil{t.Fatal(err)}
  text:=string(script)
@@ -52,6 +60,7 @@ func TestSuiteRecoveryBridgeDoesNotIssueTokensOnGet(t *testing.T) {
   "if(storedSession && response.status===401)response=await issueHandoff('')",
   "location.replace(suiteDestination+'#suite_mode=local')",
   "location.replace(suiteDestination+'#suite_token='+data.token)",
+  "localStorage.getItem('themauris-theme')",
  } {
   if !strings.Contains(text,must){t.Errorf("missing recovery invariant: %q",must)}
  }

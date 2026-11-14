@@ -10,6 +10,9 @@ const destinations=Object.freeze({
 });
 const suiteDestination=destinations[location.pathname];
 const homeLoginKey='mauri-home-session-v1';
+// Match Homepage's saved theme; the CSS defaults to its dark palette so
+// first paint never flashes the browser-default white page.
+try{if(localStorage.getItem('themauris-theme')==='light')document.documentElement.dataset.theme='light'}catch(_){}
 const statusElement=document.getElementById('status');
 const localLink=document.getElementById('local-link');
 
