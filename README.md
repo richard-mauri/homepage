@@ -51,9 +51,9 @@ After reproducing, inspect with `grep '\[AUTH-TRACE\]' ~/projects/homepage/homep
 
 ## SailingGo account preferences (coordinated candidate)
 
-The Sailing Outlook card now uses the same signed-in Homepage session-bound handoff as Stocks and NewsGo, with a separate per-user `/api/storage/sailing` namespace. It sends only the temporary bearer in the destination URL fragment; signed-out visits continue in browser-only mode. SailingGo offers explicit account Save and Load actions before automatic account updates are enabled. The Homepage and SailingGo changes require coordinated deployment and Mac/Safari acceptance; see draft PRs #27 and SailingGo #18.
+The Sailing Outlook card now uses the same signed-in Homepage session-bound handoff as Stocks and NewsGo, with a separate per-user `/api/storage/sailing` namespace. It sends only the temporary bearer in the destination URL fragment; signed-out visits continue in browser-only mode. SailingGo offers explicit account Save and Load actions before automatic account updates are enabled. The Homepage/SailingGo companion changes are merged; the owner controls future deployment and Safari acceptance.
 
-## Suite activity telemetry (Issue #28, draft runtime candidate)
+## Suite activity telemetry (Issue #28, merged)
 
 The activity collector is an **unreleased API-only candidate** on the scoped development branch. With `SUITE_DATA_DIR` enabled, Homepage exposes `POST /api/admin/activity/ingest` for server-to-server reports and admin-only `GET /api/admin/activity` for current reports and hourly aggregates. There is no activity dashboard, browser reporter, or sibling-service instrumentation yet; unreported services are shown as `unknown`, not as quiet.
 
@@ -61,13 +61,13 @@ Each instrumented service must use its own private `HOMEPAGE_ACTIVITY_KEY_<SERVI
 
 Aggregated hourly samples are persisted atomically under `SUITE_DATA_DIR/activity/hourly.json` with mode `0600`, retained for about 30 days. Samples indicate the number of accepted aggregate reports, not distinct hourly visitors; `active2Sum / samples` is the observed mean of each report's two-minute active count. Only reported activity is measured, and an unavailable history file marks history unavailable without modifying account sessions. Hourly history is not a substitute for the live freshness status. No automated restart is provided.
 
-### Homepage browser activity (draft)
+### Homepage browser activity
 
-The draft branch includes a same-origin `POST /api/activity/ping` endpoint and a 60-second browser presence heartbeat for the Homepage launchpad. It counts anonymous visits and, if a valid Homepage cookie is present, authenticated visits. The client stores a random identifier only in origin-scoped `sessionStorage`; no user IDs, IP addresses, clicked content, or credentials are stored in telemetry. A fresh visitor record is considered active for up to two minutes. Browser interaction and tab presence are separate signals; a page hidden in Safari does not send ongoing heartbeats. Other suite apps still require their own instrumentation.
+The merged implementation includes a same-origin `POST /api/activity/ping` endpoint and a 60-second browser presence heartbeat for the Homepage launchpad. It counts anonymous visits and, if a valid Homepage cookie is present, authenticated visits. The client stores a random identifier only in origin-scoped `sessionStorage`; no user IDs, IP addresses, clicked content, or credentials are stored in telemetry. A fresh visitor record is considered active for up to two minutes. Browser interaction and tab presence are separate signals; a page hidden in Safari does not send ongoing heartbeats. The companion apps now implement their own optional activity reporting.
 
-Hourly report persistence is batched: the first accepted aggregate is synced immediately, then subsequent aggregates are flushed no more frequently than every five minutes when new telemetry arrives. A process crash can lose the last few minutes of aggregates; in-memory presence remains deliberately nonpersistent. The current design does not install a periodic shutdown flush or guarantee exact hourly totals. This remains an unmerged draft, not production monitoring.
+Hourly report persistence is batched: the first accepted aggregate is synced immediately, then subsequent aggregates are flushed no more frequently than every five minutes when new telemetry arrives. A process crash can lose the last few minutes of aggregates; in-memory presence remains deliberately nonpersistent. The current design does not install a periodic shutdown flush or guarantee exact hourly totals. This is merged optional diagnostic monitoring, not guaranteed exact-count analytics.
 
-### Admin Session Activity panel (Issue #28 draft)
+### Admin Session Activity panel (Issue #28)
 
 On the activity branch, the existing `/suite-admin` page displays a separate **Session activity** section only for an authenticated Homepage administrator. It fetches `GET /api/admin/activity` with the current Homepage session and periodically refreshes every 30 seconds while visible. There are per-service status cards for Homepage, NewsGo, MauriStocks, SailingGo and ScraperGo, including two-, fifteen- and sixty-minute counts, anonymous/signed-in status, in-flight requests and the last accepted report. Missing/stale service observations are explicitly labeled **unknown**, and their numeric fields are hidden rather than displayed as zero. The read-only hourly pattern visualizes average two-minute observed active counts by UTC hour of day, for the last seven or thirty days. It is a mean across reported samples, not a unique-visitor count; an hour with no samples is not an hour with zero traffic. The panel contains no restart button or ability to manage services. The existing **Current session** controls remain accessible to ordinary signed-in users.
 
