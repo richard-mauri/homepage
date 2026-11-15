@@ -15,23 +15,11 @@ The cards navigate in the current tab. When signed in, launching NewsGo, Stocks 
 
 A fresh browser visit to NewsGo, Stocks or SailingGo without an app handoff can temporarily navigate to one of Homepage's strictly allowlisted fixed routes: `/launch/newsgo`, `/launch/stocks`, or `/launch/sailing`. These return a same-origin, no-store, strict-CSP bridge. The bridge validates an existing (not expired or revoked) Homepage login using Homepage's opaque local session ID or host-only cookie via the existing `POST /api/handoff/token` endpoint, then passes only a newly minted child bearer through the destination URL fragment. The bridge never creates or extends a Homepage login; no personal credential is exposed and the destinations are never taken from query parameters. An authoritative unauthenticated response returns the app in explicit browser-only mode, while transient errors remain visible rather than logging the user out. The individual app must implement the one-time redirect to its recovery route; Homepage alone cannot force a direct visit to recover.
 
-## Development and local use
+## Running Homepage
 
-Source: https://github.com/richard-mauri/homepage. Requires Go 1.22+ and Git. The Go server uses the standard library and embedded assets; no Node toolchain is needed.
+Homepage is a locally hosted Go application published through its dedicated Cloudflare Tunnel at https://home.themauris.org/. The server listens on `127.0.0.1:8787` by default; its health endpoint is `/healthz`. Its private tunnel and persistent account data remain on the host, never in Git.
 
-```bash
-cd ~/projects/homepage
-go test -count=1 ./...
-./devbuild.sh
-./dist/homepage-darwin-amd64 -version
-./homego.sh
-```
-
-`devbuild.sh` tests and builds both `darwin/amd64` and `darwin/arm64` executables under `dist/`, generating `SHA256SUMS`. It assigns a six-digit build number stored at the private Git path `homepage-build-counter`; numbers increase for each build attempt after tests pass, are independent of version and branch, and are **local to the checkout**, not globally synchronized. Do not commit or reset that counter. Normal development does not change `appVersion` (currently `0.1.0`); a release/version decision requires owner approval. The `-version` flag prints `Homepage v0.1.0 · Build 000001` for an example stamped build. A plain `go run . -version` uses the unstamped `Build 000000`.
-
-`homego.sh` is machine-specific: it checks the version stamp before restarting only the Homepage executable and its own `cloudflared` tunnel using the private `.cloudflared/token`. It uses `/Users/richardmauri/projects/homepage` and `~/Applications/cloudflared`; never commit the tunnel token. Use `http://127.0.0.1:8787/healthz` for local health checks. `LISTEN_ADDR` defaults to `127.0.0.1:8787`.
-
-Cloudflare Tunnel's published hostname `home.themauris.org` points to `http://127.0.0.1:8787`. The `www.themauris.org` DNS record is not part of this application's deployment and should not be changed implicitly. No router port forwarding is required. Restrict sensitive linked applications with their own appropriate access controls.
+For source requirements, exact Mac checkout, test, build, version-check and authorized launch commands, see [DEVELOPMENT.md](DEVELOPMENT.md). Developer commands are deliberately maintained there rather than duplicated in this user-facing README. The owner decides when a service or tunnel may be restarted.
 
 ## Repository reference documents
 
@@ -73,20 +61,6 @@ On the activity branch, the existing `/suite-admin` page displays a separate **S
 
 For testing on a separate loopback port, a newly created, **isolated** test data directory has no approved administrator tokens, so you must explicitly provision a disposable test admin to view the panel. Never copy production credentials or reuse the running application's persistent `SUITE_DATA_DIR` just to test telemetry. Safari and Mac validation are still required; no services are deployed by this PR.
 
-### Test the admin dashboard without restarting production
+### Developer acceptance
 
-The isolated Safari test uses the existing `TEST_ROOT` directory created for the earlier collector smoke tests, for example `$(mktemp -d "${TMPDIR:-/tmp}/homepage-activity.XXXXXX")`. First stop **only** the server previously started on `127.0.0.1:8788` (the foreground Terminal job can be stopped with Ctrl-C; if backgrounded, inspect `jobs -l` and terminate that exact job). Do not run `homego.sh` or use production `SUITE_DATA_DIR`.
-
-```sh
-cd "$TEST_ROOT/src"
-git fetch origin
-git checkout --detach origin/issue-28-activity-collector
-go test -count=1 ./...
-go build -o "$TEST_ROOT/homepage" .
-sh scripts/prepare-activity-ui-test.sh "$TEST_ROOT/data"
-SUITE_DATA_DIR="$TEST_ROOT/data" LISTEN_ADDR=127.0.0.1:8788 "$TEST_ROOT/homepage"
-```
-
-The guarded fixture helper refuses an unexpected path or an existing registry. It prints a fresh disposable test administrator credential **once**; do not share or commit it. Open `http://127.0.0.1:8788/` in Safari and then `http://127.0.0.1:8788/suite-admin`. Use **Connect** with the disposable test token; the **Session activity** section becomes visible and the Homepage row shows actual browser activity. The other four apps correctly show **Not reporting — activity unknown**. Use Refresh activity and the 7/30-day chart controls; historic data from the previous run will remain if the same isolated directory was used. Only Homepage is being measured. On local HTTP, Safari can decline to send the normal Secure session cookie, so the `/suite-admin` page now keeps the issued Homepage `Session` ID **in memory** for read operations. This does not weaken production cookie security and does not save the credential.
-
-The disposable test account is independent of production; user-token management may be unavailable in this insecure loopback test but must never hide the read-only activity panel. The final admin page still requires Mac/Safari validation; CI checks server code and embedded UI strings, not Safari pixels or interaction.
+For isolated telemetry test fixtures and authorized Mac/Safari acceptance, consult [DEVELOPMENT.md](DEVELOPMENT.md) and the current scoped PR. Do not use production credentials or restart the live service merely to inspect the dashboard.
