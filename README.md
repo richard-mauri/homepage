@@ -35,7 +35,7 @@ Cloudflare Tunnel's published hostname `home.themauris.org` points to `http://12
 
 ## Repository reference documents
 
-Read [AGENTS.md](AGENTS.md) and [CURRENT_WORK.md](CURRENT_WORK.md) before making changes. [ARCHITECTURE.md](ARCHITECTURE.md) specifies ownership and security boundaries; [DEVELOPMENT.md](DEVELOPMENT.md) governs Issues, branches, PRs, build, Mac acceptance, and releases.
+Before development, read [AGENTS.md](AGENTS.md), the proposed suite-wide [SUITE_DEVELOPMENT_POLICY.md](SUITE_DEVELOPMENT_POLICY.md), and [CURRENT_WORK.md](CURRENT_WORK.md), and verify live GitHub state. [ARCHITECTURE.md](ARCHITECTURE.md) specifies Homepage ownership and security boundaries; [DEVELOPMENT.md](DEVELOPMENT.md) supplies Homepage-specific builds and Mac acceptance. Shared workflow authority remains subject to Issue #45 owner review and merge.
 
 The homepage footer is rendered by the Go server with the running executable's semantic version and exact build number, matching `-version`. `/api/config` also returns those values. The version is visible even if the browser JavaScript fails or is cached.
 
