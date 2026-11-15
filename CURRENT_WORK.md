@@ -1,6 +1,6 @@
 # Current work — Homepage
 
-**Active:** [Issue #45](https://github.com/richard-mauri/homepage/issues/45), branch `docs/45-single-source-policy` from latest merged `main`; draft amendment PR to be created. The owner selected one live authoritative `SUITE_DEVELOPMENT_POLICY.md` on Homepage `main`, without generated consumer copies. This docs-only amendment revises the earlier v1.0.0 policy to v1.1.0 and defines stop-if-unavailable access. It remains a proposal until owner-authorized merge.
+**Active:** [Issue #45](https://github.com/richard-mauri/homepage/issues/45), branch `docs/45-single-source-policy` from latest merged `main`; [draft PR #48](https://github.com/richard-mauri/homepage/pull/48) open against `main`. The owner selected one live authoritative `SUITE_DEVELOPMENT_POLICY.md` on Homepage `main`, without generated consumer copies. This docs-only amendment revises the earlier v1.0.0 policy to v1.1.0 and defines stop-if-unavailable access. It remains a proposal until owner-authorized merge.
 
 **Merged baseline:** Homepage [PR #46](https://github.com/richard-mauri/homepage/pull/46) merged the initial suite policy at commit `502f56de374f094eec2e6d5107c89d2d963f44fd`. No Homepage runtime, session, activity, listener or tunnel change is in this amendment. [Issue #38](https://github.com/richard-mauri/homepage/issues/38) remains the separate protected-API audit.
 
