@@ -1,6 +1,6 @@
 # Current work — Homepage
 
-**Active:** [Issue #45](https://github.com/richard-mauri/homepage/issues/45), branch `docs/45-suite-development-policy` against `main`. Documentation-only proposal to make Homepage the shared development-policy authority. A draft PR is being prepared; its actual number, latest head SHA and CI must be verified directly on GitHub before handoff. No merge or consumer-repository changes have been authorized.
+**Active:** [Issue #45](https://github.com/richard-mauri/homepage/issues/45), branch `docs/45-suite-development-policy` against `main`. Documentation-only proposal to make Homepage the shared development-policy authority. [Draft PR #46](https://github.com/richard-mauri/homepage/pull/46) is open against `main`. Verify its latest head SHA and exact-head CI directly on GitHub before handoff. No merge or consumer-repository changes have been authorized.
 
 **Merged baseline:** The previous session-documentation [PR #44](https://github.com/richard-mauri/homepage/pull/44) is no longer open. Reverify current `main` SHA, PR state and CI rather than relying on a remembered commit. [Issue #38](https://github.com/richard-mauri/homepage/issues/38), the protected-API authorization audit, remains a separate open item and is not addressed by this policy PR.
 
