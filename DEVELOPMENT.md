@@ -1,15 +1,15 @@
 # Homepage development and validation
 
-GitHub [main](https://github.com/richard-mauri/homepage/tree/main) is authoritative for merged source. Read [AGENTS.md](AGENTS.md), [CURRENT_WORK.md](CURRENT_WORK.md) and [ARCHITECTURE.md](ARCHITECTURE.md) before changes. Start each feature/fix/docs branch from the newest `main`, keep it focused and open a **draft PR** against `main`. Record real issues for bugs and include reproduction, expected/observed behavior and regression risks. Do not broaden scope silently.
-
-No merge, release, tag, `appVersion` change or tunnel/DNS modification without owner authorization. After a confirmed merged PR, check branch safety and only then delete that scoped branch; never delete `main` or a branch with unmerged work.
+The shared Issue/branch/draft-PR, verification, six-item handoff, owner `FINISH` and branch-cleanup rules live in [SUITE_DEVELOPMENT_POLICY.md](SUITE_DEVELOPMENT_POLICY.md); read the **actual policy text** before development. Homepage's merged GitHub [main](https://github.com/richard-mauri/homepage/tree/main) remains authoritative. Verify current Issues, branches, PRs, exact head and local work before editing. The proposed suite policy is not yet effective across consumers until owner approval. Homepage-specific architectural boundaries are in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Runtime-change Mac acceptance
 
-For a scoped runtime-change branch (substitute its exact name), the owner runs:
+First check `git status --short --branch` and stop rather than overwrite uncommitted changes. For a scoped runtime-change PR the owner runs the following with its real head branch substituted:
 
 ```bash
 cd ~/projects/homepage
+git status --short --branch
+# Stop if uncommitted changes are shown.
 git fetch origin
 git checkout ACTUAL-PR-BRANCH
 git pull --ff-only origin ACTUAL-PR-BRANCH
@@ -20,8 +20,8 @@ go test -count=1 ./...
 curl -fsS http://127.0.0.1:8787/healthz
 ```
 
-The dedicated `devbuild.sh` already tests and compiles both macOS architectures; do not add a separate manual build to this sequence. Verify the stamped `-version` output, then open both the local site and https://home.themauris.org/ in Safari. Check desktop/mobile layout, theme, clock, four external links, and that other tunnels/services remain running. This is owner-side acceptance. Linux builds and tests cannot establish it.
+`homego.sh` restarts Homepage and its dedicated tunnel: do **not** run it without separate owner authorization. `devbuild.sh` tests and compiles both macOS architectures; do not add redundant manual builds. The Apple Silicon owner Mac runs `dist/homepage-darwin-arm64`, not the Intel compatibility binary. Inspect the stamped `-version` output, then check local and https://home.themauris.org/ in Safari for desktop/mobile layout, themes, clock, four links, sessions, account behavior and independent sister services. CI cannot establish Mac/Safari, Cloudflare or live integration acceptance.
 
-Normal development uses `./devbuild.sh` only, with no release flag. It stores an increasing six-digit local build counter under Git's private directory, independent of semantic version; never reset or commit the counter. `homego.sh` launches `dist/homepage-darwin-arm64` on the owner's Apple Silicon Mac and uses its private tunnel token; it also loads the private suite activity configuration from `private/activity.env`. The `darwin-amd64` binary is a separate Intel compatibility build, **not** the executable to run or version-check on this ARM64 Mac. Build output and token are untracked. No automated GitHub release process is currently implemented.
+Normal development uses `./devbuild.sh` **without** a release flag. Its six-digit build counter is Git-private, monotonically increasing and independent of semantic version; never reset or commit it. `homego.sh` loads a private tunnel token and `private/activity.env`, which must stay untracked. The listener is loopback-only by default. No automated GitHub release process is implemented.
 
-Documentation-only PRs require Markdown, links, command/path review and relevant CI; they do not require a local restart. Inspect CI on the exact PR head; if no CI is configured, state that rather than claiming it passed. Report checks individually (passed/failed/not run). Update PR description and [CURRENT_WORK.md](CURRENT_WORK.md) before handoff.
+Documentation-only PRs need content, Markdown link/path, command and policy provenance review and applicable exact-head CI; they require no restart, build or Safari re-acceptance. Refresh PR title/body and [CURRENT_WORK.md](CURRENT_WORK.md) before handoff. After an authorized `FINISH`, use the shared policy's clean-tree-guarded restoration sequence with the exact Homepage branch; never force checkout or delete unmerged work.
