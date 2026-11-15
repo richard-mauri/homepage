@@ -1,6 +1,6 @@
 # Suite development policy
 
-**Policy version:** 1.0.0 (initial proposal; not effective suite-wide until owner-approved merge and consumer adoption)  
+**Policy version:** 1.1.0 (single-source access; proposed amendment pending owner-approved merge)  
 **Editable authority:** [richard-mauri/homepage](https://github.com/richard-mauri/homepage), `SUITE_DEVELOPMENT_POLICY.md` on merged `main`  
 **Coordination:** [Homepage Issue #45](https://github.com/richard-mauri/homepage/issues/45)
 
@@ -14,11 +14,13 @@ This file controls shared rules: branches, Issues, PRs, data/security safeguards
 
 An exception to shared policy requires explicit owner approval recorded in the relevant Issue/PR and, if durable, a policy change in Homepage. A conflicting local instruction is not an implied exception. Stop and ask if instructions conflict or policy access/provenance is uncertain.
 
-### Local/offline access and provenance
+### Single-source access; offline behavior
 
-The intended consumer layout is a **generated, read-only, committed** `docs/suite-development-policy.md` copy containing the complete policy, preceded by a provenance header specifying upstream repository, upstream file, exact **merged-main commit SHA**, policy version, SHA-256 of the authoritative source, and generation instructions. Its local `AGENTS.md` must direct agents to read this copy before work, verify the metadata against the source where network is available, and treat stale or missing copies as a blocker for edits involving shared process. When offline, use the committed copy only if its provenance is complete and no known newer policy exists; report offline verification as unverified and do not perform merge/FINISH or policy synchronization while the current authoritative state cannot be checked. A remote hyperlink alone is insufficient. Homepage itself reads this original file from the actual working branch; check the merged `main` policy for precedence if editing a policy proposal.
+**Only Homepage `main` holds this policy.** Consumer repositories must not check in generated, manually copied or cached policy files. Each consumer's `AGENTS.md` must identify the exact Homepage policy path and require agents to retrieve and read its **current full text** from `main` before changing code, documentation or workflow. A URL alone is an entry point, not evidence that the policy was actually read. Agents must also read the consumer's five local app documents.
 
-Copies are **generated artifacts, never hand-edited**. A policy version changes only via a reviewed Homepage policy PR. Consumer changes arrive through separate reviewable PRs, with no direct writes to `main`, no assumed cross-repository write rights and no automatic merges.
+If the Homepage policy or its current merged-main status cannot be accessed or verified (including offline development), **stop development changes and promotion** until access is restored or the owner explicitly approves a documented exception. Do not use a previously remembered, locally cached or copied policy as an authoritative fallback. Local application inspection and non-mutating diagnostics may continue. This limitation is intentional and accepted by the owner in Homepage Issue #45.
+
+No automated synchronization, generated consumer copies, copy-version metadata or cross-repo write permissions are needed. Policy updates use a Homepage-scoped branch and PR; consumer entry points ordinarily remain unchanged. The active merged Homepage policy, not a development-branch proposal, governs until a new policy PR receives owner-authorized FINISH.
 
 ## Development workflow
 
@@ -38,7 +40,7 @@ For **every development status and handoff**, give a short factual account of:
 
 1. **Baseline and scope:** verified GitHub `main`, Issue(s), actual branch/PR/base/head; whether related work belongs together in the same PR.
 2. **Data safety:** what local changes, subscriptions, exclusions, preferences, accounts, settings, tokens, persistent data, browser history, tunnels and counters were checked/preserved; disclose inaccessible owner-local state.
-3. **Documentation current:** review `README.md`, `ARCHITECTURE.md`, `DEVELOPMENT.md`, `AGENTS.md`, `CURRENT_WORK.md` for accuracy; list edits and exceptions; verify this policy version and any generated consumer copy.
+3. **Documentation current:** review `README.md`, `ARCHITECTURE.md`, `DEVELOPMENT.md`, `AGENTS.md`, `CURRENT_WORK.md` for accuracy; list edits and exceptions; verify access to the current Homepage policy and identify any access exception.
 4. **Verification:** relevant regression/Markdown/link/path checks and exact-head CI run/result; distinguish passed, failed and unverified owner Mac/Safari/live/tunnel testing.
 5. **Local handoff:** complete copy-pasteable **Mac commands** with actual checkout directory, branch, clean-tree check, fetch/checkout/pull, and (for runtime changes) test/build/launch from that app's `DEVELOPMENT.md`; after FINISH, exact safe restoration commands. Use `git checkout` for the owner's Git, not `git switch`. Never force checkout over dirty work.
 6. **Promotion authority and outcome:** specify approval and actual completion status separately for merge, associated Issue closure, remote branch deletion, deployment, tag and release. Never claim a step completed without observing it.
@@ -66,11 +68,8 @@ git status --short --branch
 
 Report the observed merge commit, associated Issue states, remote cleanup, CI and owner acceptance status, and any blocked/failed operation. FINISH is **not** consent for deployment, tag, release, semantic version/build-counter changes, DNS/tunnel changes, other PRs or branches, force operations, or local data loss. Separate owner approval is needed for historical/bulk branch cleanup. No automatic promotion.
 
-## Proposed controlled synchronization (requires owner design approval)
+## Consumer adoption and ongoing maintenance
 
-1. After Homepage policy PR is reviewed and **merged by authorized FINISH**, pin the authoritative `main` commit and file hash; generate each consumer's `docs/suite-development-policy.md` with version/provenance, retaining a small local `AGENTS.md` entry that requires loading it. Preserve each app's unique safeguards in `DEVELOPMENT.md` and `ARCHITECTURE.md`.
-2. A manually initiated generator (or bot with explicit installation permissions) opens **one draft synchronization PR per consumer repo**. It must never push `main` or enable auto-merge. Review generated changes and independently approve the scope/permissions of each PR. A cross-repo policy update is tested/reviewed as one coordinated set before any FINISH.
-3. A read-only CI check verifies the local copy's header, digest, source version and mandatory entry-point/reference; when remote access is available it compares pinned source to current merged Homepage `main` and fails on stale versions. A separate handoff-evidence check may require a PR-body checklist with six factual sections, without asserting owner Mac tests passed. On network/API failure, mark provenance check inconclusive/failing, not green.
-4. Demonstrate the mechanism on Homepage (source/entry point) and NewsGo (generated-copy consumer) in reviewable draft PRs, validate offline reading from a checkout, deliberately alter a test copy to confirm stale detection, and only then expand to the remaining consumers. Do not assume the app token has cross-repo write privileges; if it lacks access, provide reviewable patches for owner execution.
+Consumer repositories keep minimal `AGENTS.md` entry points linking to this policy and application-specific `DEVELOPMENT.md`, `ARCHITECTURE.md`, `CURRENT_WORK.md` and `README.md` documents. Never duplicate shared workflow paragraphs as an alternate authority. The owner reviews each consumer's adoption PR and the Homepage policy amendment as one coordinated documentation set, while each repository remains independently mergeable only after required CI and explicit scoped FINISH authorization.
 
-**Status:** This section is a design proposal for Issue #45, not permission to begin cross-repo writes or activate required checks. Approval of both the mechanism and separate consumer PR scope is pending.
+A policy change in Homepage takes effect when merged by the owner; on their next session, agents in every consumer retrieve its current `main` text. No scheduled copy drift is possible because no consumer copy exists. If policy retrieval fails, the work stops as described above. These documentation changes do not authorize runtime, tunnel, deployment, data migration, release or tag operations.
