@@ -1,6 +1,6 @@
 # Current work — Homepage
 
-**Active:** [Issue #49](https://github.com/richard-mauri/homepage/issues/49), branch `docs/49-begin-next-commands` from GitHub `main` commit `c5b7694` (merged PR #48). A scoped documentation-only draft PR is being prepared against `main`. It defines owner commands `BEGIN <project>` and `NEXT` while preserving existing `FINISH`, verification, data safety and approval boundaries. It is a proposal, not effective shared policy until owner-authorized merge.
+**Active:** [Issue #49](https://github.com/richard-mauri/homepage/issues/49), branch `docs/49-begin-next-commands` from GitHub `main` commit `c5b7694` (merged PR #48). [Draft PR #50](https://github.com/richard-mauri/homepage/pull/50) targets `main` (initial head `1270779b76c670ad3335c7f59aa3ae44960289ac` before this snapshot update). It defines owner commands `BEGIN <project>` and `NEXT` while preserving existing `FINISH`, verification, data safety and approval boundaries. It is a proposal, not effective shared policy until owner-authorized merge.
 
 **Merged baseline:** Homepage PR #46 established the suite policy, and [PR #48](https://github.com/richard-mauri/homepage/pull/48) subsequently merged its single-source access amendment. No Homepage runtime, session, activity, listener or tunnel change is in this amendment. [Issue #38](https://github.com/richard-mauri/homepage/issues/38) remains a separate protected-API audit.
 
