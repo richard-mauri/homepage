@@ -1,6 +1,6 @@
 # Suite development policy
 
-**Policy version:** 1.1.0 (single-source access; proposed amendment pending owner-approved merge)  
+**Policy version:** 1.1.0
 **Editable authority:** [richard-mauri/homepage](https://github.com/richard-mauri/homepage), `SUITE_DEVELOPMENT_POLICY.md` on merged `main`  
 **Coordination:** [Homepage Issue #45](https://github.com/richard-mauri/homepage/issues/45)
 
@@ -44,6 +44,22 @@ For **every development status and handoff**, give a short factual account of:
 4. **Verification:** relevant regression/Markdown/link/path checks and exact-head CI run/result; distinguish passed, failed and unverified owner Mac/Safari/live/tunnel testing.
 5. **Local handoff:** complete copy-pasteable **Mac commands** with actual checkout directory, branch, clean-tree check, fetch/checkout/pull, and (for runtime changes) test/build/launch from that app's `DEVELOPMENT.md`; after FINISH, exact safe restoration commands. Use `git checkout` for the owner's Git, not `git switch`. Never force checkout over dirty work.
 6. **Promotion authority and outcome:** specify approval and actual completion status separately for merge, associated Issue closure, remote branch deletion, deployment, tag and release. Never claim a step completed without observing it.
+
+## Owner development-session commands: `BEGIN <project>` and `NEXT`
+
+These commands apply to the five suite applications and supplement, rather than replace, the development workflow and six-item checklist above. Only the owner issues these commands. They do not waive safety, testing, CI, branch, PR or approval requirements.
+
+### `BEGIN <project>` — establish the project context
+
+The owner's `BEGIN <project>` instructs the agent to retrieve and read the **current merged-main** Homepage policy and the named project's `AGENTS.md`, `README.md`, `ARCHITECTURE.md`, `DEVELOPMENT.md` and `CURRENT_WORK.md` in full. The agent must verify current GitHub `main`, relevant Issues, branches, PRs and checks; inspect available owner-local repository state, including uncommitted and unpushed changes; identify applicable tests, CI, operational constraints and approvals; and report a factual readiness assessment and any blockers **before editing**. A fresh clone is not evidence of the owner's other local working-tree state. If required policy access or a necessary repository inspection cannot be completed, stop and request direction rather than silently substituting a different environment or claiming verification. `BEGIN` alone does not authorize implementing an unspecified development phase, merging, deploying or restarting services.
+
+### `NEXT` — authorize and execute the next development phase
+
+The owner's `NEXT` **authorizes and instructs the agent to begin the next agreed, scoped development phase** for the active project. It is not a request for an already-completed phase's local handoff. If the next phase or active PR is ambiguous, ask before changing anything. Within the approved scope, implement the work, review and update affected regression tests and documentation, run applicable local checks, and push to the appropriate scoped draft PR. Continue correcting failed tests or CI within that scope; do not expand scope, weaken checks or erase tests merely to obtain a green result.
+
+After pushing, verify the **required passing GitHub CI/checks against the exact latest PR head SHA** (identify the run and result; a stale, missing, pending or inaccessible run is not a pass). **Only after exact-head CI passes**, present the mandatory six-item checklist **as a table**, with statuses and concrete evidence, immediately followed by complete, copy-pasteable owner Mac local handoff instructions for clean-tree inspection, fetch/checkout/pull, build, test and run using the named app's `DEVELOPMENT.md`. Mark owner Mac/Safari/live acceptance as unverified until actually performed. If CI cannot be made to pass, report the blocker and do not present a successful local-testing handoff.
+
+`NEXT` does not authorize the agent to execute a production launcher, restart a service or tunnel, deploy, merge, close Issues, delete branches, change versions or release. Supplying documented owner-run commands is not permission to execute them. The owner reviews local results and separately issues `FINISH` for an identified PR when ready.
 
 ## Owner command `FINISH`
 
