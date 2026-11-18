@@ -1,0 +1,28 @@
+/* Homepage canonical button component. Hosts provide --soft, --text, --line, --accent. */
+button.ui-button, body.suite-admin button {
+  appearance: none;
+  background: var(--soft);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 9px 13px;
+  font: inherit;
+  font-weight: 650;
+  line-height: 1.35;
+  cursor: pointer;
+  transition: border-color .15s ease, box-shadow .15s ease, filter .15s ease, color .15s ease;
+}
+button.ui-button.ui-button-large, body.suite-admin button.ui-button-large { padding: 12px 17px; }
+button.ui-button:disabled, body.suite-admin button:disabled { opacity: .58; cursor: default; }
+button.ui-button:not(:disabled):hover, body.suite-admin button:not(:disabled):hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
+  filter: brightness(1.12);
+}
+button.ui-button:not(:disabled):focus-visible, body.suite-admin button:not(:disabled):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+@media (prefers-reduced-motion: reduce) { button.ui-button, body.suite-admin button { transition: none; } }
