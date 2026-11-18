@@ -23,6 +23,8 @@ For source requirements, exact Mac checkout, test, build, version-check and auth
 
 ## Repository reference documents
 
+The suite-wide UI component specification and Homepage-owned Go button module are documented in [SUITE_UI_DESIGN_SYSTEM.md](SUITE_UI_DESIGN_SYSTEM.md). This is separate from the development workflow policy.
+
 Before development, read [AGENTS.md](AGENTS.md), the suite-wide [SUITE_DEVELOPMENT_POLICY.md](SUITE_DEVELOPMENT_POLICY.md), and [CURRENT_WORK.md](CURRENT_WORK.md), and verify live GitHub state. [ARCHITECTURE.md](ARCHITECTURE.md) specifies Homepage ownership and security boundaries; [DEVELOPMENT.md](DEVELOPMENT.md) supplies Homepage-specific builds and Mac acceptance. Homepage `main` is the shared workflow authority; consumer adoption and any amendments require separate owner-reviewed PRs.
 
 The homepage footer is rendered by the Go server with the running executable's semantic version and exact build number, matching `-version`. `/api/config` also returns those values. The version is visible even if the browser JavaScript fails or is cached.
