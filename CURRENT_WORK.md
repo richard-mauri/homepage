@@ -1,6 +1,6 @@
 # Current work — Homepage
 
-**Banner correction:** Homepage inherits the shared banner's own 16px side gutters, with no visible border; the original Homepage ambient sparkle and overall shell are unchanged.
+**Banner correction:** Homepage mounts its banner outside `.shell`; shared viewport-based CSS controls its horizontal geometry, with no visible border. The original Homepage ambient sparkle and content shell are unchanged.
 
 **Active:** [Issue #56](https://github.com/richard-mauri/homepage/issues/56), branch `ui/56-homepage-banner`, dependent on still-open foundation Issue #54 / draft PR #55. The proposal Issue #52 / draft PR #53 also remains open. The branch starts from PR #55 head `dc72f4af7698664dd8f146304564aa013302432d`, itself derived from merged main `3f2fe48f7a7a889f5e6af5c764687ff9cf8e45b3`. Verify the actual new draft PR and checks on GitHub.
 
