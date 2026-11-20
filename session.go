@@ -163,12 +163,21 @@ func (s *sessionService) suiteStorageHandler(next http.Handler) http.Handler {
    if !allowedStorageOrigin(origin) || r.Header.Get("Access-Control-Request-Method")!="GET" && r.Header.Get("Access-Control-Request-Method")!="PUT" {
     http.Error(w,"preflight not allowed",403);return
    }
-   headers:=strings.ToLower(r.Header.Get("Access-Control-Request-Headers"))
-   if headers!="" && headers!="content-type" && headers!="authorization" && headers!="content-type, authorization" && headers!="authorization, content-type"{
-    http.Error(w,"preflight headers not allowed",403);return
+   // Browser no-store fetches may preflight Cache-Control and Pragma in
+   // addition to the authenticated JSON request headers. Match names, not
+   // serialization order; never allow arbitrary requested headers.
+   requested:=strings.TrimSpace(r.Header.Get("Access-Control-Request-Headers"))
+   if requested!="" {
+    for _,part:=range strings.Split(requested,",") {
+     switch strings.ToLower(strings.TrimSpace(part)) {
+     case "authorization","content-type","cache-control","pragma":
+     default:
+      http.Error(w,"preflight headers not allowed",403);return
+     }
+    }
    }
    w.Header().Set("Access-Control-Allow-Methods","GET, PUT")
-   w.Header().Set("Access-Control-Allow-Headers","Content-Type, Authorization")
+   w.Header().Set("Access-Control-Allow-Headers","Content-Type, Authorization, Cache-Control, Pragma")
    w.Header().Set("Access-Control-Max-Age","300")
    w.WriteHeader(http.StatusNoContent);return
   }
