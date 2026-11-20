@@ -1,4 +1,4 @@
-.suite-banner{box-sizing:border-box;background:transparent;border:0;border-bottom:1px solid var(--suite-line);border-radius:0;padding:16px 0 18px;max-width:100%;}
+.suite-banner{box-sizing:border-box;background:transparent;border:0;border-radius:0;padding:16px 0 18px;max-width:100%;}
 .suite-banner *, .suite-banner *::before, .suite-banner *::after{box-sizing:border-box}
 .suite-banner__main,.suite-banner__brand,.suite-banner__bottom{display:flex;align-items:center;gap:16px}
 .suite-banner__main,.suite-banner__bottom{justify-content:space-between}
@@ -6,15 +6,12 @@
 .suite-banner__identity{min-width:0}
 .suite-banner__portrait{display:flex;flex:none;flex-direction:column;align-items:center;gap:5px}
 .suite-banner__tanner,.suite-banner__mark{display:block;flex:none;width:64px;height:64px;border-radius:11px;object-fit:cover}
-.suite-banner__portrait-caption{font-size:11px;font-weight:700;color:var(--suite-accent);line-height:1.2}
-.suite-banner__family{font-size:17px;letter-spacing:.16em;line-height:1.2;font-weight:400}
-.suite-banner__family strong{font-weight:700}
-.suite-banner__subbrand{font-size:9px;letter-spacing:.25em;color:var(--suite-muted);margin-top:4px;margin-bottom:6px}
+.suite-banner__portrait-caption{font-size:11px;font-weight:700;color:var(--suite-accent);line-height:1.2;white-space:nowrap}
 .suite-banner__mark{display:grid;place-items:center;background:var(--suite-surface);font-size:27px;font-weight:700;color:var(--suite-accent)}
 .suite-banner__account{text-align:right;display:flex;flex-direction:column;gap:3px;min-width:0}
 .suite-banner__account-label{font-size:14px;line-height:1.35;font-weight:600;color:var(--suite-accent);overflow-wrap:anywhere}
-.suite-banner__bottom{border-top:1px solid var(--suite-line);margin-top:14px;padding-top:12px;gap:12px}
+.suite-banner__bottom{margin-top:14px;padding-top:12px;gap:12px}
 .suite-banner__home{color:var(--suite-accent);text-decoration:none;text-underline-offset:3px}
 .suite-banner__home:hover{text-decoration:underline}
 .suite-banner__home:focus-visible{outline:2px solid var(--suite-accent);outline-offset:4px;border-radius:2px}
-@media(max-width:600px){.suite-banner{padding:14px 0}.suite-banner__main{align-items:flex-start}.suite-banner__brand{gap:10px}.suite-banner__tanner,.suite-banner__mark{width:48px;height:48px}.suite-banner__portrait-caption{font-size:10px}.suite-banner__family{font-size:14px}.suite-banner__account{max-width:35%}.suite-banner__bottom{align-items:flex-start;flex-direction:column;gap:7px}}
+@media(max-width:600px){.suite-banner{padding:14px 0}.suite-banner__main{align-items:flex-start}.suite-banner__brand{gap:10px}.suite-banner__tanner,.suite-banner__mark{width:48px;height:48px}.suite-banner__portrait-caption{font-size:10px}.suite-banner__account{max-width:35%}.suite-banner__bottom{align-items:flex-start;flex-direction:column;gap:7px}}
