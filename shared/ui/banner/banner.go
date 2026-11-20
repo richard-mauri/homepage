@@ -13,7 +13,7 @@ import (
  "strings"
 )
 
-//go:embed banner.html banner.css
+//go:embed banner.html banner.css status.js
 var files embed.FS
 
 var page = template.Must(template.ParseFS(files, "banner.html"))
@@ -96,6 +96,21 @@ func CSS(designCSS []byte) []byte {
 }
 
 func bannerCSS() []byte {css,_:=files.ReadFile("banner.css");return css}
+
+// ScriptJS is the canonical browser-side account-label formatter. Consumers
+// must verify identity themselves before calling SuiteBannerStatus.signedIn.
+func ScriptJS() []byte {code,_:=files.ReadFile("status.js");return append([]byte(nil),code...)}
+
+// StatusScript serves the shared display-only formatter from each app's origin.
+func StatusScript() http.Handler {
+ contents:=ScriptJS()
+ return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
+  if r.Method!=http.MethodGet && r.Method!=http.MethodHead {w.Header().Set("Allow","GET, HEAD");http.Error(w,"method not allowed",http.StatusMethodNotAllowed);return}
+  w.Header().Set("Content-Type","application/javascript; charset=utf-8")
+  w.Header().Set("Cache-Control","no-store")
+  if r.Method==http.MethodGet {_,_=w.Write(contents)}
+ })
+}
 
 // Stylesheet returns a handler that consumers can mount on their own origin.
 func Stylesheet(designCSS []byte) http.Handler {
