@@ -1,0 +1,53 @@
+/* Suite design tokens. Opt in with class="suite-ui"; no host-wide selectors. */
+/* Exact Homepage ambient composition: two blurred teal shapes behind content.
+   A consumer opts in by adding the two decorative elements, not body styling. */
+.suite-ambient { position: fixed; z-index: -1; pointer-events: none; filter: blur(70px); border-radius: 50%; }
+.suite-ambient-one { width: 660px; height: 530px; top: -300px; right: -180px; background: var(--glow, var(--suite-ambient-glow, rgba(48, 200, 184, .12))); }
+.suite-ambient-two { width: 530px; height: 500px; bottom: 0; left: -340px; background: var(--glow, var(--suite-ambient-glow, rgba(48, 200, 184, .12))); }
+@media (prefers-color-scheme: light) {
+  .suite-ambient { --suite-ambient-glow: rgba(12, 147, 150, .12); }
+}
+html[data-theme="light"] .suite-ambient { --suite-ambient-glow: rgba(12, 147, 150, .12); }
+html[data-theme="dark"] .suite-ambient { --suite-ambient-glow: rgba(48, 200, 184, .12); }
+@media print {
+  .suite-ambient { display: none !important; }
+}
+.suite-ui {
+  --suite-font: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --suite-bg: #0e161c;
+  --suite-surface: #19262f;
+  --suite-text: #eef5f7;
+  --suite-muted: #a1b1ba;
+  --suite-line: #344a53;
+  --suite-accent: #71d9d5;
+  --suite-radius: 12px;
+  font-family: var(--suite-font);
+  color: var(--suite-text);
+}
+.suite-ui[data-suite-theme="light"] {
+  --suite-bg: #f5f8f8;
+  --suite-surface: #e9f0f2;
+  --suite-text: #172832;
+  --suite-muted: #536b75;
+  --suite-line: #c7d6da;
+  --suite-accent: #126b77;
+}
+@media (prefers-color-scheme: light) {
+  .suite-ui:not([data-suite-theme]) {
+    --suite-bg: #f5f8f8;
+    --suite-surface: #e9f0f2;
+    --suite-text: #172832;
+    --suite-muted: #536b75;
+    --suite-line: #c7d6da;
+    --suite-accent: #126b77;
+  }
+}
+.suite-ui .suite-type-title { font-size: 28px; line-height: 1.15; font-weight: 700; letter-spacing: -.025em; }
+.suite-ui .suite-type-eyebrow { font-size: 12px; line-height: 1.4; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
+.suite-ui .suite-type-meta { font-size: 12px; line-height: 1.4; font-weight: 400; color: var(--suite-muted); }
+.suite-ui .suite-type-body { font-size: 15px; line-height: 1.5; font-weight: 400; }
+.suite-ui .suite-type-control { font-size: 14px; line-height: 1.35; font-weight: 600; }
+.suite-ui .suite-type-number { font-variant-numeric: tabular-nums; }
+@media (max-width: 600px) {
+  .suite-ui .suite-type-title { font-size: 23px; }
+}

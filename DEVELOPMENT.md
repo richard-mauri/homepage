@@ -4,6 +4,8 @@ The shared Issue/branch/draft-PR, verification, six-item handoff, owner `FINISH`
 
 ## Runtime-change Mac acceptance
 
+`./devbuild.sh` already runs `go test -count=1 ./...` and builds both macOS architectures; no separate test or build command is needed unless diagnosing a specific failure.
+
 First check `git status --short --branch` and stop rather than overwrite uncommitted changes. For a scoped runtime-change PR the owner runs the following with its real head branch substituted:
 
 ```bash
@@ -13,7 +15,6 @@ git status --short --branch
 git fetch origin
 git checkout ACTUAL-PR-BRANCH
 git pull --ff-only origin ACTUAL-PR-BRANCH
-go test -count=1 ./...
 ./devbuild.sh
 ./dist/homepage-darwin-arm64 -version
 ./homego.sh
