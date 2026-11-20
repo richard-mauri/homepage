@@ -40,6 +40,7 @@ import (
 
 // Register once; the stylesheet is served from THIS application's origin.
 http.Handle("/suite-ui/banner.css", banner.Stylesheet(ui.DesignCSS))
+http.Handle("/suite-ui/status.js", banner.StatusScript())
 
 // Render inside the existing HTML page/body template:
 err := banner.Render(w, banner.Config{
@@ -58,7 +59,16 @@ Tanner imagery themselves. These restrictions avoid arbitrary external links.
 Consumers must link `/suite-ui/banner.css` on their own origin, serve it with
 `style-src 'self'` allowed by their existing CSP, and supply optional Tanner
 image paths from their own locally served assets. If no image is supplied, a
-simple `M` mark is displayed. No runtime JavaScript is needed.
+simple `M` mark is displayed.
+
+For dynamic identity updates, load `/suite-ui/status.js` before the app script
+and call `SuiteBannerStatus.signedIn(verifiedName)` after verifying the session.
+For apps that already embed their JavaScript inline, prepend the exact shared
+`banner.ScriptJS()` bytes to the existing script instead. The shared formatter
+enforces the display text `Signed in as <username>` without role/source suffixes.
+Only presentation is shared: each app continues to own authentication, session
+expiration, guest behavior, and admin authorization. Do not duplicate the
+display string in app-specific JavaScript.
 
 ## Rollout
 
