@@ -29,6 +29,8 @@ Before development, read [AGENTS.md](AGENTS.md), the suite-wide [SUITE_DEVELOPME
 
 The homepage footer is rendered by the Go server with the running executable's semantic version and exact build number, matching `-version`. `/api/config` also returns those values. The version is visible even if the browser JavaScript fails or is cached.
 
+The draft Homepage UI integration uses the Homepage-owned shared banner package for the launchpad masthead while retaining the existing hero, application cards and session controls. Operational controls remain in a secondary toolbar; the new banner shows verified identity when the browser receives it from the established Homepage session API.
+
 With `SUITE_DATA_DIR` configured, Homepage stores its 12-hour session state at `SUITE_DATA_DIR/auth/homepage-sessions.json`. It persists hashed session IDs and app handoff references, without writing approved personal credentials or raw session/bearer tokens. Keep that directory on persistent local storage with restrictive access. A Homepage process restart must not shorten an unexpired session, but sign-out and credential revocation still invalidate it. The service fails to start rather than silently discarding an unreadable state file; write errors are surfaced instead of reporting a successful login or logout. Existing sessions created by earlier in-memory-only versions cannot be recovered on first upgrade.\n\nThe browser assets live under `static/`. `main.go` owns HTTP setup, embedded assets, and the JSON card configuration at `/api/config`. The health check is `/healthz`. The homepage intentionally does not proxy or manage the four linked services.
 
 ## Opt-in authentication trace

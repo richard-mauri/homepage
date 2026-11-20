@@ -49,3 +49,13 @@
 
 .suite-launch-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
 .suite-launch-actions button{flex:1 1 auto;min-width:115px}
+
+/* Homepage pilot: shared masthead with operational controls in a second row. */
+.homepage-shared-chrome{padding-top:8px}
+.homepage-shared-chrome .suite-banner{color:var(--text)}
+.homepage-shared-chrome .suite-banner__account{min-width:140px}
+.suite-toolbar{display:flex;justify-content:flex-end;align-items:center;min-height:44px;padding:10px 0 0}
+.suite-toolbar .topright{gap:12px;justify-content:flex-end}
+html[data-theme="light"] .suite-ui{--suite-bg:#f5f8f8;--suite-surface:#e9f0f2;--suite-text:#172832;--suite-muted:#536b75;--suite-line:#c7d6da;--suite-accent:#126b77}
+html:not([data-theme="light"]) .suite-ui{--suite-bg:#0e161c;--suite-surface:#19262f;--suite-text:#eef5f7;--suite-muted:#a1b1ba;--suite-line:#344a53;--suite-accent:#71d9d5}
+@media(max-width:600px){.suite-toolbar .topright{width:100%;flex-wrap:wrap;gap:8px}.suite-toolbar .suite-account{width:auto;flex:1 1 auto}.suite-toolbar #clock{margin-left:auto}.homepage-shared-chrome .suite-banner__account{min-width:0}}
