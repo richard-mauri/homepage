@@ -1,7 +1,9 @@
 package main
 
 import (
+ "bytes"
  "embed"
+ "encoding/base64"
  "encoding/json"
  "flag"
  "fmt"
@@ -14,6 +16,7 @@ import (
  "time"
 
  suiteui "github.com/richard-mauri/homepage/shared/ui"
+ "github.com/richard-mauri/homepage/shared/ui/banner"
  "themauris.org/homepage/internal/suitestore"
 )
 
@@ -83,6 +86,16 @@ func main() {
   w.Header().Set("Content-Type","text/plain")
   fmt.Fprintln(w,"ok")
  })
+ mux.Handle("/suite-ui/banner.css",banner.Stylesheet(suiteui.DesignCSS))
+ mux.Handle("/suite-ui/status.js",banner.StatusScript())
+ mux.HandleFunc("/suite-ui/tanner.jpg",func(w http.ResponseWriter,r *http.Request){
+  if r.Method!=http.MethodGet && r.Method!=http.MethodHead {w.Header().Set("Allow","GET, HEAD");http.Error(w,"Method not allowed",http.StatusMethodNotAllowed);return}
+  photo,err:=homepageTannerPhoto()
+  if err!=nil {http.Error(w,"Tanner image unavailable",http.StatusInternalServerError);return}
+  w.Header().Set("Content-Type","image/jpeg")
+  w.Header().Set("Cache-Control","public, max-age=3600")
+  if r.Method==http.MethodGet {_,_=w.Write(photo)}
+ })
  mux.HandleFunc("/",func(w http.ResponseWriter,r *http.Request){
   if r.URL.Path!="/" {http.NotFound(w,r);return}
   w.Header().Set("Content-Type","text/html; charset=utf-8")
@@ -149,5 +162,35 @@ func configureSuiteStorage(mux *http.ServeMux, root string) error {
 // renderHomepage stamps executable version and cache-busting asset URLs.
 func renderHomepage(page []byte) string {
  html:=strings.ReplaceAll(string(page),"{{HOMEPAGE_VERSION}}",fmt.Sprintf("v%s · %s",appVersion,appBuild))
- return strings.ReplaceAll(html,"{{HOMEPAGE_ASSET_VERSION}}",url.QueryEscape(appVersion+"-"+appBuild))
+ html=strings.ReplaceAll(html,"{{HOMEPAGE_ASSET_VERSION}}",url.QueryEscape(appVersion+"-"+appBuild))
+ start:=strings.Index(html,`<header class="topbar">`)
+ if start<0 {return html}
+ endRelative:=strings.Index(html[start:],"</header>")
+ if endRelative<0 {return html}
+ end:=start+endRelative+len("</header>")
+ oldHeader:=html[start:end]
+ toolsStart:=strings.Index(oldHeader,`<div class="topright">`)
+ if toolsStart<0 {return html}
+ toolbar:=strings.TrimSuffix(oldHeader[toolsStart:],"</header>")
+ var b bytes.Buffer
+ if err:=banner.Render(&b,banner.Config{AppName:"Homepage",Version:appVersion,Build:appBuild,TannerURL:"/suite-ui/tanner.jpg",AccountState:banner.Unavailable});err!=nil {return html}
+ replacement:=`<div class="suite-toolbar">`+toolbar+`</div>`
+ html=html[:start]+replacement+html[end:]
+ html=strings.Replace(html,`<div class="shell">`,`<div class="homepage-shared-chrome">`+b.String()+`</div><div class="shell suite-content">`,1)
+ cssURL:="/suite-ui/banner.css?v="+url.QueryEscape(appVersion+"-"+appBuild)
+ return strings.Replace(html,"</head>",`<link rel="stylesheet" href="`+cssURL+`"><script defer src="/suite-ui/status.js"></script></head>`,1)
+}
+
+// Reuse the existing Homepage-embedded Tanner JPEG without introducing another
+// copy of the image or changing its owner-managed visual asset.
+func homepageTannerPhoto() ([]byte,error) {
+ page,err:=assets.ReadFile("static/index.html")
+ if err!=nil {return nil,err}
+ const prefix="data:image/jpeg;base64,"
+ start:=bytes.Index(page,[]byte(prefix))
+ if start<0 {return nil,fmt.Errorf("Tanner image source missing")}
+ encoded:=page[start+len(prefix):]
+ end:=bytes.IndexByte(encoded,'"')
+ if end<0 {return nil,fmt.Errorf("Tanner image source incomplete")}
+ return base64.StdEncoding.DecodeString(string(encoded[:end]))
 }

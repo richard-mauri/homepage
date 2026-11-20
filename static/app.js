@@ -130,14 +130,14 @@ const themeKey='themauris-theme';try{if(localStorage.getItem(themeKey)==='light'
 function enableOptionalAuth(){
  if(document.querySelector('#suiteAccount'))return;
  const top=document.querySelector('.topright');
+ const bannerIdentity=document.querySelector('#suite-auth-status');
  const container=document.createElement('div');container.id='suiteAccount';container.className='suite-account';
  const signIn=document.createElement('button');signIn.id='suiteSignInButton';signIn.type='button';signIn.textContent='Sign in';
  const guestButton=document.createElement('button');guestButton.id='suiteGuestSignInButton';guestButton.type='button';guestButton.textContent='Sign in as Guest';
  const retryAuth=document.createElement('button');retryAuth.type='button';retryAuth.textContent='Connection issue — Retry';retryAuth.hidden=true;
  const signedIn=document.createElement('div');signedIn.className='suite-account-auth';signedIn.hidden=true;
- const identity=document.createElement('span');
  const manage=document.createElement('a');manage.href='/suite-admin';manage.textContent='Manage Suite';manage.hidden=true;
- signedIn.append(identity,manage);
+ signedIn.append(manage);
  container.append(signIn,guestButton,retryAuth,signedIn);top.prepend(container);
  const overlay=document.createElement('div');overlay.className='suite-modal-backdrop';overlay.hidden=true;
  const dialog=document.createElement('section');dialog.className='suite-modal';dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');dialog.setAttribute('aria-labelledby','suiteDialogTitle');
@@ -190,10 +190,12 @@ function enableOptionalAuth(){
  }
  function showUnavailable(){
   traceClient('ui_unavailable','unavailable');
+  if(bannerIdentity)bannerIdentity.textContent='Account status unavailable';
   signedIn.hidden=true;signIn.hidden=true;guestButton.hidden=true;retryAuth.hidden=false;
  }
  function showSignedOut(){
   traceClient('ui_signed_out','invalid');
+  if(bannerIdentity)bannerIdentity.textContent='Browser-only mode';
   clearHomeLogin();
   signedIn.hidden=true;signIn.hidden=false;guestButton.hidden=false;retryAuth.hidden=true;manage.hidden=true;
   suiteHandoffToken='';suiteHandoffExpires=0;
@@ -206,7 +208,7 @@ function enableOptionalAuth(){
    const state=await refreshSession();
    if(state.kind==='valid'){
     try{rememberHomeLogin(state.session)}catch(_){showUnavailable();return false;}
-    identity.textContent=state.session.user+' ('+state.session.role+')';
+    if(bannerIdentity)SuiteBannerStatus.signedIn(state.session.user);
     manage.hidden=state.session.role==='guest'; // Every signed-in user except temporary guests may manage tokens
     if(state.session.role!=='guest'){manage.hidden=false; // Every signed-in user may manage tokens
     }
