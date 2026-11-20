@@ -26,3 +26,18 @@ curl -fsS http://127.0.0.1:8787/healthz
 Normal development uses `./devbuild.sh` **without** a release flag. Its six-digit build counter is Git-private, monotonically increasing and independent of semantic version; never reset or commit it. `homego.sh` loads a private tunnel token and `private/activity.env`, which must stay untracked. The listener is loopback-only by default. No automated GitHub release process is implemented.
 
 Documentation-only PRs need content, Markdown link/path, command and policy provenance review and applicable exact-head CI; they require no restart, build or Safari re-acceptance. Refresh PR title/body and [CURRENT_WORK.md](CURRENT_WORK.md) before handoff. After an authorized `FINISH`, use the shared policy's clean-tree-guarded restoration sequence with the exact Homepage branch; never force checkout or delete unmerged work.
+
+## Homepage storage CORS regression (Issue #58)
+
+A signed-in MauriStocks Safari tab can send an authenticated cross-origin JSON `PUT /api/storage/mauristocks` with a `cache: 'no-store'` fetch. Safari may preflight `Authorization, Content-Type, Cache-Control, Pragma`; the former strict two-header check returned HTTP 403 `preflight headers not allowed`. Unit test `TestSuiteStorageSafariPreflight` covers accepted header order/case, legacy GET/PUT requests, forbidden origins/methods and unknown headers. Required Go CI and normal `./devbuild.sh` still apply.
+
+After separately authorized Homepage restart, verify the live preflight without credentials:
+
+```sh
+curl -i -X OPTIONS 'https://home.themauris.org/api/storage/mauristocks' \
+  -H 'Origin: https://stocks.themauris.org' \
+  -H 'Access-Control-Request-Method: PUT' \
+  -H 'Access-Control-Request-Headers: authorization,content-type,cache-control,pragma'
+```
+
+Expect HTTP 204 with the exact trusted origin, GET/PUT methods and all four allowed headers. A foreign origin or `x-unapproved` header must still return 403. Then test a signed-in MauriStocks preference/watchlist update and verify `Settings saved to your account` and the actual HTTP PUT success in Safari Network, without sharing authorization headers or tokens. This change does not itself fix a separate status-line visibility problem in MauriStocks PR #34. Never use `homego.sh` without explicit owner restart authorization.
