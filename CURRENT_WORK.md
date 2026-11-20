@@ -1,5 +1,7 @@
 # Current work — Homepage
 
+**Banner correction:** Shared `.suite-banner` now enforces centered 16px left/right gutters without any decorative border or separator; a regression test guards both invariants. Owner Safari acceptance is pending.
+
 **Active:** [Issue #54](https://github.com/richard-mauri/homepage/issues/54), branch `ui/54-shared-banner` based on merged Homepage `main` `3f2fe48f7a7a889f5e6af5c764687ff9cf8e45b3`. The related documentation proposal is Issue #52 / draft PR #53 and remains separate. Verify the implementation PR and checks on GitHub rather than trusting this snapshot.
 
 **Implementation candidate:** Add `ui.DesignCSS` opt-in typography and color tokens, a standalone `banner` package with embedded template/CSS, typed account display states, strict URL rules, and a locally mounted CSS handler. Keep `ButtonCSS` unchanged. Add an opt-in two-element `.suite-ambient` backdrop retaining Homepage's original positions, dimensions, 70px blur and `--glow` colors, with light/dark fallback and print handling, focused tests and module documentation, and an architecture pointer. Homepage and ScraperGo consume it in their separate open draft PRs; other suite apps remain unchanged.
