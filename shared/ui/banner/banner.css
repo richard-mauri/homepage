@@ -1,4 +1,4 @@
-.suite-banner{box-sizing:border-box;background:transparent;border:1px solid var(--suite-line);border-radius:var(--suite-radius);padding:16px 20px 18px;max-width:100%;}
+.suite-banner{box-sizing:border-box;background:transparent;border:0;border-radius:0;width:calc(100% - 32px);max-width:100%;margin-inline:auto;padding:16px 0 18px;}
 .suite-banner *, .suite-banner *::before, .suite-banner *::after{box-sizing:border-box}
 .suite-banner__main,.suite-banner__brand,.suite-banner__bottom{display:flex;align-items:center;gap:16px}
 .suite-banner__main,.suite-banner__bottom{justify-content:space-between}
@@ -14,4 +14,4 @@
 .suite-banner__home{color:var(--suite-accent);text-decoration:none;text-underline-offset:3px}
 .suite-banner__home:hover{text-decoration:underline}
 .suite-banner__home:focus-visible{outline:2px solid var(--suite-accent);outline-offset:4px;border-radius:2px}
-@media(max-width:600px){.suite-banner{padding:14px 16px}.suite-banner__main{align-items:flex-start}.suite-banner__brand{gap:10px}.suite-banner__tanner,.suite-banner__mark{width:48px;height:48px}.suite-banner__portrait-caption{font-size:10px}.suite-banner__account{max-width:35%}.suite-banner__bottom{align-items:flex-start;flex-direction:column;gap:7px}}
+@media(max-width:600px){.suite-banner{padding-block:14px}.suite-banner__main{align-items:flex-start}.suite-banner__brand{gap:10px}.suite-banner__tanner,.suite-banner__mark{width:48px;height:48px}.suite-banner__portrait-caption{font-size:10px}.suite-banner__account{max-width:35%}.suite-banner__bottom{align-items:flex-start;flex-direction:column;gap:7px}}
