@@ -1,10 +1,8 @@
 <header class="suite-ui suite-banner" aria-label="{{.AppName}} header">
   <div class="suite-banner__main">
     <div class="suite-banner__brand">
-      <div class="suite-banner__portrait">{{if .TannerURL}}<img class="suite-banner__tanner" src="{{.TannerURL}}" alt="Tanner" width="64" height="64"><span class="suite-banner__portrait-caption">Tanner</span>{{else}}<span class="suite-banner__mark" aria-hidden="true">M</span>{{end}}</div>
+      <div class="suite-banner__portrait">{{if .TannerURL}}<img class="suite-banner__tanner" src="{{.TannerURL}}" alt="Tanner" width="64" height="64"><span class="suite-banner__portrait-caption">The Mauris</span>{{else}}<span class="suite-banner__mark" aria-hidden="true">M</span>{{end}}</div>
       <div class="suite-banner__identity">
-        <div class="suite-banner__family">THE <strong>MAURIS</strong></div>
-        <div class="suite-banner__subbrand">PERSONAL PORTAL</div>
         <div class="suite-type-title">{{.AppName}}</div>
         {{if or .Version .BuildLabel}}<div class="suite-type-meta">{{if .Version}}v{{.Version}}{{end}}{{if .BuildLabel}}{{if .Version}} · {{end}}Build {{.BuildLabel}}{{end}}</div>{{end}}
       </div>
