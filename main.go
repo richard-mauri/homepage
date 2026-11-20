@@ -176,7 +176,7 @@ func renderHomepage(page []byte) string {
  if err:=banner.Render(&b,banner.Config{AppName:"Homepage",Version:appVersion,Build:appBuild,TannerURL:"/suite-ui/tanner.jpg",AccountState:banner.Unavailable});err!=nil {return html}
  replacement:=`<div class="suite-toolbar">`+toolbar+`</div>`
  html=html[:start]+replacement+html[end:]
- html=strings.Replace(html,`<div class="shell">`,`<div class="homepage-shared-chrome">`+b.String()+`</div><div class="shell">`,1)
+ html=strings.Replace(html,`<div class="shell">`,`<div class="homepage-shared-chrome">`+b.String()+`</div><div class="shell suite-content">`,1)
  cssURL:="/suite-ui/banner.css?v="+url.QueryEscape(appVersion+"-"+appBuild)
  return strings.Replace(html,"</head>",`<link rel="stylesheet" href="`+cssURL+`"><script defer src="/suite-ui/status.js"></script></head>`,1)
 }

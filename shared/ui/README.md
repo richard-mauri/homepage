@@ -36,6 +36,10 @@ The banner CSS owns its viewport-based left/right gutters **and** the top offset
 (`24px` margin plus `16px` internal top padding on desktop). Mount the banner
 directly in the page, outside app-specific constrained content shells; do not
 add local `.suite-banner` margins, width, padding or parent top padding.
+Add `class="suite-content"` to the application's main content container. The
+shared stylesheet deliberately applies the **same width and breakpoints** to
+`.suite-banner` and `.suite-content` in one grouped rule. App-specific content
+containers should control vertical spacing only, not horizontal gutters.
 At responsive breakpoints the same shared stylesheet changes the gutters and
 portrait size for all consumers.
 

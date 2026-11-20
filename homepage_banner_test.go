@@ -33,7 +33,7 @@ func TestHomepageUsesSharedBannerWithoutChangingPortal(t *testing.T) {
   if strings.Contains(string(css),obsolete) {t.Errorf("obsolete Homepage styling retained: %s",obsolete)}
  }
  if strings.Count(page,`id="suite-auth-status"`)!=1 {t.Fatal("expected exactly one account identity status")}
- if !strings.Contains(page,`</div><div class="shell">`) || !strings.Contains(page,`<div class="homepage-shared-chrome"><header class="suite-ui suite-banner"`) {t.Fatal("shared banner must mount outside Homepage's app-specific shell")}
+ if !strings.Contains(page,`</div><div class="shell suite-content">`) || !strings.Contains(page,`<div class="homepage-shared-chrome"><header class="suite-ui suite-banner"`) {t.Fatal("shared banner and content must share a common width owner")}
  if strings.Contains(page,"Build Build") {t.Fatal("duplicated build label")}
  if strings.Contains(string(css),".homepage-shared-chrome{padding-top:") || strings.Contains(string(css),".homepage-shared-chrome .suite-banner__account{") {t.Fatal("Homepage must not override shared banner geometry")}
 }
