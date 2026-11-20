@@ -58,7 +58,7 @@ func TestBuildLabelIsNotRepeatedAndAccountSubtitleIsOmitted(t *testing.T) {
 
 func TestBannerOwnsOuterGuttersWithoutDecorativeBorder(t *testing.T) {
  css:=string(bannerCSS())
- for _,want:=range []string{"width:calc(100% - 32px)","margin-inline:auto","border:0"} {if !strings.Contains(css,want) {t.Errorf("shared banner missing layout invariant %q",want)}}
+ for _,want:=range []string{"width:min(1180px,calc(100vw - 96px))","width:min(720px,calc(100vw - 48px))","width:calc(100vw - 36px)","margin-inline:auto","border:0"} {if !strings.Contains(css,want) {t.Errorf("shared banner missing layout invariant %q",want)}}
  for _,bad:=range []string{"border-bottom:1px solid", "border-top:1px solid", "border:1px solid var(--suite-line)"} {if strings.Contains(css,bad) {t.Errorf("unwanted banner rule %q",bad)}}
 }
 
