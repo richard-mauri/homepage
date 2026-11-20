@@ -14,7 +14,8 @@ func TestHomepageUsesSharedBannerWithoutChangingPortal(t *testing.T) {
   `class="suite-ui suite-banner"`,
   `id="suite-auth-status"`,
   `src="/suite-ui/tanner.jpg"`,
-  `href="/suite-ui/banner.css"`,
+  `href="/suite-ui/banner.css?v=`,
+  `class="suite-ambient-background"`,
   `class="suite-toolbar"`,
   `class="topright"`,
   `id="clock"`,
@@ -25,6 +26,11 @@ func TestHomepageUsesSharedBannerWithoutChangingPortal(t *testing.T) {
   if !strings.Contains(page,want) {t.Errorf("Homepage missing %q",want)}
  }
  if strings.Contains(page,`<header class="topbar">`) {t.Fatal("legacy header retained in rendered Homepage")}
+ css,err:=assets.ReadFile("static/styles.css")
+ if err!=nil {t.Fatal(err)}
+ for _,obsolete:=range []string{".topbar{", ".ambient-one{", ".ambient-two{"} {
+  if strings.Contains(string(css),obsolete) {t.Errorf("obsolete Homepage styling retained: %s",obsolete)}
+ }
  if strings.Count(page,`id="suite-auth-status"`)!=1 {t.Fatal("expected exactly one account identity status")}
  if strings.Contains(page,"Build Build") {t.Fatal("duplicated build label")}
 }
