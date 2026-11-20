@@ -32,6 +32,13 @@ CSS. The host must provide an already-verified account state and display name.
 The renderer does not perform login, logout, renewal, session recovery, data
 storage, or administrative checks.
 
+The banner CSS owns its viewport-based left/right gutters **and** the top offset
+(`24px` margin plus `16px` internal top padding on desktop). Mount the banner
+directly in the page, outside app-specific constrained content shells; do not
+add local `.suite-banner` margins, width, padding or parent top padding.
+At responsive breakpoints the same shared stylesheet changes the gutters and
+portrait size for all consumers.
+
 ```go
 import (
   "github.com/richard-mauri/homepage/shared/ui"
