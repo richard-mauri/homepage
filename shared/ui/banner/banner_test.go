@@ -44,6 +44,18 @@ func TestStatesAndFallback(t *testing.T) {
  }
 }
 
+func TestBuildLabelIsNotRepeatedAndAccountSubtitleIsOmitted(t *testing.T) {
+ var b bytes.Buffer
+ if err:=Render(&b,Config{AppName:"ScraperGo",Version:"0.2.85",Build:"Build 000116",TannerURL:"/tanner.jpg",AccountState:BrowserOnly});err!=nil {t.Fatal(err)}
+ html:=b.String()
+ for _,want:=range []string{"Build 000116",`suite-banner__portrait-caption`,"THE <strong>MAURIS</strong>"} {
+  if !strings.Contains(html,want) {t.Errorf("missing %q",want)}
+ }
+ for _,bad:=range []string{"Build Build", "Local preferences", "Homepage account"} {
+  if strings.Contains(html,bad) {t.Errorf("obsolete banner text %q",bad)}
+ }
+}
+
 func TestStylesheetIsLocalAndReadOnly(t *testing.T) {
  h:=Stylesheet([]byte(".suite-ui{color:red}"))
  w:=httptest.NewRecorder()
