@@ -1,4 +1,4 @@
-.suite-banner{box-sizing:border-box;background:transparent;border:0;border-radius:0;padding:16px 0 18px;max-width:100%;}
+.suite-banner{box-sizing:border-box;background:transparent;border:0;border-bottom:1px solid var(--suite-line);border-radius:0;padding:16px 0 18px;max-width:100%;}
 .suite-banner *, .suite-banner *::before, .suite-banner *::after{box-sizing:border-box}
 .suite-banner__main,.suite-banner__brand,.suite-banner__bottom{display:flex;align-items:center;gap:16px}
 .suite-banner__main,.suite-banner__bottom{justify-content:space-between}
