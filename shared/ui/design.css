@@ -1,4 +1,22 @@
 /* Suite design tokens. Opt in with class="suite-ui"; no host-wide selectors. */
+/* Optional shared teal ambient backdrop; apply to the page body only. */
+.suite-ambient-background {
+  --suite-glow: rgba(48, 200, 184, .12);
+  background-image:
+    radial-gradient(ellipse 460px 380px at calc(100% + 130px) -100px, var(--suite-glow), transparent 78%),
+    radial-gradient(ellipse 420px 420px at -190px 100%, var(--suite-glow), transparent 80%);
+  background-attachment: fixed;
+}
+@media (prefers-color-scheme: light) {
+  .suite-ambient-background { --suite-glow: rgba(12, 147, 150, .10); }
+}
+html[data-theme="light"] .suite-ambient-background,
+.suite-ambient-background[data-suite-theme="light"] { --suite-glow: rgba(12, 147, 150, .10); }
+html[data-theme="dark"] .suite-ambient-background,
+.suite-ambient-background[data-suite-theme="dark"] { --suite-glow: rgba(48, 200, 184, .12); }
+@media print {
+  .suite-ambient-background { background-image: none; background-attachment: scroll; }
+}
 .suite-ui {
   --suite-font: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --suite-bg: #0e161c;
