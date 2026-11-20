@@ -19,6 +19,16 @@
   --suite-line: #c7d6da;
   --suite-accent: #126b77;
 }
+@media (prefers-color-scheme: light) {
+  .suite-ui:not([data-suite-theme]) {
+    --suite-bg: #f5f8f8;
+    --suite-surface: #e9f0f2;
+    --suite-text: #172832;
+    --suite-muted: #536b75;
+    --suite-line: #c7d6da;
+    --suite-accent: #126b77;
+  }
+}
 .suite-ui .suite-type-title { font-size: 28px; line-height: 1.15; font-weight: 700; letter-spacing: -.025em; }
 .suite-ui .suite-type-eyebrow { font-size: 12px; line-height: 1.4; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
 .suite-ui .suite-type-meta { font-size: 12px; line-height: 1.4; font-weight: 400; color: var(--suite-muted); }
