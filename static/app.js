@@ -208,7 +208,7 @@ function enableOptionalAuth(){
    const state=await refreshSession();
    if(state.kind==='valid'){
     try{rememberHomeLogin(state.session)}catch(_){showUnavailable();return false;}
-    if(bannerIdentity)bannerIdentity.textContent='Signed in as '+state.session.user+' ('+state.session.role+')';
+    if(bannerIdentity)SuiteBannerStatus.signedIn(state.session.user);
     manage.hidden=state.session.role==='guest'; // Every signed-in user except temporary guests may manage tokens
     if(state.session.role!=='guest'){manage.hidden=false; // Every signed-in user may manage tokens
     }

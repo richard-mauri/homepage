@@ -87,6 +87,7 @@ func main() {
   fmt.Fprintln(w,"ok")
  })
  mux.Handle("/suite-ui/banner.css",banner.Stylesheet(suiteui.DesignCSS))
+ mux.Handle("/suite-ui/status.js",banner.StatusScript())
  mux.HandleFunc("/suite-ui/tanner.jpg",func(w http.ResponseWriter,r *http.Request){
   if r.Method!=http.MethodGet && r.Method!=http.MethodHead {w.Header().Set("Allow","GET, HEAD");http.Error(w,"Method not allowed",http.StatusMethodNotAllowed);return}
   photo,err:=homepageTannerPhoto()
@@ -177,7 +178,7 @@ func renderHomepage(page []byte) string {
  html=html[:start]+replacement+html[end:]
  html=strings.Replace(html,`<div class="shell">`,`<div class="homepage-shared-chrome">`+b.String()+`</div><div class="shell">`,1)
  cssURL:="/suite-ui/banner.css?v="+url.QueryEscape(appVersion+"-"+appBuild)
- return strings.Replace(html,"</head>",`<link rel="stylesheet" href="`+cssURL+`"></head>`,1)
+ return strings.Replace(html,"</head>",`<link rel="stylesheet" href="`+cssURL+`"><script defer src="/suite-ui/status.js"></script></head>`,1)
 }
 
 // Reuse the existing Homepage-embedded Tanner JPEG without introducing another

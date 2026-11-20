@@ -51,7 +51,7 @@ func TestHomepageAccountPresentationUsesVerifiedState(t *testing.T) {
   `document.querySelector('#suite-auth-status')`,
   `bannerIdentity.textContent='Account status unavailable'`,
   `bannerIdentity.textContent='Browser-only mode'`,
-  `bannerIdentity.textContent='Signed in as '+state.session.user`,
+  `SuiteBannerStatus.signedIn(state.session.user)`,
   `signedIn.append(manage)`,
  } {
   if !strings.Contains(js,want) {t.Errorf("missing account-state contract %q",want)}

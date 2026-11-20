@@ -74,3 +74,20 @@ func TestStylesheetIsLocalAndReadOnly(t *testing.T) {
   if w.Code!=http.StatusMethodNotAllowed {t.Errorf("%s returned %d",method,w.Code)}
  }
 }
+
+func TestAccountStatusFormatterIsSharedAndReadOnly(t *testing.T) {
+ script:=string(ScriptJS())
+ for _,want:=range []string{"SuiteBannerStatus", "signedInText", "'Signed in as ' + String(username)", "suite-auth-status"} {
+  if !strings.Contains(script,want) {t.Errorf("shared status formatter missing %q",want)}
+ }
+ for _,bad:=range []string{"(admin)","(Homepage)","Guest (browser-only settings)"} {
+  if strings.Contains(script,bad) {t.Errorf("shared status formatter includes app-specific label %q",bad)}
+ }
+ h:=StatusScript()
+ w:=httptest.NewRecorder()
+ h.ServeHTTP(w,httptest.NewRequest(http.MethodGet,"/suite-ui/status.js",nil))
+ if w.Code!=http.StatusOK || w.Body.String()!=script || w.Header().Get("Content-Type")!="application/javascript; charset=utf-8" {t.Fatal("shared status script response invalid")}
+ w=httptest.NewRecorder()
+ h.ServeHTTP(w,httptest.NewRequest(http.MethodPost,"/suite-ui/status.js",nil))
+ if w.Code!=http.StatusMethodNotAllowed {t.Fatal("status script accepted a write method")}
+}
