@@ -125,6 +125,49 @@ func TestSuiteProfileReadOnlyAndOriginPolicy(t *testing.T) {
  if w=fetch("https://stocks.themauris.org",true,http.MethodPost);w.Code!=405 {t.Fatal("profile must be read only")}
 }
 
+// Storage preflight must accept Safari's no-store request headers without
+// granting new origins, methods, or arbitrary authorization headers.
+func TestSuiteStorageSafariPreflight(t *testing.T) {
+ svc:=newSessionService(nil)
+ handler:=svc.suiteStorageHandler(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
+  t.Fatal("preflight reached authenticated storage handler")
+ }))
+ cases:=[]struct {
+  name,origin,method,headers string
+  status int
+ }{
+  {"Safari PUT","https://stocks.themauris.org","PUT","authorization,content-type,cache-control,pragma",204},
+  {"mixed case and order","https://stocks.themauris.org","PUT"," Pragma, Authorization, CACHE-CONTROL, Content-Type ",204},
+  {"legacy PUT","https://newsgo.themauris.org","PUT","content-type, authorization",204},
+  {"read GET","https://weather.themauris.org","GET","authorization, cache-control, pragma",204},
+  {"no headers","https://stocks.themauris.org","GET","",204},
+  {"unknown header","https://stocks.themauris.org","PUT","authorization,x-unapproved",403},
+  {"empty header token","https://stocks.themauris.org","PUT","authorization,",403},
+  {"untrusted origin","https://evil.example","PUT","authorization,content-type,cache-control,pragma",403},
+  {"unapproved method","https://stocks.themauris.org","DELETE","authorization",403},
+ }
+ for _,tc:=range cases {
+  t.Run(tc.name,func(t *testing.T){
+   req:=httptest.NewRequest(http.MethodOptions,"https://home.themauris.org/api/storage/mauristocks",nil)
+   req.Header.Set("Origin",tc.origin)
+   req.Header.Set("Access-Control-Request-Method",tc.method)
+   if tc.headers!="" {req.Header.Set("Access-Control-Request-Headers",tc.headers)}
+   out:=httptest.NewRecorder();handler.ServeHTTP(out,req)
+   if out.Code!=tc.status{t.Fatalf("preflight status %d, want %d: %s",out.Code,tc.status,out.Body.String())}
+   if tc.status==204 {
+    if out.Header().Get("Access-Control-Allow-Origin")!=tc.origin {t.Fatal("missing exact trusted origin CORS allowance")}
+    if out.Header().Get("Access-Control-Allow-Methods")!="GET, PUT" {t.Fatal("storage methods changed")}
+    allowed:=strings.ToLower(out.Header().Get("Access-Control-Allow-Headers"))
+    for _,h:=range []string{"authorization","content-type","cache-control","pragma"} {
+     if !strings.Contains(allowed,h){t.Fatalf("missing allowed header %s",h)}
+    }
+   }else if tc.origin=="https://evil.example" && out.Header().Get("Access-Control-Allow-Origin")!="" {
+    t.Fatal("untrusted origin received CORS permission")
+   }
+  })
+ }
+}
+
 func TestSuiteStorageRejectsCrossOriginCookieFallback(t *testing.T) {
  root:=t.TempDir()
  store,err:=suitestore.New(root,"newsgo");if err!=nil{t.Fatal(err)}
