@@ -8,7 +8,7 @@ import (
 
 func TestDesignTokensAreOptIn(t *testing.T) {
  css:=string(DesignCSS)
- for _,want:=range []string{".suite-ui", "--suite-font", ".suite-type-title", "data-suite-theme", "prefers-color-scheme: light", "tabular-nums", ".suite-ambient-background", "radial-gradient", "background-attachment: fixed"} {
+ for _,want:=range []string{".suite-ui", "--suite-font", ".suite-type-title", "data-suite-theme", "prefers-color-scheme: light", "tabular-nums", ".suite-ambient-one", ".suite-ambient-two", "blur(70px)", "top: -300px", "bottom: 0", "display: none !important"} {
   if !strings.Contains(css,want) {t.Errorf("missing %s",want)}
  }
  if strings.Contains(css,"@import") {t.Error("unexpected runtime stylesheet import")}
