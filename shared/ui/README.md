@@ -14,6 +14,12 @@ typography across platforms.
 
 ## Banner
 
+For the subtle teal background used by Homepage, add `class="suite-ambient-background"`
+to the page's `<body>` and load `ui.DesignCSS` (directly or through
+`banner.CSS(ui.DesignCSS)`). The background is opt-in, respects light/dark
+colors, and adds no DOM overlays or print decoration. Consumer applications
+retain control of their own foreground surfaces and reader layouts.
+
 The independent `banner` package renders escaped HTML and delivers its embedded
 CSS. The host must provide an already-verified account state and display name.
 The renderer does not perform login, logout, renewal, session recovery, data
