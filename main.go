@@ -175,7 +175,8 @@ func renderHomepage(page []byte) string {
  if err:=banner.Render(&b,banner.Config{AppName:"Homepage",Version:appVersion,Build:appBuild,TannerURL:"/suite-ui/tanner.jpg",AccountState:banner.Unavailable});err!=nil {return html}
  replacement:=`<div class="homepage-shared-chrome">`+b.String()+`<div class="suite-toolbar">`+toolbar+`</div></div>`
  html=html[:start]+replacement+html[end:]
- return strings.Replace(html,"</head>",`<link rel="stylesheet" href="/suite-ui/banner.css"></head>`,1)
+ cssURL:="/suite-ui/banner.css?v="+url.QueryEscape(appVersion+"-"+appBuild)
+ return strings.Replace(html,"</head>",`<link rel="stylesheet" href="`+cssURL+`"></head>`,1)
 }
 
 // Reuse the existing Homepage-embedded Tanner JPEG without introducing another
