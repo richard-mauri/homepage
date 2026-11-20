@@ -56,11 +56,10 @@ func TestBuildLabelIsNotRepeatedAndAccountSubtitleIsOmitted(t *testing.T) {
  }
 }
 
-func TestBannerStylesHaveFullPerimeterWithoutInnerSeparators(t *testing.T) {
+func TestBannerOwnsOuterGuttersWithoutDecorativeBorder(t *testing.T) {
  css:=string(bannerCSS())
- if !strings.Contains(css,"border:1px solid var(--suite-line);border-radius:var(--suite-radius)") {t.Fatal("shared banner needs the full four-sided outline")}
- if strings.Contains(css,"border-bottom:1px solid var(--suite-line)") {t.Fatal("bottom-only separator is not the banner outline")}
- if strings.Contains(css,"border-top:1px solid var(--suite-line)") {t.Fatal("unwanted internal separator")}
+ for _,want:=range []string{"width:calc(100% - 32px)","margin-inline:auto","border:0"} {if !strings.Contains(css,want) {t.Errorf("shared banner missing layout invariant %q",want)}}
+ for _,bad:=range []string{"border-bottom:1px solid", "border-top:1px solid", "border:1px solid var(--suite-line)"} {if strings.Contains(css,bad) {t.Errorf("unwanted banner rule %q",bad)}}
 }
 
 func TestStylesheetIsLocalAndReadOnly(t *testing.T) {
