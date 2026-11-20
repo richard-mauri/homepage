@@ -173,8 +173,9 @@ func renderHomepage(page []byte) string {
  toolbar:=strings.TrimSuffix(oldHeader[toolsStart:],"</header>")
  var b bytes.Buffer
  if err:=banner.Render(&b,banner.Config{AppName:"Homepage",Version:appVersion,Build:appBuild,TannerURL:"/suite-ui/tanner.jpg",AccountState:banner.Unavailable});err!=nil {return html}
- replacement:=`<div class="homepage-shared-chrome">`+b.String()+`<div class="suite-toolbar">`+toolbar+`</div></div>`
+ replacement:=`<div class="suite-toolbar">`+toolbar+`</div>`
  html=html[:start]+replacement+html[end:]
+ html=strings.Replace(html,`<div class="shell">`,`<div class="homepage-shared-chrome">`+b.String()+`</div><div class="shell">`,1)
  cssURL:="/suite-ui/banner.css?v="+url.QueryEscape(appVersion+"-"+appBuild)
  return strings.Replace(html,"</head>",`<link rel="stylesheet" href="`+cssURL+`"></head>`,1)
 }
