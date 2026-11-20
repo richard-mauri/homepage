@@ -48,11 +48,18 @@ func TestBuildLabelIsNotRepeatedAndAccountSubtitleIsOmitted(t *testing.T) {
  var b bytes.Buffer
  if err:=Render(&b,Config{AppName:"ScraperGo",Version:"0.2.85",Build:"Build 000116",TannerURL:"/tanner.jpg",AccountState:BrowserOnly});err!=nil {t.Fatal(err)}
  html:=b.String()
- for _,want:=range []string{"Build 000116",`suite-banner__portrait-caption`,"THE <strong>MAURIS</strong>"} {
+ for _,want:=range []string{"Build 000116",`suite-banner__portrait-caption`,"The Mauris"} {
   if !strings.Contains(html,want) {t.Errorf("missing %q",want)}
  }
- for _,bad:=range []string{"Build Build", "Local preferences", "Homepage account"} {
+ for _,bad:=range []string{"Build Build", "Local preferences", "Homepage account", "PERSONAL PORTAL", "suite-banner__family"} {
   if strings.Contains(html,bad) {t.Errorf("obsolete banner text %q",bad)}
+ }
+}
+
+func TestBannerStylesHaveNoSeparators(t *testing.T) {
+ css:=string(bannerCSS())
+ for _,bad:=range []string{"border-bottom:1px solid var(--suite-line)", "border-top:1px solid var(--suite-line)"} {
+  if strings.Contains(css,bad) {t.Errorf("unwanted horizontal separator %q",bad)}
  }
 }
 
