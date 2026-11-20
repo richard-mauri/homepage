@@ -42,7 +42,7 @@ type Config struct {
 type templateData struct {
  Config
  AccountLabel string
- AccountDetail string
+ BuildLabel string
 }
 
 // Render writes escaped markup. It does not supply account verification or any
@@ -52,20 +52,18 @@ func Render(w io.Writer, cfg Config) error {
  if strings.TrimSpace(cfg.AppName)=="" { return errors.New("banner: app name required") }
  if !safeHomeURL(cfg.HomeURL) || !safePath(cfg.TannerURL) { return errors.New("banner: invalid HomeURL or TannerURL") }
  data:=templateData{Config:cfg}
+ data.BuildLabel=strings.TrimSpace(cfg.Build)
+ if strings.HasPrefix(strings.ToLower(data.BuildLabel),"build ") {data.BuildLabel=strings.TrimSpace(data.BuildLabel[6:])}
  switch cfg.AccountState {
  case SignedIn:
   if strings.TrimSpace(cfg.AccountName)=="" { return errors.New("banner: signed-in identity required") }
   data.AccountLabel="Signed in as "+cfg.AccountName
-  data.AccountDetail="Homepage account"
  case Guest:
   data.AccountLabel="Guest access"
-  data.AccountDetail="Limited account"
  case BrowserOnly:
   data.AccountLabel="Browser-only mode"
-  data.AccountDetail="Local preferences"
  case Unavailable:
   data.AccountLabel="Account status unavailable"
-  data.AccountDetail="Connection not verified"
  default:
   return errors.New("banner: invalid account state")
  }
