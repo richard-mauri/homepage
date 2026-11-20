@@ -1,6 +1,7 @@
 package ui
 
 import (
+ "regexp"
  "strings"
  "testing"
 )
@@ -10,8 +11,7 @@ func TestDesignTokensAreOptIn(t *testing.T) {
  for _,want:=range []string{".suite-ui", "--suite-font", ".suite-type-title", "data-suite-theme", "tabular-nums"} {
   if !strings.Contains(css,want) {t.Errorf("missing %s",want)}
  }
- for _,forbidden:=range []string{"@import", "body{", "body {", "html{", "html {"} {
-  if strings.Contains(css,forbidden) {t.Errorf("unexpected global/network rule %q",forbidden)}
- }
+ if strings.Contains(css,"@import") {t.Error("unexpected runtime stylesheet import")}
+ if regexp.MustCompile(`(?m)^\s*(body|html)\s*\{`).MatchString(css) {t.Error("unexpected global element selector")}
  if len(ButtonCSS)==0 {t.Fatal("legacy ButtonCSS was removed")}
 }
