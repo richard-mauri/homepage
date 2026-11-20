@@ -14,11 +14,18 @@ typography across platforms.
 
 ## Banner
 
-For the subtle teal background used by Homepage, add `class="suite-ambient-background"`
-to the page's `<body>` and load `ui.DesignCSS` (directly or through
-`banner.CSS(ui.DesignCSS)`). The background is opt-in, respects light/dark
-colors, and adds no DOM overlays or print decoration. Consumer applications
-retain control of their own foreground surfaces and reader layouts.
+For Homepage's **original** blurred teal ambient background, load `ui.DesignCSS`
+(directly or through `banner.CSS(ui.DesignCSS)`) and place these two
+noninteractive elements immediately inside the page's `<body>`:
+
+```html
+<div class="suite-ambient suite-ambient-one" aria-hidden="true"></div>
+<div class="suite-ambient suite-ambient-two" aria-hidden="true"></div>
+```
+
+The fixed shapes retain Homepage's exact original dimensions, positions, blur,
+and `--glow` values (where defined); other apps use corresponding light/dark
+fallbacks. The shapes are hidden on print. No application is forced to use them.
 
 The independent `banner` package renders escaped HTML and delivers its embedded
 CSS. The host must provide an already-verified account state and display name.
