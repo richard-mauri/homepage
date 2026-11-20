@@ -13,7 +13,7 @@ func TestRenderEscapesAndShowsVerifiedState(t *testing.T) {
  err:=Render(&b,Config{AppName:`NewsGo <test>`,Version:"0.2.58",Build:"000160",HomeURL:"https://home.themauris.org/",AccountState:SignedIn,AccountName:`richard<script>`})
  if err!=nil {t.Fatal(err)}
  html:=b.String()
- for _,want:=range []string{`NewsGo &lt;test&gt;`,`richard&lt;script&gt;`,`Back to Homepage`,`Build 000160`} {
+ for _,want:=range []string{`NewsGo &lt;test&gt;`,`richard&lt;script&gt;`,`Back to Homepage`,`Build 000160`,`id="suite-auth-status"`} {
   if !strings.Contains(html,want){t.Errorf("missing %q",want)}
  }
  if strings.Contains(html,"<script>"){t.Fatal("unescaped HTML")}
