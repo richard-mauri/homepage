@@ -1,0 +1,20 @@
+<header class="suite-ui suite-banner" aria-label="{{.AppName}} header">
+  <div class="suite-banner__main">
+    <div class="suite-banner__brand">
+      {{if .TannerURL}}<img class="suite-banner__tanner" src="{{.TannerURL}}" alt="Tanner" width="56" height="56">{{else}}<span class="suite-banner__mark" aria-hidden="true">M</span>{{end}}
+      <div class="suite-banner__identity">
+        <div class="suite-type-eyebrow">The Mauris · Personal Portal</div>
+        <div class="suite-type-title">{{.AppName}}</div>
+        {{if or .Version .Build}}<div class="suite-type-meta">{{if .Version}}v{{.Version}}{{end}}{{if .Build}}{{if .Version}} · {{end}}Build {{.Build}}{{end}}</div>{{end}}
+      </div>
+    </div>
+    <div class="suite-banner__account" role="status">
+      <span class="suite-banner__account-label">{{.AccountLabel}}</span>
+      <span class="suite-type-meta">{{.AccountDetail}}</span>
+    </div>
+  </div>
+  {{if or .HomeURL .Description}}<div class="suite-banner__bottom">
+    {{if .HomeURL}}<a class="suite-banner__home suite-type-control" href="{{.HomeURL}}">← Back to Homepage</a>{{end}}
+    {{if .Description}}<span class="suite-type-meta">{{.Description}}</span>{{end}}
+  </div>{{end}}
+</header>
