@@ -1,6 +1,6 @@
 # Current work — Homepage
 
-**Banner correction:** Shared `.suite-banner` now enforces centered 16px left/right gutters without any decorative border or separator; a regression test guards both invariants. Owner Safari acceptance is pending.
+**Banner correction:** Shared `.suite-banner` owns viewport-based horizontal layout (1180px maximum; 48px desktop, 24px tablet and 18px mobile side gutters), without decorative borders. Consumers mount it outside their content shells. Owner Safari acceptance is pending.
 
 **Active:** [Issue #54](https://github.com/richard-mauri/homepage/issues/54), branch `ui/54-shared-banner` based on merged Homepage `main` `3f2fe48f7a7a889f5e6af5c764687ff9cf8e45b3`. The related documentation proposal is Issue #52 / draft PR #53 and remains separate. Verify the implementation PR and checks on GitHub rather than trusting this snapshot.
 
