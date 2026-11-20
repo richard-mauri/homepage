@@ -56,9 +56,10 @@ func TestBuildLabelIsNotRepeatedAndAccountSubtitleIsOmitted(t *testing.T) {
  }
 }
 
-func TestBannerStylesHaveOneBottomSeparator(t *testing.T) {
+func TestBannerStylesHaveFullPerimeterWithoutInnerSeparators(t *testing.T) {
  css:=string(bannerCSS())
- if strings.Count(css,"border-bottom:1px solid var(--suite-line)")!=1 {t.Fatal("shared banner requires one bottom separator")}
+ if !strings.Contains(css,"border:1px solid var(--suite-line);border-radius:var(--suite-radius)") {t.Fatal("shared banner needs the full four-sided outline")}
+ if strings.Contains(css,"border-bottom:1px solid var(--suite-line)") {t.Fatal("bottom-only separator is not the banner outline")}
  if strings.Contains(css,"border-top:1px solid var(--suite-line)") {t.Fatal("unwanted internal separator")}
 }
 
