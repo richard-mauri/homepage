@@ -17,7 +17,15 @@ func TestHomepageAccountChooserAndSessionLifecycle(t *testing.T) {
   "personalChoice.addEventListener('click'",
   "guestChoice.addEventListener('click'",
   "signOutChoice.addEventListener('click'",
-  "form.hidden=true;choices.hidden=false",
+  "form.hidden=true;choices.hidden=!!sessionRole",
+  "title.textContent=sessionRole?'Account':'Sign in'",
+  "signOutChoice.hidden=!sessionRole",
+  "if(sessionRole)signOutChoice.focus();else personalChoice.focus();",
+  "if(sessionRole||signOutPending)return",
+  "if(sessionRole){message.textContent='Sign out before signing in as another user.';return;}",
+  "if(sessionRole){message.textContent='Sign out before choosing another identity.';return;}",
+  "signIn.textContent='Account'",
+  "signIn.textContent='Sign in'",
   "sessionRole=state.session.role;sessionUser=state.session.user",
   "signedIn.hidden=false;signIn.hidden=false",
   "method:'DELETE',credentials:'same-origin'",
@@ -29,6 +37,12 @@ func TestHomepageAccountChooserAndSessionLifecycle(t *testing.T) {
   "if(authenticated)hideDialog()",
  } {
   if !strings.Contains(script,want){t.Errorf("account-choice contract missing %q",want)}
+ }
+ if strings.Contains(script,"Currently signed in as "+'"'+"+"){
+  t.Fatal("old account-choice prompt should not be shown to signed-in users")
+ }
+ if !strings.Contains(script,"const controls=[close,...(sessionRole?[signOutChoice]"){
+  t.Fatal("keyboard focus must be trapped among visible authenticated controls only")
  }
  if strings.Contains(script,"suiteGuestSignInButton") || strings.Contains(script,"guestButton"){
   t.Fatal("guest authentication must be offered only inside the shared Sign in dialog")
