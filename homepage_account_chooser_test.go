@@ -38,7 +38,7 @@ func TestHomepageAccountChooserAndSessionLifecycle(t *testing.T) {
  } {
   if !strings.Contains(script,want){t.Errorf("account-choice contract missing %q",want)}
  }
- if strings.Contains(script,"Currently signed in as "+'"'+"+"){
+ if strings.Contains(script,"Currently signed in as "){
   t.Fatal("old account-choice prompt should not be shown to signed-in users")
  }
  if !strings.Contains(script,"const controls=[close,...(sessionRole?[signOutChoice]"){
