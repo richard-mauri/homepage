@@ -30,6 +30,8 @@ jobs:
       - name: Test shared authentication module
         working-directory: shared/auth
         run: go test -count=1 ./...
+      - name: Validate Homepage account chooser JavaScript syntax
+        run: node --check static/app.js
       - name: Test direct-visit authentication recovery
         run: node scripts/test-auth-recovery.cjs
       - name: Build Intel macOS binary
