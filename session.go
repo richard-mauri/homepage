@@ -518,6 +518,14 @@ func (s *sessionService) handler(w http.ResponseWriter,r *http.Request) {
  w.Header().Set("X-Content-Type-Options","nosniff")
  if r.Method==http.MethodPost && r.URL.Path=="/api/session" {
   if !validSessionOrigin(r){http.Error(w,"invalid origin",http.StatusForbidden);return}
+  // Identity changes require an explicit successful DELETE first. A valid
+  // personal or Guest session cannot be silently replaced by a new login.
+  if _,_,ok:=s.authenticateSession(r);ok {
+   http.Error(w,"sign out before signing in as another user",http.StatusConflict);return
+  }
+  if _,_,ok:=s.guestSession(r);ok {
+   http.Error(w,"sign out before signing in as another user",http.StatusConflict);return
+  }
   if r.ContentLength>1024 {http.Error(w,"request too large",413);return}
   token,ok:=strings.CutPrefix(r.Header.Get("Authorization"),"Bearer ")
   if !ok {http.Error(w,"bearer token required",401);return}
