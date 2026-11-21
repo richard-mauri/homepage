@@ -203,7 +203,7 @@ function enableOptionalAuth(){
  }
  function showSignedOut(){
   traceClient('ui_signed_out','invalid');
-  if(bannerIdentity)bannerIdentity.textContent='Browser-only mode';
+  if(bannerIdentity)bannerIdentity.textContent='Not signed in';
   clearHomeLogin();
   signedIn.hidden=true;signIn.hidden=false;guestButton.hidden=false;retryAuth.hidden=true;manage.hidden=true;
   suiteHandoffToken='';suiteHandoffExpires=0;
