@@ -48,7 +48,7 @@ func TestHomepageAccountChooserAndSessionLifecycle(t *testing.T) {
   t.Fatal("guest authentication must be offered only inside the shared Sign in dialog")
  }
  if !strings.Contains(script,"container.append(signIn,retryAuth,signedIn)") ||
-    !strings.Contains(script,"signedIn.hidden=true;signIn.hidden=false;retryAuth.hidden=true;manage.hidden=true;"){
+    !strings.Contains(script,"signedIn.hidden=true;signIn.hidden=false;signIn.textContent='Sign in';retryAuth.hidden=true;manage.hidden=true;"){
   t.Fatal("signed-out Homepage must display just one Sign in button")
  }
  if strings.Contains(script,"signIn.hidden=state.session.role!=='guest'"){
