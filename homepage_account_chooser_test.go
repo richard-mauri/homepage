@@ -30,6 +30,13 @@ func TestHomepageAccountChooserAndSessionLifecycle(t *testing.T) {
  } {
   if !strings.Contains(script,want){t.Errorf("account-choice contract missing %q",want)}
  }
+ if strings.Contains(script,"suiteGuestSignInButton") || strings.Contains(script,"guestButton"){
+  t.Fatal("guest authentication must be offered only inside the shared Sign in dialog")
+ }
+ if !strings.Contains(script,"container.append(signIn,retryAuth,signedIn)") ||
+    !strings.Contains(script,"signedIn.hidden=true;signIn.hidden=false;retryAuth.hidden=true;manage.hidden=true;"){
+  t.Fatal("signed-out Homepage must display just one Sign in button")
+ }
  if strings.Contains(script,"signIn.hidden=state.session.role!=='guest'"){
   t.Fatal("personal accounts must retain access to the account chooser")
  }
