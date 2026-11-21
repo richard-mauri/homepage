@@ -178,7 +178,7 @@ function enableOptionalAuth(){
   previousFocus=document.activeElement;overlay.hidden=false;message.textContent='';token.value='';
   form.hidden=true;choices.hidden=false;
   description.textContent=sessionRole?'Currently signed in as '+(sessionRole==='guest'?'Guest':sessionUser)+'. Choose how to sign in.':'Choose how to sign in.';
-  guestChoice.disabled=!!sessionRole;
+  guestChoice.disabled=false;
   guestChoice.title=sessionRole==='guest'?'Already signed in as Guest':sessionRole?'Sign out before starting a Guest session':'';
   signOutChoice.hidden=!sessionRole;
   personalChoice.focus();
@@ -279,7 +279,7 @@ function enableOptionalAuth(){
   }catch(error){traceClient('guest_signin_error','failed');message.textContent=error.message||'Guest access unavailable.';}
   finally{
    guestPending=false;guestChoice.textContent='Sign in as Guest';guestButton.disabled=false;
-   guestChoice.disabled=!!sessionRole;
+   guestChoice.disabled=false;
    if(success)hideDialog();
   }
  }
