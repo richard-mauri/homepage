@@ -27,6 +27,11 @@ jobs:
       - name: Test nested shared UI module
         working-directory: shared/ui
         run: go test -count=1 ./...
+      - name: Test shared authentication module
+        working-directory: shared/auth
+        run: go test -count=1 ./...
+      - name: Test direct-visit authentication recovery
+        run: node scripts/test-auth-recovery.cjs
       - name: Build Intel macOS binary
         run: GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o /tmp/homepage-darwin-amd64 .
       - name: Build Apple Silicon macOS binary
