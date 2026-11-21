@@ -8,6 +8,8 @@
 
 **Single-toolbar-button correction:** Owner Safari screenshot of Homepage Build 000088 still displayed two separate toolbar buttons **Sign in** and **Sign in as Guest**, contradicting the single-entry decision. The PR #61 candidate now removes the standalone guest toolbar button and retains Guest solely inside the Sign in chooser; this is a scoped correction in the existing auth draft PR. Added explicit regression assertions. Production Build 000088 has not been updated by GitHub commits. Verify final exact-head CI and owner Safari after explicitly authorized activation.
 
+**Owner Mac prerequisite found:** On the owner's Mac, `./devbuild.sh` stopped at `node: command not found` after Go tests, leaving the old Build 000088 binary intact; `./homego.sh` then launched the old binary and its tunnel. The owner has **not run the new UI**. Added an early `node` prerequisite check before testing/compiling, plus documentation to install a prebuilt Node.js runtime, then rerun build, confirm a new stamped version and obtain separate launch authorization. No claim of live candidate activation. Single Sign in toolbar correction is now in this draft branch; exact-head CI must be checked.
+
 **Data safety:** No personal account/guest settings, watchlists, tokens, local Mac files, sessions, service config, persistent data, browser storage/history, cloud tunnels, DNS, version or build counter modified. Work in GitHub candidate branch only; owner Mac-local uncommitted/unpushed changes inaccessible.
 
 **Documentation:** Read current Homepage merged policy v1.1.0; reviewed Homepage AGENTS, README, ARCHITECTURE, DEVELOPMENT and CURRENT_WORK. Updated README, ARCHITECTURE, DEVELOPMENT and this handoff; no policy change, no AGENTS change. Consumer docs/code untouched.
