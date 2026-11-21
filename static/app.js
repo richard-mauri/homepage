@@ -173,21 +173,21 @@ function enableOptionalAuth(){
  }
  function showDialog(){
   previousFocus=document.activeElement;overlay.hidden=false;message.textContent='';token.value='';
-  form.hidden=true;choices.hidden=false;
-  description.textContent=sessionRole?'Currently signed in as '+(sessionRole==='guest'?'Guest':sessionUser)+'. Choose how to sign in.':'Choose how to sign in.';
-  guestChoice.disabled=false;
-  guestChoice.title=sessionRole==='guest'?'Already signed in as Guest':sessionRole?'Sign out before starting a Guest session':'';
+  form.hidden=true;choices.hidden=!!sessionRole;
+  title.textContent=sessionRole?'Account':'Sign in';
+  description.textContent=sessionRole?'Signed in as '+(sessionRole==='guest'?'Guest':sessionUser)+'. Sign out before using another account.':'Choose how to sign in.';
   signOutChoice.hidden=!sessionRole;
-  personalChoice.focus();
+  if(sessionRole)signOutChoice.focus();else personalChoice.focus();
  }
  personalChoice.addEventListener('click',()=>{
+  if(sessionRole||signOutPending)return;
   form.hidden=false;choices.hidden=true;
-  description.textContent='Enter an approved personal token. Your current session remains active if sign-in fails.';
+  description.textContent='Enter an approved personal token to sign in.';
   token.focus();
  });
  backToChoices.addEventListener('click',()=>{
   form.hidden=true;choices.hidden=false;token.value='';message.textContent='';
-  description.textContent=sessionRole?'Currently signed in as '+(sessionRole==='guest'?'Guest':sessionUser)+'. Choose how to sign in.':'Choose how to sign in.';
+  description.textContent='Choose how to sign in.';
   personalChoice.focus();
  });
  signIn.addEventListener('click',showDialog);
@@ -195,7 +195,7 @@ function enableOptionalAuth(){
  overlay.addEventListener('click',event=>{if(event.target===overlay)hideDialog();});
  dialog.addEventListener('keydown',event=>{if(event.key==='Escape'){hideDialog();return;}
   if(event.key==='Tab'){
-   const controls=[close,...(form.hidden?[personalChoice,guestChoice,signOutChoice]:[token,submit,backToChoices])].filter(x=>!x.disabled&&!x.hidden);
+   const controls=[close,...(sessionRole?[signOutChoice]:form.hidden?[personalChoice,guestChoice]:[token,submit,backToChoices])].filter(x=>!x.disabled&&!x.hidden);
    const first=controls[0],last=controls[controls.length-1];
    if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
    else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
@@ -233,7 +233,7 @@ function enableOptionalAuth(){
   traceClient('ui_signed_out','invalid');
   if(bannerIdentity)bannerIdentity.textContent='Not signed in';
   clearHomeLogin();
-  signedIn.hidden=true;signIn.hidden=false;retryAuth.hidden=true;manage.hidden=true;
+  signedIn.hidden=true;signIn.hidden=false;signIn.textContent='Sign in';retryAuth.hidden=true;manage.hidden=true;
   suiteHandoffToken='';suiteHandoffExpires=0;
   try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}
   applyHandoffLinks();
@@ -249,7 +249,7 @@ function enableOptionalAuth(){
     manage.hidden=state.session.role==='guest'; // Every signed-in user except temporary guests may manage tokens
     if(state.session.role!=='guest'){manage.hidden=false; // Every signed-in user may manage tokens
     }
-    signedIn.hidden=false;signIn.hidden=false;retryAuth.hidden=true;
+    signedIn.hidden=false;signIn.hidden=false;signIn.textContent='Account';retryAuth.hidden=true;
     // Returning from any suite app is also a verified Homepage arrival.
     void acknowledgeSuiteLaunch('homepage');
     traceClient('ui_signed_in','valid');
@@ -263,7 +263,7 @@ function enableOptionalAuth(){
  };
  async function createGuestSession(){
   if(guestPending||signInPending||signOutPending)return;
-  if(sessionRole){message.textContent=sessionRole==='guest'?'Already signed in as Guest.':'Sign out before starting a Guest session.';return;}
+  if(sessionRole){message.textContent='Sign out before choosing another identity.';return;}
   guestPending=true;guestChoice.disabled=true;
   guestChoice.textContent='Creating guest session…';
   let success=false;
@@ -298,7 +298,8 @@ function enableOptionalAuth(){
  retryAuth.addEventListener('click',()=>{void refresh()});
  form.addEventListener('submit',async event=>{
   event.preventDefault();
-  if(signInPending)return;
+  if(signInPending||signOutPending)return;
+  if(sessionRole){message.textContent='Sign out before signing in as another user.';return;}
   signInPending=true;submit.disabled=true;submit.textContent='Signing in…';
   submit.setAttribute('aria-busy','true');token.disabled=true;close.disabled=true;
   message.textContent='Checking your personal token…';
