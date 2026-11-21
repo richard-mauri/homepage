@@ -58,11 +58,25 @@ func TestSuiteRecoveryBridgeDoesNotIssueTokensOnGet(t *testing.T) {
   "headers=sessionID?{Authorization:'Session '+sessionID}:{}",
   "method:'POST',credentials:'same-origin'",
   "if(storedSession && response.status===401)response=await issueHandoff('')",
-  "location.replace(suiteDestination+'#suite_mode=local')",
+  "location.replace('https://home.themauris.org/#suite_signin=required')",
   "location.replace(suiteDestination+'#suite_token='+data.token)",
   "localStorage.getItem('themauris-theme')",
  } {
   if !strings.Contains(text,must){t.Errorf("missing recovery invariant: %q",must)}
+ }
+ if strings.Contains(text,"suite_mode=local") || strings.Contains(text,"Continue without an account"){
+  t.Fatal("suite recovery must not allow anonymous/browser-only access")
+ }
+ page,err:=assets.ReadFile("static/launch-suite.html")
+ if err!=nil{t.Fatal(err)}
+ if strings.Contains(string(page),"local-link") || strings.Contains(string(page),"Continue without an account"){
+  t.Fatal("recovery page still invites anonymous access")
+ }
+ appScript,err:=assets.ReadFile("static/app.js")
+ if err!=nil{t.Fatal(err)}
+ if !strings.Contains(string(appScript),"if(location.hash==='#suite_signin=required')") ||
+    !strings.Contains(string(appScript),"showSuiteLaunchGate()"){
+  t.Fatal("Homepage must offer personal or guest sign-in after blocked direct visit")
  }
  if strings.Contains(text,"?suite_token=") || strings.Contains(text,"/api/session/renew"){
   t.Fatal("handoff must not use query strings or extend Homepage login")
