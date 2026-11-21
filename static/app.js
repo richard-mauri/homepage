@@ -141,12 +141,11 @@ function enableOptionalAuth(){
  const bannerIdentity=document.querySelector('#suite-auth-status');
  const container=document.createElement('div');container.id='suiteAccount';container.className='suite-account';
  const signIn=document.createElement('button');signIn.id='suiteSignInButton';signIn.type='button';signIn.textContent='Sign in';
- const guestButton=document.createElement('button');guestButton.id='suiteGuestSignInButton';guestButton.type='button';guestButton.textContent='Sign in as Guest';
  const retryAuth=document.createElement('button');retryAuth.type='button';retryAuth.textContent='Connection issue — Retry';retryAuth.hidden=true;
  const signedIn=document.createElement('div');signedIn.className='suite-account-auth';signedIn.hidden=true;
  const manage=document.createElement('a');manage.href='/suite-admin';manage.textContent='Manage Suite';manage.hidden=true;
  signedIn.append(manage);
- container.append(signIn,guestButton,retryAuth,signedIn);top.prepend(container);
+ container.append(signIn,retryAuth,signedIn);top.prepend(container);
  const overlay=document.createElement('div');overlay.className='suite-modal-backdrop';overlay.hidden=true;
  const dialog=document.createElement('section');dialog.className='suite-modal';dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');dialog.setAttribute('aria-labelledby','suiteDialogTitle');
  const header=document.createElement('div');header.className='suite-modal-header';
@@ -229,14 +228,14 @@ function enableOptionalAuth(){
   sessionRole='';sessionUser='';
   traceClient('ui_unavailable','unavailable');
   if(bannerIdentity)bannerIdentity.textContent='Account status unavailable';
-  signedIn.hidden=true;signIn.hidden=true;guestButton.hidden=true;retryAuth.hidden=false;
+  signedIn.hidden=true;signIn.hidden=true;retryAuth.hidden=false;
  }
  function showSignedOut(){
   sessionRole='';sessionUser='';
   traceClient('ui_signed_out','invalid');
   if(bannerIdentity)bannerIdentity.textContent='Not signed in';
   clearHomeLogin();
-  signedIn.hidden=true;signIn.hidden=false;guestButton.hidden=false;retryAuth.hidden=true;manage.hidden=true;
+  signedIn.hidden=true;signIn.hidden=false;retryAuth.hidden=true;manage.hidden=true;
   suiteHandoffToken='';suiteHandoffExpires=0;
   try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}
   applyHandoffLinks();
@@ -252,7 +251,7 @@ function enableOptionalAuth(){
     manage.hidden=state.session.role==='guest'; // Every signed-in user except temporary guests may manage tokens
     if(state.session.role!=='guest'){manage.hidden=false; // Every signed-in user may manage tokens
     }
-    signedIn.hidden=false;signIn.hidden=false;guestButton.hidden=true;retryAuth.hidden=true;
+    signedIn.hidden=false;signIn.hidden=false;retryAuth.hidden=true;
     // Returning from any suite app is also a verified Homepage arrival.
     void acknowledgeSuiteLaunch('homepage');
     traceClient('ui_signed_in','valid');
@@ -267,7 +266,7 @@ function enableOptionalAuth(){
  async function createGuestSession(){
   if(guestPending||signInPending||signOutPending)return;
   if(sessionRole){message.textContent=sessionRole==='guest'?'Already signed in as Guest.':'Sign out before starting a Guest session.';return;}
-  guestPending=true;guestChoice.disabled=true;guestButton.disabled=true;
+  guestPending=true;guestChoice.disabled=true;
   guestChoice.textContent='Creating guest session…';
   let success=false;
   try{
@@ -278,12 +277,11 @@ function enableOptionalAuth(){
    success=true;
   }catch(error){traceClient('guest_signin_error','failed');message.textContent=error.message||'Guest access unavailable.';}
   finally{
-   guestPending=false;guestChoice.textContent='Sign in as Guest';guestButton.disabled=false;
+   guestPending=false;guestChoice.textContent='Sign in as Guest';
    guestChoice.disabled=false;
    if(success)hideDialog();
   }
  }
- guestButton.addEventListener('click',()=>{void createGuestSession()});
  guestChoice.addEventListener('click',()=>{void createGuestSession()});
  signOutChoice.addEventListener('click',async()=>{
   if(signInPending||guestPending||signOutPending)return;
