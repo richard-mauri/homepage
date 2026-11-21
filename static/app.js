@@ -90,13 +90,11 @@ function showSuiteLaunchGate(){
  const message=document.createElement('p');message.textContent='Before opening an application, sign in on Homepage with your personal token or sign in as a guest for one hour.';
  const actions=document.createElement('div');actions.className='suite-launch-actions';
  const signIn=document.createElement('button');signIn.type='button';signIn.textContent='Sign in';
- const guest=document.createElement('button');guest.type='button';guest.textContent='Sign in as Guest';
  function close(){overlay.remove();}
  signIn.addEventListener('click',()=>{close();document.querySelector('#suiteSignInButton')?.click()});
- guest.addEventListener('click',()=>{close();document.querySelector('#suiteGuestSignInButton')?.click()});
- // This launch gate is not dismissible; either sign-in route remains on Homepage.
+ // This launch gate is not dismissible; the shared account chooser remains on Homepage.
  dialog.addEventListener('keydown',event=>{if(event.key==='Escape')event.preventDefault()});
- actions.append(signIn,guest);dialog.append(title,message,actions);overlay.append(dialog);document.body.append(overlay);
+ actions.append(signIn);dialog.append(title,message,actions);overlay.append(dialog);document.body.append(overlay);
  signIn.focus();
 }
 // Mint a fresh handoff at application launch instead of reusing an older
