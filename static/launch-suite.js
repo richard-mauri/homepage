@@ -14,7 +14,7 @@ const homeLoginKey='mauri-home-session-v1';
 // first paint never flashes the browser-default white page.
 try{if(localStorage.getItem('themauris-theme')==='light')document.documentElement.dataset.theme='light'}catch(_){}
 const statusElement=document.getElementById('status');
-const localLink=document.getElementById('local-link');
+const homeLink=document.getElementById('home-link');
 
 async function issueHandoff(sessionID){
  const headers=sessionID?{Authorization:'Session '+sessionID}:{};
@@ -27,7 +27,7 @@ async function recoverSuite(){
   statusElement.textContent='Unknown suite application. Return to Homepage.';
   return;
  }
- localLink.href=suiteDestination+'#suite_mode=local';
+ // Authentication is mandatory. No direct-visit local-mode fallback.
  let storedSession='';
  try{
   const value=JSON.parse(localStorage.getItem(homeLoginKey)||'null');
@@ -40,8 +40,10 @@ async function recoverSuite(){
   let response=await issueHandoff(storedSession);
   // A stale localStorage ID may coexist with a current host-only cookie.
   if(storedSession && response.status===401)response=await issueHandoff('');
-  if(response.status===401){
-   location.replace(suiteDestination+'#suite_mode=local');
+  if(response.status===401 || response.status===403){
+   // A rejected or expired session must return to Homepage for the
+   // authenticated personal/guest choice; never enter the application.
+   location.replace('https://home.themauris.org/#suite_signin=required');
    return;
   }
   if(!response.ok)throw Error('Homepage handoff unavailable (HTTP '+response.status+')');
@@ -54,7 +56,7 @@ async function recoverSuite(){
   location.replace(suiteDestination+'#suite_token='+data.token);
  }catch(e){
   // Transient network or persistence failures are not authoritative sign-out.
-  statusElement.textContent='Could not verify the Homepage session: '+e.message+'. Retry by reloading this page or continue without an account.';
+  statusElement.textContent='Could not verify the Homepage session: '+e.message+'. Retry by reloading or return to Homepage to sign in.';
  }
 }
 void recoverSuite();

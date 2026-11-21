@@ -51,7 +51,7 @@ func TestHomepageAccountPresentationUsesVerifiedState(t *testing.T) {
  for _,want:=range []string{
   `document.querySelector('#suite-auth-status')`,
   `bannerIdentity.textContent='Account status unavailable'`,
-  `bannerIdentity.textContent='Browser-only mode'`,
+  `bannerIdentity.textContent='Not signed in'`,
   `SuiteBannerStatus.signedIn(state.session.user)`,
   `signedIn.append(manage)`,
  } {

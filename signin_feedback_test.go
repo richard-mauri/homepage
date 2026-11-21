@@ -27,7 +27,8 @@ func TestPersonalSignInProgressAndErrors(t *testing.T) {
  if err!=nil {t.Fatal(err)}
  for _,want:=range []string{
   "submit.className='suite-signin-submit'",
-  "if(signInPending)return;",
+  "if(signInPending||signOutPending)return;",
+  "if(sessionRole){message.textContent='Sign out before signing in as another user.';return;}",
   "submit.textContent='Signing in…'",
   "submit.setAttribute('aria-busy','true')",
   "message.textContent='Checking your personal token…'",

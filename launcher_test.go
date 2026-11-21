@@ -19,8 +19,7 @@ func TestHomepageSameTabLauncherContract(t *testing.T){
   "showSuiteLaunchGate();",
   "suiteLaunchGateTitle",
   "signIn.addEventListener('click'",
-  "guest.addEventListener('click'",
-  "actions.append(signIn,guest);",
+  "actions.append(signIn);",
   "if(event.key==='Escape')event.preventDefault()",
   "message.textContent='Before opening an application, sign in on Homepage",
   "location.assign(url.toString());",
@@ -29,6 +28,8 @@ func TestHomepageSameTabLauncherContract(t *testing.T){
   if !strings.Contains(script,required){t.Errorf("launcher missing %q",required)}
  }
  for _,forbidden:=range []string{
+  "suiteGuestSignInButton",
+  "actions.append(signIn,guest);",
   "window.open(",
   "a.target='_blank'",
   "a.target=appTabName(",

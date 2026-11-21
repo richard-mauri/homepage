@@ -12,6 +12,7 @@ command -v go >/dev/null || { echo 'Go required' >&2; exit 1; }
 command -v git >/dev/null || { echo 'Git required' >&2; exit 1; }
 git rev-parse --git-dir >/dev/null 2>&1 || { echo 'Git checkout required' >&2; exit 1; }
 go test -count=1 ./...
+(cd shared/auth && go test -count=1 ./...)
 # Private per-checkout sequence, shared across branches, never committed.
 COUNTER="$(git rev-parse --git-path homepage-build-counter)"
 mkdir -p "$(dirname "$COUNTER")" dist

@@ -51,3 +51,11 @@
 html[data-theme="light"] .suite-ui{--suite-bg:#f5f8f8;--suite-surface:#e9f0f2;--suite-text:#172832;--suite-muted:#536b75;--suite-line:#c7d6da;--suite-accent:#126b77}
 html:not([data-theme="light"]) .suite-ui{--suite-bg:#0e161c;--suite-surface:#19262f;--suite-text:#eef5f7;--suite-muted:#a1b1ba;--suite-line:#344a53;--suite-accent:#71d9d5}
 @media(max-width:600px){.suite-toolbar .topright{width:100%;flex-wrap:wrap;gap:8px}.suite-toolbar .suite-account{width:auto;flex:1 1 auto}.suite-toolbar #clock{margin-left:auto}}
+
+/* Account chooser and personal-token subview share one accessible dialog. */
+.suite-modal-backdrop[hidden],.suite-modal [hidden]{display:none!important}
+.suite-signin-choices{display:grid;gap:10px;margin:16px 0}
+.suite-signin-choices button{text-align:left;width:100%;font-weight:600}
+.suite-signin-choices button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.suite-signout-choice{width:100%;margin-top:14px}
+.suite-modal #suiteBackToChoices{margin-left:8px}

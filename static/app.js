@@ -90,13 +90,11 @@ function showSuiteLaunchGate(){
  const message=document.createElement('p');message.textContent='Before opening an application, sign in on Homepage with your personal token or sign in as a guest for one hour.';
  const actions=document.createElement('div');actions.className='suite-launch-actions';
  const signIn=document.createElement('button');signIn.type='button';signIn.textContent='Sign in';
- const guest=document.createElement('button');guest.type='button';guest.textContent='Sign in as Guest';
  function close(){overlay.remove();}
  signIn.addEventListener('click',()=>{close();document.querySelector('#suiteSignInButton')?.click()});
- guest.addEventListener('click',()=>{close();document.querySelector('#suiteGuestSignInButton')?.click()});
- // This launch gate is not dismissible; either sign-in route remains on Homepage.
+ // This launch gate is not dismissible; the shared account chooser remains on Homepage.
  dialog.addEventListener('keydown',event=>{if(event.key==='Escape')event.preventDefault()});
- actions.append(signIn,guest);dialog.append(title,message,actions);overlay.append(dialog);document.body.append(overlay);
+ actions.append(signIn);dialog.append(title,message,actions);overlay.append(dialog);document.body.append(overlay);
  signIn.focus();
 }
 // Mint a fresh handoff at application launch instead of reusing an older
@@ -121,7 +119,15 @@ async function openSuiteApp(event){
  }
  location.assign(url.toString());
 }
-async function init(){const root=document.querySelector('#cards');try{const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)throw Error('Configuration unavailable');const c=await r.json();authTraceActive=!!c.traceEnabled;traceClient('page_init','initial');root.replaceChildren(...c.apps.map(makeCard));applyHandoffLinks();for(const link of root.querySelectorAll('a.app-card'))link.addEventListener('click',openSuiteApp);document.querySelector('.count').textContent='/ '+String(c.apps.length).padStart(2,'0');if(c.persistenceAvailable)enableOptionalAuth()}catch(e){root.textContent='Applications are temporarily unavailable. Please refresh to try again.'}}
+async function init(){const root=document.querySelector('#cards');try{const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)throw Error('Configuration unavailable');const c=await r.json();authTraceActive=!!c.traceEnabled;traceClient('page_init','initial');root.replaceChildren(...c.apps.map(makeCard));applyHandoffLinks();for(const link of root.querySelectorAll('a.app-card'))link.addEventListener('click',openSuiteApp);document.querySelector('.count').textContent='/ '+String(c.apps.length).padStart(2,'0');if(c.persistenceAvailable)enableOptionalAuth();
+ // The same-origin recovery bridge may return here after a rejected,
+ // missing or expired parent session. Show the existing personal/guest
+ // gate instead of silently letting a direct launch fall back to local mode.
+ if(location.hash==='#suite_signin=required'){
+  history.replaceState(null,'',location.pathname+location.search);
+  if(c.persistenceAvailable)showSuiteLaunchGate();
+ }
+}catch(e){root.textContent='Applications are temporarily unavailable. Please refresh to try again.'}}
 function tick(){document.querySelector('#clock').textContent=new Intl.DateTimeFormat('en-US',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'America/Los_Angeles'}).format(new Date())}
 const themeKey='themauris-theme';try{if(localStorage.getItem(themeKey)==='light')document.documentElement.dataset.theme='light'}catch(_){}document.querySelector('#themeToggle').addEventListener('click',()=>{const next=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=next;try{localStorage.setItem(themeKey,next)}catch(_){}});document.querySelector('#year').textContent=new Date().getFullYear();tick();setInterval(tick,30_000);init();
 
@@ -133,35 +139,63 @@ function enableOptionalAuth(){
  const bannerIdentity=document.querySelector('#suite-auth-status');
  const container=document.createElement('div');container.id='suiteAccount';container.className='suite-account';
  const signIn=document.createElement('button');signIn.id='suiteSignInButton';signIn.type='button';signIn.textContent='Sign in';
- const guestButton=document.createElement('button');guestButton.id='suiteGuestSignInButton';guestButton.type='button';guestButton.textContent='Sign in as Guest';
  const retryAuth=document.createElement('button');retryAuth.type='button';retryAuth.textContent='Connection issue — Retry';retryAuth.hidden=true;
  const signedIn=document.createElement('div');signedIn.className='suite-account-auth';signedIn.hidden=true;
  const manage=document.createElement('a');manage.href='/suite-admin';manage.textContent='Manage Suite';manage.hidden=true;
  signedIn.append(manage);
- container.append(signIn,guestButton,retryAuth,signedIn);top.prepend(container);
+ container.append(signIn,retryAuth,signedIn);top.prepend(container);
  const overlay=document.createElement('div');overlay.className='suite-modal-backdrop';overlay.hidden=true;
  const dialog=document.createElement('section');dialog.className='suite-modal';dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');dialog.setAttribute('aria-labelledby','suiteDialogTitle');
  const header=document.createElement('div');header.className='suite-modal-header';
- const title=document.createElement('h2');title.id='suiteDialogTitle';title.textContent='Personal settings';
+ const title=document.createElement('h2');title.id='suiteDialogTitle';title.textContent='Sign in';
  const close=document.createElement('button');close.type='button';close.textContent='Close';close.setAttribute('aria-label','Close sign-in dialog');
  header.append(title,close);
- const description=document.createElement('p');description.textContent='Sign in with your approved personal token to launch suite applications and use your personal settings. Or continue as a guest for one hour. Existing local settings will not be changed.';
+ const description=document.createElement('p');description.textContent='Choose how to sign in.';
+ const choices=document.createElement('div');choices.className='suite-signin-choices';
+ const personalChoice=document.createElement('button');personalChoice.type='button';personalChoice.id='suiteChoosePersonal';personalChoice.textContent='Sign in as another user';
+ const guestChoice=document.createElement('button');guestChoice.type='button';guestChoice.id='suiteChooseGuest';guestChoice.textContent='Sign in as Guest';
+ choices.append(personalChoice,guestChoice);
+ const backToChoices=document.createElement('button');backToChoices.type='button';backToChoices.textContent='Back to choices';
+ const signOutChoice=document.createElement('button');signOutChoice.type='button';signOutChoice.id='suiteSignOut';signOutChoice.textContent='Sign out';signOutChoice.className='suite-signout-choice';
  const form=document.createElement('form');
  const label=document.createElement('label');label.htmlFor='suiteToken';label.textContent='Approved personal token';
  const token=document.createElement('input');token.id='suiteToken';token.type='password';token.autocomplete='off';token.spellcheck=false;token.required=true;token.minLength=64;token.maxLength=64;
  const submit=document.createElement('button');submit.type='submit';submit.className='suite-signin-submit';submit.textContent='Sign in';
- form.append(label,token,submit);
+ form.append(label,token,submit,backToChoices);form.hidden=true;
  const message=document.createElement('p');message.className='suite-modal-message';message.setAttribute('role','status');message.setAttribute('aria-live','polite');
- dialog.append(header,description,form,message);overlay.append(dialog);document.body.append(overlay);
- let previousFocus=null,signInPending=false;
- function hideDialog(){if(signInPending)return;overlay.hidden=true;token.value='';message.textContent='';if(previousFocus)previousFocus.focus();}
- function showDialog(){previousFocus=document.activeElement;overlay.hidden=false;message.textContent='';token.focus();}
+ dialog.append(header,description,choices,form,signOutChoice,message);overlay.append(dialog);document.body.append(overlay);
+ let previousFocus=null,signInPending=false,guestPending=false,signOutPending=false,sessionRole='',sessionUser='';
+ function hideDialog(){
+  if(signInPending||guestPending||signOutPending)return;
+  overlay.hidden=true;token.value='';message.textContent='';
+  form.hidden=true;choices.hidden=false;
+  if(previousFocus)previousFocus.focus();
+ }
+ function showDialog(){
+  previousFocus=document.activeElement;overlay.hidden=false;message.textContent='';token.value='';
+  form.hidden=true;choices.hidden=!!sessionRole;
+  title.textContent=sessionRole?'Account':'Sign in';
+  description.textContent=sessionRole?'Signed in as '+(sessionRole==='guest'?'Guest':sessionUser)+'. Sign out before using another account.':'Choose how to sign in.';
+  signOutChoice.hidden=!sessionRole;
+  if(sessionRole)signOutChoice.focus();else personalChoice.focus();
+ }
+ personalChoice.addEventListener('click',()=>{
+  if(sessionRole||signOutPending)return;
+  form.hidden=false;choices.hidden=true;
+  description.textContent='Enter an approved personal token to sign in.';
+  token.focus();
+ });
+ backToChoices.addEventListener('click',()=>{
+  form.hidden=true;choices.hidden=false;token.value='';message.textContent='';
+  description.textContent='Choose how to sign in.';
+  personalChoice.focus();
+ });
  signIn.addEventListener('click',showDialog);
  close.addEventListener('click',hideDialog);
  overlay.addEventListener('click',event=>{if(event.target===overlay)hideDialog();});
  dialog.addEventListener('keydown',event=>{if(event.key==='Escape'){hideDialog();return;}
   if(event.key==='Tab'){
-   const controls=[close,token,submit].filter(x=>!x.disabled);
+   const controls=[close,...(sessionRole?[signOutChoice]:form.hidden?[personalChoice,guestChoice]:[token,submit,backToChoices])].filter(x=>!x.disabled&&!x.hidden);
    const first=controls[0],last=controls[controls.length-1];
    if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
    else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
@@ -189,15 +223,17 @@ function enableOptionalAuth(){
   }catch(_){traceClient('refresh_error','network');return {kind:'unavailable'};}
  }
  function showUnavailable(){
+  sessionRole='';sessionUser='';
   traceClient('ui_unavailable','unavailable');
   if(bannerIdentity)bannerIdentity.textContent='Account status unavailable';
-  signedIn.hidden=true;signIn.hidden=true;guestButton.hidden=true;retryAuth.hidden=false;
+  signedIn.hidden=true;signIn.hidden=true;retryAuth.hidden=false;
  }
  function showSignedOut(){
+  sessionRole='';sessionUser='';
   traceClient('ui_signed_out','invalid');
-  if(bannerIdentity)bannerIdentity.textContent='Browser-only mode';
+  if(bannerIdentity)bannerIdentity.textContent='Not signed in';
   clearHomeLogin();
-  signedIn.hidden=true;signIn.hidden=false;guestButton.hidden=false;retryAuth.hidden=true;manage.hidden=true;
+  signedIn.hidden=true;signIn.hidden=false;signIn.textContent='Sign in';retryAuth.hidden=true;manage.hidden=true;
   suiteHandoffToken='';suiteHandoffExpires=0;
   try{sessionStorage.removeItem('suite-handoff-v1')}catch(_){}
   applyHandoffLinks();
@@ -208,11 +244,12 @@ function enableOptionalAuth(){
    const state=await refreshSession();
    if(state.kind==='valid'){
     try{rememberHomeLogin(state.session)}catch(_){showUnavailable();return false;}
+    sessionRole=state.session.role;sessionUser=state.session.user;
     if(bannerIdentity)SuiteBannerStatus.signedIn(state.session.user);
     manage.hidden=state.session.role==='guest'; // Every signed-in user except temporary guests may manage tokens
     if(state.session.role!=='guest'){manage.hidden=false; // Every signed-in user may manage tokens
     }
-    signedIn.hidden=false;signIn.hidden=state.session.role!=='guest';guestButton.hidden=true;retryAuth.hidden=true;
+    signedIn.hidden=false;signIn.hidden=false;signIn.textContent='Account';retryAuth.hidden=true;
     // Returning from any suite app is also a verified Homepage arrival.
     void acknowledgeSuiteLaunch('homepage');
     traceClient('ui_signed_in','valid');
@@ -224,22 +261,45 @@ function enableOptionalAuth(){
   })().finally(()=>{refreshPending=null;});
   return refreshPending;
  };
- guestButton.addEventListener('click',async()=>{
-  if(guestButton.disabled)return;
-  guestButton.disabled=true;
-  guestButton.textContent='Creating guest session…';
+ async function createGuestSession(){
+  if(guestPending||signInPending||signOutPending)return;
+  if(sessionRole){message.textContent='Sign out before choosing another identity.';return;}
+  guestPending=true;guestChoice.disabled=true;
+  guestChoice.textContent='Creating guest session…';
+  let success=false;
   try{
    const response=await fetch('/api/session/guest',{method:'POST',credentials:'same-origin',cache:'no-store'});
    if(!response.ok)throw Error('Guest access unavailable (HTTP '+response.status+').');
    rememberHomeLogin(await response.json());
    if(!await refresh())throw Error('Guest session could not be verified.');
-  }catch(error){traceClient('guest_signin_error','failed');alert(error.message||'Guest access unavailable.');}
-  finally{guestButton.disabled=false;guestButton.textContent='Sign in as Guest';}
+   success=true;
+  }catch(error){traceClient('guest_signin_error','failed');message.textContent=error.message||'Guest access unavailable.';}
+  finally{
+   guestPending=false;guestChoice.textContent='Sign in as Guest';
+   guestChoice.disabled=false;
+   if(success)hideDialog();
+  }
+ }
+ guestChoice.addEventListener('click',()=>{void createGuestSession()});
+ signOutChoice.addEventListener('click',async()=>{
+  if(signInPending||guestPending||signOutPending)return;
+  signOutPending=true;signOutChoice.disabled=true;message.textContent='Signing out…';
+  let success=false;
+  try{
+   const response=await fetch('/api/session',{method:'DELETE',credentials:'same-origin',cache:'no-store',headers:tracedHeaders(homeSessionHeaders())});
+   if(!response.ok)throw Error('Could not sign out (HTTP '+response.status+').');
+   showSignedOut();success=true;
+  }catch(error){message.textContent=error.message||'Could not sign out. Try again.';}
+  finally{
+   signOutPending=false;signOutChoice.disabled=false;
+   if(success)hideDialog();
+  }
  });
  retryAuth.addEventListener('click',()=>{void refresh()});
  form.addEventListener('submit',async event=>{
   event.preventDefault();
-  if(signInPending)return;
+  if(signInPending||signOutPending)return;
+  if(sessionRole){message.textContent='Sign out before signing in as another user.';return;}
   signInPending=true;submit.disabled=true;submit.textContent='Signing in…';
   submit.setAttribute('aria-busy','true');token.disabled=true;close.disabled=true;
   message.textContent='Checking your personal token…';
