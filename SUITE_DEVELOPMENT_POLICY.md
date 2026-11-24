@@ -22,6 +22,14 @@ If the Homepage policy or its current merged-main status cannot be accessed or v
 
 No automated synchronization, generated consumer copies, copy-version metadata or cross-repo write permissions are needed. Policy updates use a Homepage-scoped branch and PR; consumer entry points ordinarily remain unchanged. The active merged Homepage policy, not a development-branch proposal, governs until a new policy PR receives owner-authorized FINISH.
 
+## Language, dependencies, and development environments
+
+Use Go for new backend services, standalone utilities, data acquisition, file conversion, and command-line tools. Use JavaScript, HTML, and CSS for browser functionality, preserving the application-specific architecture. This rule also applies to ad hoc utilities and development helpers prepared for suite projects, whether or not committed to a repository.
+
+**Do not introduce or use Python for new development, scripts, utilities, or dependencies without explicit owner approval.** Prefer the Go standard library and existing installed tools; minimize unnecessary third-party dependencies. Do not install, replace, or reconfigure a functioning development toolchain without a demonstrated technical requirement and explicit owner approval.
+
+Docker, containerized development and deployment, and virtual environments are permitted where appropriate. The Python restriction is not a restriction on virtualization, containers, or isolated development environments.
+
 ## Development workflow
 
 1. Acknowledge verified merged `main`, actual active Issue(s)/PR(s), branch, scope, architecture boundaries, local divergence, expected checks, owner Mac/Safari/live acceptance and approval restrictions *before* edits. Reconcile existing open work first.
