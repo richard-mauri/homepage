@@ -1,6 +1,6 @@
 # Suite development policy
 
-**Policy version:** 1.2.0
+**Policy version:** 1.2.1
 **Editable authority:** [richard-mauri/homepage](https://github.com/richard-mauri/homepage), `SUITE_DEVELOPMENT_POLICY.md` on merged `main`  
 **Coordination:** [Homepage Issue #45](https://github.com/richard-mauri/homepage/issues/45)
 
@@ -79,19 +79,33 @@ Only the owner's explicit **`FINISH`** for a clearly identified active scoped PR
 2. **Mandatory pre-merge version update.** FINISH explicitly authorizes and requires updating the source-controlled application semantic version for every runtime-changing PR, before merging that PR. Compare the candidate to the actual current integration-branch version. Apply the appropriate Semantic Versioning increment: PATCH for backward-compatible fixes, MINOR for backward-compatible new functionality, MAJOR for incompatible changes; use the highest applicable classification. **Documentation-only FINISH: do not increment any application version or build counter.** Determine this exemption from the complete PR diff and its runtime effects, not the repository that hosts the documents. In particular, editing SUITE_DEVELOPMENT_POLICY.md in Homepage does not constitute a Homepage runtime change and must not increment the Homepage application version. The policy document's own revision identifier is independent of all application versions. For documentation-only PRs, verify that application version declarations, build counters and runtime cache revisions remain unchanged; record the exemption in the PR and FINISH report. Mixed documentation/runtime PRs follow the runtime version rule. If the candidate already contains the correct increment, verify it rather than incrementing twice. Update all authoritative version declarations and affected cache revisions consistently according to the project's documented version mechanism; do not modify Git-private counters. Record old/new version, classification, and evidence in the PR and CURRENT_WORK.md. Commit and push any necessary version/documentation updates to the same scoped PR branch, run relevant tests, and verify required passing GitHub CI against the resulting **exact latest head SHA**. Reconfirm merge safety and obtain renewed owner acceptance if anything beyond version metadata or its necessary cache/documentation synchronization changes, or if existing protection or project policy requires it. Do not merge with an unchanged, invalid, inconsistent or unverified required version. If the version mechanism or classification is ambiguous, stop and ask. No separate authorization is required for the narrowly scoped FINISH version update.
 3. Merge **that PR only** using an allowed normal method; verify it actually merged into `main`.
 4. Close **only the completed Issue(s) associated with that PR**; verify each result. Do not automatically close the central suite coordination Issue while related consumer work remains.
-5. Check that the exact short-lived **remote head branch** is merged and has no open PR or unique unmerged work depending on it. Delete that branch only, without force, or verify GitHub already removed it. Do not delete `main`, retained release/archive branches, unrelated/historical branches, or anything ambiguous.
-6. Provide these exact safe owner Mac commands with the **actual repository directory and merged branch** substituted. Stop if `git status` shows uncommitted work; never discard it:
+5. Check that the exact short-lived **remote head branch** is merged and has no open PR or unique unmerged work depending on it. Delete that branch only, without force, or verify GitHub already removed it. Do not delete `main`, retained release/archive branches, unrelated/historical branches, or anything ambiguous. If direct deletion is unavailable or fails after the branch has been verified safe to delete, the agent **must include the exact `git push origin --delete ACTUAL-MERGED-BRANCH` command, with the actual branch name substituted, in the owner's FINISH cleanup command block**. Do not merely report the connector limitation or leave the owner to derive the command. Report remote deletion as pending owner execution, not completed. Omit the remote deletion command when deletion has already been verified. If merge safety, branch identity, unique commits or open PR dependencies cannot be verified, stop and report the blocker instead of supplying deletion commands.
+6. Provide one complete, copy-pasteable owner Mac cleanup sequence with the **actual repository directory, integration branch and merged feature branch** substituted. Use `main` or the project's documented integration branch (for example `gh-pages`). The sequence must include the clean-tree guard, fetch/prune, integration checkout and fast-forward-only pull, safe local branch deletion only if that local branch exists, the exact remote deletion command whenever step 5 leaves verified-safe remote deletion pending, final fetch/prune and status. Stop on dirty state, checkout/pull failure, unmerged local work or any unsafe or failed operation; never discard work or force-delete. If local branch existence is unknown, use a conditional check; do not assume the owner checked out the feature branch. The following example is for pending remote deletion (omit that deletion line if already verified complete):
 
 ```bash
-cd ~/projects/ACTUAL-REPO
-git status --short --branch
-# Stop here if any uncommitted changes are shown.
-git fetch --prune origin
-git checkout main
-git pull --ff-only origin main
-git branch -d ACTUAL-MERGED-BRANCH
-git status --short --branch
+(
+  set -e
+  cd ~/projects/ACTUAL-REPO
+  git status --short --branch
+  if [ -n "$(git status --porcelain)" ]; then
+    echo "STOP: working tree is not clean" >&2
+    exit 1
+  fi
+  git fetch --prune origin
+  git checkout ACTUAL-INTEGRATION-BRANCH
+  git pull --ff-only origin ACTUAL-INTEGRATION-BRANCH
+  if git show-ref --verify --quiet refs/heads/ACTUAL-MERGED-BRANCH; then
+    git merge-base --is-ancestor ACTUAL-MERGED-BRANCH ACTUAL-INTEGRATION-BRANCH
+    git branch -d ACTUAL-MERGED-BRANCH
+  fi
+  git merge-base --is-ancestor origin/ACTUAL-MERGED-BRANCH origin/ACTUAL-INTEGRATION-BRANCH
+  git push origin --delete ACTUAL-MERGED-BRANCH
+  git fetch --prune origin
+  git status --short --branch
+)
 ```
+
+The remote ancestry check and remote deletion command belong together: omit both if the remote branch was already deleted. The local ancestry check protects against local-only commits even if the feature branch tracks its remote counterpart. If remote deletion is pending, verify the remote branch still matches the previously reviewed safe head and has no open PR dependency before executing the command; if either changed, stop and re-verify. Do not use force or bulk deletion.
 
 Report the observed merge commit, previous and merged semantic versions (or justified exemption), associated Issue states, remote cleanup, CI and owner acceptance status, and any blocked/failed operation. FINISH authorizes the required source-controlled semantic version update described above, but is **not** consent for deployment, tag, release, Git-private build-counter changes, DNS/tunnel changes, other PRs or branches, force operations, or local data loss. Separate owner approval is needed for historical/bulk branch cleanup. No automatic promotion.
 
