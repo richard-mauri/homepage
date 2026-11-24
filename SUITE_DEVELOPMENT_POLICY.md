@@ -1,6 +1,6 @@
 # Suite development policy
 
-**Policy version:** 1.1.0
+**Policy version:** 1.2.0
 **Editable authority:** [richard-mauri/homepage](https://github.com/richard-mauri/homepage), `SUITE_DEVELOPMENT_POLICY.md` on merged `main`  
 **Coordination:** [Homepage Issue #45](https://github.com/richard-mauri/homepage/issues/45)
 
@@ -42,7 +42,7 @@ For owner Mac handoff commands, inspect the target application's `devbuild.sh` b
 
 ### Data and operations safety
 
-Preserve owner's local/uncommitted/unpushed files, subscriptions, exclusions, feed catalogs, watchlists, preferences, account records, per-user storage, browser history/session state, private credentials and tokens, private activity configuration, persistent data, Cloudflare/DNS/tunnel configuration and Git-private build counters. Do not print or commit secrets, cookies, identity records, logs, local binaries or private settings. Keep Homepage server authorization and per-user isolation; never infer permissions solely from UI. Application processes, tunnels and listeners are separate: do not restart or reconfigure them while changing policy. Avoid release-mode build scripts. Changes to live data, authentication, deployment, versions, tags, release or restarts require separately explicit owner authorization.
+Preserve owner's local/uncommitted/unpushed files, subscriptions, exclusions, feed catalogs, watchlists, preferences, account records, per-user storage, browser history/session state, private credentials and tokens, private activity configuration, persistent data, Cloudflare/DNS/tunnel configuration and Git-private build counters. Do not print or commit secrets, cookies, identity records, logs, local binaries or private settings. Keep Homepage server authorization and per-user isolation; never infer permissions solely from UI. Application processes, tunnels and listeners are separate: do not restart or reconfigure them while changing policy. Avoid release-mode build scripts. Changes to live data, authentication, deployment, tags, release or restarts require separately explicit owner authorization. Source-controlled semantic version updates required by FINISH are authorized by that command as defined below; other version changes and changes to Git-private build counters require separately explicit owner authorization.
 
 ## Mandatory visible six-item checklist
 
@@ -51,7 +51,7 @@ For **every development status and handoff**, give a short factual account of:
 1. **Baseline and scope:** verified GitHub `main`, Issue(s), actual branch/PR/base/head; whether related work belongs together in the same PR.
 2. **Data safety:** what local changes, subscriptions, exclusions, preferences, accounts, settings, tokens, persistent data, browser history, tunnels and counters were checked/preserved; disclose inaccessible owner-local state.
 3. **Documentation current:** review `README.md`, `ARCHITECTURE.md`, `DEVELOPMENT.md`, `AGENTS.md`, `CURRENT_WORK.md` for accuracy; list edits and exceptions; verify access to the current Homepage policy and identify any access exception.
-4. **Verification:** relevant regression/Markdown/link/path checks and exact-head CI run/result; distinguish passed, failed and unverified owner Mac/Safari/live/tunnel testing.
+4. **Verification:** relevant regression/Markdown/link/path checks and exact-head CI run/result; distinguish passed, failed and unverified owner Mac/Safari/live/tunnel testing. For FINISH, report integration-branch version, candidate version, semantic increment classification, consistency of version declarations and relevant cache revisions; explicitly justify any documentation-only exemption.
 5. **Local handoff:** complete copy-pasteable **Mac commands** with actual checkout directory, branch, clean-tree check, fetch/checkout/pull, and (for runtime changes) test/build/launch from that app's `DEVELOPMENT.md`; after FINISH, exact safe restoration commands. Use `git checkout` for the owner's Git, not `git switch`. Never force checkout over dirty work.
 6. **Promotion authority and outcome:** specify approval and actual completion status separately for merge, associated Issue closure, remote branch deletion, deployment, tag and release. Never claim a step completed without observing it.
 
@@ -69,17 +69,18 @@ The owner's `NEXT` **authorizes and instructs the agent to begin the next agreed
 
 After pushing, verify the **required passing GitHub CI/checks against the exact latest PR head SHA** (identify the run and result; a stale, missing, pending or inaccessible run is not a pass). **Only after exact-head CI passes**, present the mandatory six-item checklist **as a table**, with statuses and concrete evidence, immediately followed by complete, copy-pasteable owner Mac local handoff instructions for clean-tree inspection, fetch/checkout/pull, build, test and run using the named app's `DEVELOPMENT.md`. Mark owner Mac/Safari/live acceptance as unverified until actually performed. If CI cannot be made to pass, report the blocker and do not present a successful local-testing handoff.
 
-`NEXT` does not authorize the agent to execute a production launcher, restart a service or tunnel, deploy, merge, close Issues, delete branches, change versions or release. Supplying documented owner-run commands is not permission to execute them. The owner reviews local results and separately issues `FINISH` for an identified PR when ready.
+`NEXT` does not authorize the agent to execute a production launcher, restart a service or tunnel, deploy, merge, close Issues, delete branches, change versions or release. Identify the expected semantic version increment during NEXT and record it in the PR; FINISH authorizes and requires the actual update unless already separately authorized and applied. Supplying documented owner-run commands is not permission to execute them. The owner reviews local results and separately issues `FINISH` for an identified PR when ready.
 
 ## Owner command `FINISH`
 
 Only the owner's explicit **`FINISH`** for a clearly identified active scoped PR authorizes its *complete closeout*, in this order:
 
-1. Confirm exactly which active PR FINISH applies to, its `main` base, current head SHA, required **passing exact-head CI**, merge safety/protection/reviews and absence of blocking issues. Stop and report if ambiguous, unavailable, failed or unsafe; never bypass protection.
-2. Merge **that PR only** using an allowed normal method; verify it actually merged into `main`.
-3. Close **only the completed Issue(s) associated with that PR**; verify each result. Do not automatically close the central suite coordination Issue while related consumer work remains.
-4. Check that the exact short-lived **remote head branch** is merged and has no open PR or unique unmerged work depending on it. Delete that branch only, without force, or verify GitHub already removed it. Do not delete `main`, retained release/archive branches, unrelated/historical branches, or anything ambiguous.
-5. Provide these exact safe owner Mac commands with the **actual repository directory and merged branch** substituted. Stop if `git status` shows uncommitted work; never discard it:
+1. Confirm exactly which active PR FINISH applies to, its `main` base (or the documented integration branch), current head SHA, required **passing exact-head CI**, merge safety/protection/reviews and absence of blocking issues. Stop and report if ambiguous, unavailable, failed or unsafe; never bypass protection.
+2. **Mandatory pre-merge version update.** FINISH explicitly authorizes and requires updating the source-controlled application semantic version for every runtime-changing PR, before merging that PR. Compare the candidate to the actual current integration-branch version. Apply the appropriate Semantic Versioning increment: PATCH for backward-compatible fixes, MINOR for backward-compatible new functionality, MAJOR for incompatible changes; use the highest applicable classification. Documentation-only changes with no runtime effect do not require an application version increment (version the shared policy itself when amended). If the candidate already contains the correct increment, verify it rather than incrementing twice. Update all authoritative version declarations and affected cache revisions consistently according to the project's documented version mechanism; do not modify Git-private counters. Record old/new version, classification, and evidence in the PR and CURRENT_WORK.md. Commit and push any necessary version/documentation updates to the same scoped PR branch, run relevant tests, and verify required passing GitHub CI against the resulting **exact latest head SHA**. Reconfirm merge safety and obtain renewed owner acceptance if anything beyond version metadata or its necessary cache/documentation synchronization changes, or if existing protection or project policy requires it. Do not merge with an unchanged, invalid, inconsistent or unverified required version. If the version mechanism or classification is ambiguous, stop and ask. No separate authorization is required for the narrowly scoped FINISH version update.
+3. Merge **that PR only** using an allowed normal method; verify it actually merged into `main`.
+4. Close **only the completed Issue(s) associated with that PR**; verify each result. Do not automatically close the central suite coordination Issue while related consumer work remains.
+5. Check that the exact short-lived **remote head branch** is merged and has no open PR or unique unmerged work depending on it. Delete that branch only, without force, or verify GitHub already removed it. Do not delete `main`, retained release/archive branches, unrelated/historical branches, or anything ambiguous.
+6. Provide these exact safe owner Mac commands with the **actual repository directory and merged branch** substituted. Stop if `git status` shows uncommitted work; never discard it:
 
 ```bash
 cd ~/projects/ACTUAL-REPO
@@ -92,7 +93,7 @@ git branch -d ACTUAL-MERGED-BRANCH
 git status --short --branch
 ```
 
-Report the observed merge commit, associated Issue states, remote cleanup, CI and owner acceptance status, and any blocked/failed operation. FINISH is **not** consent for deployment, tag, release, semantic version/build-counter changes, DNS/tunnel changes, other PRs or branches, force operations, or local data loss. Separate owner approval is needed for historical/bulk branch cleanup. No automatic promotion.
+Report the observed merge commit, previous and merged semantic versions (or justified exemption), associated Issue states, remote cleanup, CI and owner acceptance status, and any blocked/failed operation. FINISH authorizes the required source-controlled semantic version update described above, but is **not** consent for deployment, tag, release, Git-private build-counter changes, DNS/tunnel changes, other PRs or branches, force operations, or local data loss. Separate owner approval is needed for historical/bulk branch cleanup. No automatic promotion.
 
 ## Consumer adoption and ongoing maintenance
 
