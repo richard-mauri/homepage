@@ -32,7 +32,7 @@ Every development Issue MUST include the following bootstrap, with actual PR/bra
 >
 > Active PR: (link or not yet created). Development branch: (link or not yet created).
 
-The owner's instruction **Read and follow <Issue URL>** is sufficient to initiate BEGIN or recover an interrupted session. It does not authorize new scope or promotion.
+The owner's instruction **`Read and follow <Issue URL>`** is sufficient to initiate BEGIN or recover an interrupted session. It does not authorize new scope or promotion.
 
 CURRENT_WORK.md is persistent working memory, not an archive. Keep one factual snapshot: objective, approved scope, Issue/PR/branch/base, implementation and affected files, decisions/owner feedback, failed approaches to avoid, verification/CI, unresolved problems, exact next action, safety constraints and approval boundary. Record material progress before moving on; commit/push checkpoint updates with the associated work, including interrupted or failed work. Do not embed secrets. Record CI evidence by actual tested SHA; a checkpoint commit does not inherit a green run from its parent. Keep terminal CI result in PR metadata if recording it in the checkpoint would trigger an endless new-head cycle; the checkpoint must direct the next agent to that exact-head evidence.
 
@@ -56,7 +56,7 @@ During NEXT and FINISH the agent owns CI monitoring and correction. Use availabl
 
 ## 4. BEGIN — establish or recover
 
-Only the owner authorizes scope. BEGIN <project> or an Issue bootstrap requires reading the merged policy and all five project docs in full (active branch if resuming), active Issue(s), PR description/discussion/reviews, actual source/commits, integration branch, exact head and checks. Inspect accessible owner-local divergence; otherwise assign inspection to the owner. Identify scope, tests, operational constraints and approvals before edits.
+Only the owner authorizes scope. `BEGIN <project>` or an Issue bootstrap requires reading the merged policy and all five project docs in full (active branch if resuming), active Issue(s), PR description/discussion/reviews, actual source/commits, integration branch, exact head and checks. Inspect accessible owner-local divergence; otherwise assign inspection to the owner. Identify scope, tests, operational constraints and approvals before edits.
 
 For an interrupted authorized phase, resume the existing branch/PR from the checkpoint without another NEXT. For new work, report readiness/blockers and propose the next scoped phase. BEGIN alone does not authorize unspecified implementation or promotion.
 
