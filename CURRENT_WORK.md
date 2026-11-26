@@ -1,7 +1,17 @@
 # Current work — Homepage
 
-Active [Issue #72](https://github.com/richard-mauri/homepage/issues/72), [draft PR #73](https://github.com/richard-mauri/homepage/pull/73), branch `docs/72-policy-consolidation`; integration main baseline `96c77cfeb6e1089c9dea966147ab844af42c5b68`, [CI #447](https://github.com/richard-mauri/homepage/actions/runs/45489402171) passed. Read the [current merged Homepage policy](https://github.com/richard-mauri/homepage/blob/main/SUITE_DEVELOPMENT_POLICY.md) first; v1.2.2 remains authoritative until FINISH.
+## Baseline
 
-Owner NEXT authorized the documentation-only v1.3.0 consolidation. Implemented: seven-section policy (24,955 → 15,029 characters), sixth member Sailing GPS Map/gh-pages, Issue bootstrap with real PR/branch links, continuous checkpoints, resume without redundant NEXT, agent-owned CI correction/polling, three bounded retries where supported, conflict disclosure, pre-merge FINISH housekeeping and retained version/safety/cleanup/reporting rules. AGENTS links directly to merged policy; DEVELOPMENT removes obsolete checkout requirement and aligns checkpoints; README links to merged policy. ARCHITECTURE reviewed, unchanged; broader stale runtime descriptions and consumer adoption are separate. No runtime/version/build/cache changes or historical branch deletion.
+Homepage is the independent Go launchpad and shared policy authority. Read the [current merged suite policy](https://github.com/richard-mauri/homepage/blob/main/SUITE_DEVELOPMENT_POLICY.md) first. This snapshot describes the intended policy v1.3.0 baseline; confirm actual integration, Issues, PRs and CI in GitHub.
 
-Verification: reviewed full policy and five docs; checked relative links, code fences and literal command placeholders; five Markdown files only in intermediate diff. Final checkpoint creates a new head: obtain actual latest PR SHA and CI evidence from PR metadata/Actions; do not reuse earlier run. Next: verify final diff, refresh PR description, monitor exact-head CI and correct any scoped failures; then owner review/FINISH. FINISH must replace this active snapshot with clean intended baseline before final CI/merge. Owner Mac state inaccessible; no build/Safari/restart required for docs. No promotion or separate consumer work authorized by NEXT.
+The suite comprises six independent projects, including Sailing GPS Map (integration branch gh-pages). Suite membership does not change runtime access, launcher cards, authentication, deployment or storage. Policy changes are documentation-only; application versions, build counters, runtime cache revisions and operational services remain unchanged.
+
+## Outstanding work
+
+- Sailing GPS Map: verify its standard documents and adoption of the shared policy in a separately authorized consumer task.
+- SailingGo: Issue #45 (public street tile proxy), followed by dependent Sailing GPS Map Issue #46; neither is implemented by Homepage policy work.
+- Homepage: historical runtime-documentation reconciliation and residual branch cleanup require separate scope/approval.
+
+## Operational constraints
+
+Homepage runs on the owner's Mac with its own loopback listener, persistent per-user data and Cloudflare Tunnel. Preserve private credentials, local changes, browser/session state, data and Git-private build counters. The owner checks local divergence and performs applicable Mac/Safari acceptance; remote agents must not infer it from CI. Follow DEVELOPMENT.md for app procedures. No deployment or restart without separate authorization.
